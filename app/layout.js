@@ -2,6 +2,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { AuthGate } from "@/components/auth/AuthGate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,8 +26,10 @@ export default function RootLayout({ children }) {
       className={`dark ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body data-app="shell" className="flex h-full min-h-screen bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
-        <AppSidebar />
-        <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
+        <AuthGate>
+          <AppSidebar />
+          <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
+        </AuthGate>
         <Toaster richColors position="top-center" />
       </body>
     </html>

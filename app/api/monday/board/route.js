@@ -1,6 +1,7 @@
 import { getBoardSchema, resolveColumnId } from "@/lib/board-schemas";
 import { mondayFetch, getBoardIdOrThrow } from "@/lib/server/monday-client";
 import { verificarSessionToken, MondayAuthError } from "@/lib/server/monday-guard";
+import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
 import {
   demoHandleItems,
   demoHandleItemUpdate,
@@ -13,6 +14,20 @@ import {
 // (lib/server/demo-data.js). Pensado para el link publico de prueba - no requiere
 // sessionToken de monday ni expone ningun dato real de la cuenta.
 const DEMO_MODE = process.env.DEMO_MODE === "true";
+
+// Capa 2 (whitelist) + Capa 3 (2FA) encima del sessionToken de monday (Capa 1) -
+// ver SeguidadApp.md y lib/server/auth-guard.js. Off por defecto para no romper
+// el desarrollo mientras se termina de conectar la base de Neon; se activa recien
+// cuando DATABASE_URL / MFA_ENCRYPTION_KEY / MFA_SESSION_SECRET esten listos.
+const AUTH_LAYERS_ENABLED = process.env.AUTH_LAYERS_ENABLED === "true";
+
+async function verificarCapasDeAcceso(request) {
+  if (AUTH_LAYERS_ENABLED) {
+    await verificarAcceso(request, { ip: request.headers.get("x-forwarded-for") });
+  } else {
+    verificarSessionToken(request.headers.get("authorization"));
+  }
+}
 
 /**
  * monday.com siempre devuelve column_values.text como string plano. Las paginas
@@ -182,11 +197,10 @@ async function handleUsersList(params) {
 export async function POST(request) {
   if (!DEMO_MODE) {
     try {
-      verificarSessionToken(request.headers.get("authorization"));
+      await verificarCapasDeAcceso(request);
     } catch (err) {
-      if (err instanceof MondayAuthError) {
-        return Response.json({ error: err.message }, { status: 401 });
-      }
+      if (err instanceof AccesoError) return accesoErrorToResponse(err);
+      if (err instanceof MondayAuthError) return Response.json({ error: err.message }, { status: 401 });
       throw err;
     }
   }
