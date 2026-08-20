@@ -7,7 +7,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { ArrowLeft, Shield, User, ChevronDown, Check, X, Users, Building2, ChevronRight, Lock, Unlock } from 'lucide-react';
-import { getAllRoles, saveAllRoles, ROLES, ALL_OBRAS, canAccessAdmin, canManageRoles, getRoleFromData, getObrasFromData, isObrasRestricted } from '@/hooks/vale-express/useUserRole';
+import { getAllRoles, saveAllRoles, ROLES, ALL_OBRAS, canAccessAdmin, canManageRoles, getRoleFromData, getObrasFromData, isObrasRestricted, getUserRoleData } from '@/hooks/vale-express/useUserRole';
 
 const valesBoard = new ValesBoard();
 
@@ -32,7 +32,7 @@ export default function AdminPage() {
             const sessionData = JSON.parse(stored);
             setSession(sessionData);
             const { roles: currentRoles } = await getAllRoles();
-            const userData = currentRoles[String(sessionData.userId)];
+            const userData = getUserRoleData(currentRoles, sessionData.userId);
             const userRole = getRoleFromData(userData);
             if (!canAccessAdmin(userRole)) {
                 toast.error('No tienes permisos de administrador');

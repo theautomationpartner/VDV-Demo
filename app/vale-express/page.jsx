@@ -50,8 +50,8 @@ export default function LoginPage() {
         try {
             // Find user by email among board subscribers
             const normalizedEmail = email.trim().toLowerCase();
-            const matchedUser = normalizedEmail === 'superadmin@test.com'
-                ? { id: 'test-super-admin', name: 'Super Admin (Prueba)', email: normalizedEmail }
+            const matchedUser = normalizedEmail === 'admin@test.com'
+                ? { id: 'test-viewer', name: 'Admin (Solo lectura)', email: normalizedEmail }
                 : subscribers.find(s => s.email?.toLowerCase() === normalizedEmail);
 
             if (!matchedUser) {

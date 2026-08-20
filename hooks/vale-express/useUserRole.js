@@ -10,8 +10,19 @@ export const ROLES = {
     admin: { label: 'Administrador', description: 'Puede ver y operar todo, sin gestionar roles' },
     bodeguero: { label: 'Bodeguero', description: 'Solo ingreso de materiales' },
     jefe_obra: { label: 'Jefe de Obra', description: 'Solo solicitud de materiales' },
-    apr: { label: 'APR', description: 'Solo solicitud de materiales' }
+    apr: { label: 'APR', description: 'Solo solicitud de materiales' },
+    viewer: { label: 'Visualizador (Prueba)', description: 'Solo puede ver, no puede crear ni editar nada' }
 };
+
+// Cuenta de prueba de solo lectura (login con admin@test.com, ver app/vale-express/page.jsx).
+// No vive en storage.json: se resuelve en memoria para no depender de datos reales del board.
+const TEST_VIEWER_ID = 'test-viewer';
+const TEST_VIEWER_DATA = { role: 'viewer', obras: [], restrictObras: false };
+
+export function getUserRoleData(roles, userId) {
+    if (String(userId) === TEST_VIEWER_ID) return TEST_VIEWER_DATA;
+    return roles[String(userId)] || null;
+}
 
 export const ALL_OBRAS = [
     "PL 46-50", "VIK", "SAMOA", "IVA", "SELMAN", "NUEVO", "HUELEN", "ALAIA",
@@ -94,7 +105,7 @@ export function useUserRole(userId) {
         try {
             const { roles } = await getAllRoles();
             setAllRoles(roles);
-            const userData = roles[String(userId)] || null;
+            const userData = getUserRoleData(roles, userId);
             const userRole = getRoleFromData(userData);
             const userObras = getObrasFromData(userData);
             const restricted = isObrasRestricted(userData);
@@ -141,7 +152,7 @@ export function canAccessSolicitud(role) {
 export function canAccessValesPendientes(role) {
     if (!role) return false;
     const r = typeof role === 'string' ? role : role?.role;
-    return r === 'super_admin' || r === 'admin' || r === 'bodeguero' || r === 'jefe_obra' || r === 'apr';
+    return r === 'super_admin' || r === 'admin' || r === 'bodeguero' || r === 'jefe_obra' || r === 'apr' || r === 'viewer';
 }
 
 /**
@@ -159,7 +170,7 @@ export function canEditVales(role) {
 export function canAccessAdmin(role) {
     if (!role) return false;
     const r = typeof role === 'string' ? role : role?.role;
-    return r === 'super_admin' || r === 'admin';
+    return r === 'super_admin' || r === 'admin' || r === 'viewer';
 }
 
 /**
@@ -177,7 +188,7 @@ export function canManageRoles(role) {
 export function canAccessStock(role) {
     if (!role) return false;
     const r = typeof role === 'string' ? role : role?.role;
-    return r === 'super_admin' || r === 'admin' || r === 'bodeguero' || r === 'jefe_obra' || r === 'apr';
+    return r === 'super_admin' || r === 'admin' || r === 'bodeguero' || r === 'jefe_obra' || r === 'apr' || r === 'viewer';
 }
 
 /**

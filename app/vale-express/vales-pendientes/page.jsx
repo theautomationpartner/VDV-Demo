@@ -7,7 +7,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { ArrowLeft, ClipboardList, Check, Pencil, X, ChevronDown, Package, RefreshCw } from 'lucide-react';
-import { getAllRoles, canAccessValesPendientes, canEditVales, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras, ALL_OBRAS } from '@/hooks/vale-express/useUserRole';
+import { getAllRoles, canAccessValesPendientes, canEditVales, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras, getUserRoleData, ALL_OBRAS } from '@/hooks/vale-express/useUserRole';
 
 const valesBoard = new ValesBoard();
 
@@ -41,7 +41,7 @@ export default function ValesPendientesPage() {
         try {
             const sessionData = JSON.parse(session);
             const { roles } = await getAllRoles();
-            const userData = roles[String(sessionData.userId)];
+            const userData = getUserRoleData(roles, sessionData.userId);
             const userRole = getRoleFromData(userData);
             const userObras = getObrasFromData(userData);
             const restricted = isObrasRestricted(userData);

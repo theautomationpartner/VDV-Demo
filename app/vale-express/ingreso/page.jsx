@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { IngresoLineItem } from '@/components/vale-express/IngresoLineItem';
 import { ProveedorSearch } from '@/components/vale-express/ProveedorSearch';
 import { Plus, PackageCheck, PackagePlus, RotateCcw, ChevronDown, X, ArrowLeft, Camera } from 'lucide-react';
-import { getAllRoles, canAccessIngreso, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras, ALL_OBRAS } from '@/hooks/vale-express/useUserRole';
+import { getAllRoles, canAccessIngreso, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras, getUserRoleData, ALL_OBRAS } from '@/hooks/vale-express/useUserRole';
 
 const ingresosBoard = new IngresosBoard();
 const proveedoresBoard = new ProveedoresBoard();
@@ -54,7 +54,7 @@ export default function IngresoPage() {
 
                 // Check role-based access
                 const { roles } = await getAllRoles();
-                const userData = roles[String(sessionData.userId)];
+                const userData = getUserRoleData(roles, sessionData.userId);
                 const userRole = getRoleFromData(userData);
                 const userObras = getObrasFromData(userData);
                 const restricted = isObrasRestricted(userData);

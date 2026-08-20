@@ -8,7 +8,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { MaterialLineItem } from '@/components/vale-express/MaterialLineItem';
 import { Plus, ClipboardCheck, FileText, RotateCcw, ChevronDown, X, ArrowLeft } from 'lucide-react';
-import { getAllRoles, canAccessSolicitud, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras, ALL_OBRAS } from '@/hooks/vale-express/useUserRole';
+import { getAllRoles, canAccessSolicitud, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras, getUserRoleData, ALL_OBRAS } from '@/hooks/vale-express/useUserRole';
 import { useObraStock } from '@/hooks/vale-express/useObraStock';
 
 const valesBoard = new ValesBoard();
@@ -51,7 +51,7 @@ export default function SolicitudPage() {
             try {
                 const sessionData = JSON.parse(session);
                 const { roles } = await getAllRoles();
-                const userData = roles[String(sessionData.userId)];
+                const userData = getUserRoleData(roles, sessionData.userId);
                 const userRole = getRoleFromData(userData);
                 const userObras = getObrasFromData(userData);
                 const restricted = isObrasRestricted(userData);

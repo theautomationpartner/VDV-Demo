@@ -276,7 +276,7 @@ export default function DashboardPage() {
                         )}
 
                         {/* Pending Vales - Bodeguero + Admin + Super Admin + Jefe de Obra (view own) */}
-                        {(canAccessIngreso(role) || role === 'jefe_obra' || role === 'apr') && (
+                        {(canAccessIngreso(role) || role === 'jefe_obra' || role === 'apr' || role === 'viewer') && (
                             <button
                                 onClick={() => router.push('/vale-express/vales-pendientes')}
                                 aria-label="Ver solicitudes pendientes"

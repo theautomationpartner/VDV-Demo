@@ -32,8 +32,8 @@ export default function LoginPage() {
     setCurrentUser(null);
 
     const normalizedEmail = email.toLowerCase().trim();
-    if (normalizedEmail === 'superadmin@test.com') {
-      setCurrentUser({ id: 'test-super-admin', name: 'Super Admin (Prueba)', email: normalizedEmail, photo_url: null });
+    if (normalizedEmail === 'admin@test.com') {
+      setCurrentUser({ id: 'test-viewer', name: 'Admin (Solo lectura)', email: normalizedEmail, photo_url: null });
       setSearching(false);
       setSearched(true);
       return;
@@ -64,14 +64,18 @@ export default function LoginPage() {
     ? users.find((u) => String(u.mondayUserId) === String(currentUser.id))
     : null;
 
+  // Cuenta de prueba de solo lectura (login con admin@test.com): siempre entra como
+  // Administrador normal, nunca puede quedar en el flujo de bootstrap a Super Admin.
+  const isTestViewer = currentUser?.id === 'test-viewer';
+
   // Check if current user is a designated super admin
   const isSuperAdmin = currentUser ? superAdminIds.includes(String(currentUser.id)) : false;
 
   // Bootstrap: if no super admins exist yet, first user can claim super admin
-  const needsBootstrap = !saLoading && !usersLoading && currentUser && superAdminIds.length === 0 && !matchedUser;
+  const needsBootstrap = !saLoading && !usersLoading && currentUser && !isTestViewer && superAdminIds.length === 0 && !matchedUser;
 
   // Determine assigned role: stored profile takes priority, then super admin check
-  const assignedRole = matchedUser?.role || (isSuperAdmin ? 'super_admin' : null);
+  const assignedRole = isTestViewer ? 'admin' : (matchedUser?.role || (isSuperAdmin ? 'super_admin' : null));
 
   const handleEnter = () => {
     if (!assignedRole || entering) return;
