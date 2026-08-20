@@ -1,20 +1,18 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { authHeader } from "@/lib/monday-auth";
-import { getTrustedDeviceToken, setMfaSessionToken, setTrustedDeviceToken } from "@/lib/client/auth-state";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
-import { ShieldAlert, ShieldCheck } from "lucide-react";
+import { ShieldAlert, ShieldCheck, Mail } from "lucide-react";
 
 /**
- * Portero global de Capa 2 (whitelist) + Capa 3 (2FA) - se monta una sola vez en
+ * Login propio de la app (whitelist de emails + 2FA) - se monta una sola vez en
  * app/layout.js, ENVOLVIENDO las 3 apps (OC Tracker, Vale Express, Portal
- * Proveedor comparten esta misma puerta). Capa 1 (sessionToken de monday) ya se
- * valida en cada pedido individual via lib/monday-auth.js.
+ * Proveedor comparten esta misma puerta). No depende de monday.com para nada de
+ * esto: la app es standalone, monday es solo fuente de datos server-side.
  *
  * Si AUTH_LAYERS_ENABLED=false en el servidor (o DEMO_MODE=true), /api/auth/status
  * devuelve 'ready' de entrada y esto es un pass-through invisible.
@@ -22,39 +20,14 @@ import { ShieldAlert, ShieldCheck } from "lucide-react";
 export function AuthGate({ children }) {
   const [state, setState] = useState({ phase: "loading" });
 
-  const checkStatus = useCallback(async () => {
-    try {
-      const headers = await authHeader();
-      const trustedDevice = getTrustedDeviceToken();
-      if (trustedDevice) headers["X-Trusted-Device"] = trustedDevice;
-
-      const res = await fetch("/api/auth/status", { headers });
-      const json = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        setState({ phase: "blocked", code: json.code });
-        return;
-      }
-
-      if (json.status === "ready") {
-        setMfaSessionToken(json.mfaSessionToken);
-        setState({ phase: "ready" });
-      } else if (json.status === "needs_setup") {
-        setState({ phase: "needs_setup" });
-      } else if (json.status === "needs_code") {
-        setState({ phase: "needs_code" });
-      } else {
-        setState({ phase: "blocked" });
-      }
-    } catch (err) {
-      console.error("[AuthGate] Error consultando /api/auth/status:", err);
-      setState({ phase: "error" });
-    }
-  }, []);
-
   useEffect(() => {
-    checkStatus();
-  }, [checkStatus]);
+    fetch("/api/auth/status")
+      .then((res) => res.json())
+      .then((json) => {
+        setState(json.status === "ready" ? { phase: "ready" } : { phase: "login" });
+      })
+      .catch(() => setState({ phase: "error" }));
+  }, []);
 
   if (state.phase === "loading") {
     return (
@@ -68,54 +41,131 @@ export function AuthGate({ children }) {
     return children;
   }
 
-  if (state.phase === "blocked") {
-    return <BlockedScreen />;
-  }
-
   if (state.phase === "error") {
-    return <ErrorScreen onRetry={checkStatus} />;
+    return (
+      <div className="flex min-h-screen items-center justify-center p-8">
+        <Card className="max-w-sm p-6 text-center space-y-3">
+          <ShieldAlert className="mx-auto w-10 h-10 text-muted-foreground" />
+          <h1 className="text-lg font-semibold">Error de conexión</h1>
+          <p className="text-sm text-muted-foreground">No se pudo verificar el acceso. Recargá la página.</p>
+        </Card>
+      </div>
+    );
   }
 
-  if (state.phase === "needs_setup") {
-    return <SetupScreen onDone={() => setState({ phase: "ready" })} />;
-  }
-
-  return <CodeScreen onDone={() => setState({ phase: "ready" })} />;
+  return <LoginFlow onDone={() => setState({ phase: "ready" })} />;
 }
 
-function BlockedScreen() {
+function LoginFlow({ onDone }) {
+  // step: 'email' -> 'setup' (primera vez, hay que escanear QR) -> 'code' (ya
+  // tiene 2FA configurado, solo pide el codigo) -> 'blocked' (email no autorizado)
+  const [step, setStep] = useState("email");
+  const [preAuthToken, setPreAuthToken] = useState(null);
+
+  if (step === "email") {
+    return (
+      <EmailScreen
+        onAuthorized={(token, status) => {
+          setPreAuthToken(token);
+          setStep(status === "needs_setup" ? "setup" : "code");
+        }}
+        onBlocked={() => setStep("blocked")}
+      />
+    );
+  }
+
+  if (step === "blocked") {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-8">
+        <Card className="max-w-sm p-6 text-center space-y-3">
+          <ShieldAlert className="mx-auto w-10 h-10 text-destructive" />
+          <h1 className="text-lg font-semibold">Sin acceso</h1>
+          <p className="text-sm text-muted-foreground">
+            No tenés acceso a esta aplicación. Contactá al administrador.
+          </p>
+          <Button variant="outline" className="w-full" onClick={() => setStep("email")}>
+            Volver
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  if (step === "setup") {
+    return <SetupScreen preAuthToken={preAuthToken} onDone={onDone} />;
+  }
+
+  return <CodeScreen preAuthToken={preAuthToken} onDone={onDone} />;
+}
+
+function EmailScreen({ onAuthorized, onBlocked }) {
+  const [email, setEmail] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!email.trim() || submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        if (res.status === 401) return onBlocked();
+        throw new Error(json.error ?? "Error al verificar el correo");
+      }
+      onAuthorized(json.preAuthToken, json.status);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center p-8">
-      <Card className="max-w-sm p-6 text-center space-y-3">
-        <ShieldAlert className="mx-auto w-10 h-10 text-destructive" />
-        <h1 className="text-lg font-semibold">Sin acceso</h1>
-        <p className="text-sm text-muted-foreground">
-          No tenés acceso a esta aplicación. Contactá al administrador.
-        </p>
+      <Card className="max-w-sm w-full p-6 space-y-4">
+        <div className="text-center space-y-1">
+          <h1 className="text-lg font-semibold">VDV Suite</h1>
+          <p className="text-sm text-muted-foreground">Ingresá con tu correo autorizado</p>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Email</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tu@vdv.cl"
+                autoComplete="email"
+                autoFocus
+                className="pl-9"
+              />
+            </div>
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <Button type="submit" className="w-full" disabled={submitting || !email.trim()}>
+            {submitting ? "Verificando..." : "Continuar"}
+          </Button>
+        </form>
       </Card>
     </div>
   );
 }
 
-function ErrorScreen({ onRetry }) {
-  return (
-    <div className="flex min-h-screen items-center justify-center p-8">
-      <Card className="max-w-sm p-6 text-center space-y-3">
-        <ShieldAlert className="mx-auto w-10 h-10 text-muted-foreground" />
-        <h1 className="text-lg font-semibold">Error de conexión</h1>
-        <p className="text-sm text-muted-foreground">No se pudo verificar el acceso. Probá de nuevo.</p>
-        <Button onClick={onRetry}>Reintentar</Button>
-      </Card>
-    </div>
-  );
-}
-
-function SetupScreen({ onDone }) {
+function SetupScreen({ preAuthToken, onDone }) {
   const [loading, setLoading] = useState(true);
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const [secretBase32, setSecretBase32] = useState(null);
   const [code, setCode] = useState("");
-  const [trustDevice, setTrustDevice] = useState(true);
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [recoveryCodes, setRecoveryCodes] = useState(null);
@@ -123,8 +173,11 @@ function SetupScreen({ onDone }) {
   useEffect(() => {
     (async () => {
       try {
-        const headers = await authHeader();
-        const res = await fetch("/api/auth/mfa/setup", { method: "POST", headers });
+        const res = await fetch("/api/auth/mfa/setup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ preAuthToken }),
+        });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "Error iniciando el setup de 2FA");
         setQrDataUrl(json.qrDataUrl);
@@ -135,7 +188,7 @@ function SetupScreen({ onDone }) {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [preAuthToken]);
 
   const handleConfirm = async (e) => {
     e.preventDefault();
@@ -143,17 +196,13 @@ function SetupScreen({ onDone }) {
     setSubmitting(true);
     setError("");
     try {
-      const headers = { ...(await authHeader()), "Content-Type": "application/json" };
       const res = await fetch("/api/auth/mfa/confirm", {
         method: "POST",
-        headers,
-        body: JSON.stringify({ code: code.trim(), trustDevice }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preAuthToken, code: code.trim(), remember }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Código inválido");
-
-      setMfaSessionToken(json.mfaSessionToken);
-      if (json.trustedDeviceToken) setTrustedDeviceToken(json.trustedDeviceToken);
       setRecoveryCodes(json.recoveryCodes);
     } catch (err) {
       setError(err.message);
@@ -219,8 +268,8 @@ function SetupScreen({ onDone }) {
                 />
               </div>
               <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <input type="checkbox" checked={trustDevice} onChange={(e) => setTrustDevice(e.target.checked)} />
-                Confiar en este dispositivo por 30 días
+                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+                Mantener la sesión iniciada 30 días en este dispositivo
               </label>
               {error && <p className="text-sm text-destructive">{error}</p>}
               <Button type="submit" className="w-full" disabled={submitting}>
@@ -236,10 +285,10 @@ function SetupScreen({ onDone }) {
   );
 }
 
-function CodeScreen({ onDone }) {
+function CodeScreen({ preAuthToken, onDone }) {
   const [code, setCode] = useState("");
   const [useRecovery, setUseRecovery] = useState(false);
-  const [trustDevice, setTrustDevice] = useState(true);
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -249,14 +298,16 @@ function CodeScreen({ onDone }) {
     setSubmitting(true);
     setError("");
     try {
-      const headers = { ...(await authHeader()), "Content-Type": "application/json" };
-      const body = useRecovery ? { recoveryCode: code.trim(), trustDevice } : { code: code.trim(), trustDevice };
-      const res = await fetch("/api/auth/mfa/verify", { method: "POST", headers, body: JSON.stringify(body) });
+      const body = useRecovery
+        ? { preAuthToken, recoveryCode: code.trim(), remember }
+        : { preAuthToken, code: code.trim(), remember };
+      const res = await fetch("/api/auth/mfa/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Código inválido");
-
-      setMfaSessionToken(json.mfaSessionToken);
-      if (json.trustedDeviceToken) setTrustedDeviceToken(json.trustedDeviceToken);
       onDone();
     } catch (err) {
       setError(err.message);
@@ -282,8 +333,8 @@ function CodeScreen({ onDone }) {
             />
           </div>
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            <input type="checkbox" checked={trustDevice} onChange={(e) => setTrustDevice(e.target.checked)} />
-            Confiar en este dispositivo por 30 días
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+            Mantener la sesión iniciada 30 días en este dispositivo
           </label>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" className="w-full" disabled={submitting}>

@@ -1,4 +1,3 @@
-import { verificarSessionToken, MondayAuthError } from "@/lib/server/monday-guard";
 import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
 import { demoMoveItemToGroup } from "@/lib/server/demo-data";
 
@@ -6,25 +5,16 @@ const MONDAY_API_URL = "https://api.monday.com/v2";
 const DEMO_MODE = process.env.DEMO_MODE === "true";
 const AUTH_LAYERS_ENABLED = process.env.AUTH_LAYERS_ENABLED === "true";
 
-async function verificarCapasDeAcceso(request) {
-  if (AUTH_LAYERS_ENABLED) {
-    await verificarAcceso(request, { ip: request.headers.get("x-forwarded-for") });
-  } else {
-    verificarSessionToken(request.headers.get("authorization"));
-  }
-}
-
 /**
  * Proxy server-side hacia la API GraphQL real de monday.com.
  * El token nunca se expone al cliente: el navegador solo le pega a esta ruta.
  */
 export async function POST(request) {
-  if (!DEMO_MODE) {
+  if (!DEMO_MODE && AUTH_LAYERS_ENABLED) {
     try {
-      await verificarCapasDeAcceso(request);
+      verificarAcceso(request);
     } catch (err) {
       if (err instanceof AccesoError) return accesoErrorToResponse(err);
-      if (err instanceof MondayAuthError) return Response.json({ errors: [{ message: err.message }] }, { status: 401 });
       throw err;
     }
   }

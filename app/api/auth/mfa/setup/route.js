@@ -1,19 +1,17 @@
-import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
+import { verificarPreAuthToken } from "@/lib/server/session";
 import { iniciarSetupMfa } from "@/lib/server/totp";
 
 /**
- * Genera (o regenera) el secreto TOTP y devuelve el QR para escanear. No exige
- * 2FA para llegar aca, obviamente - es el paso PREVIO a tenerlo configurado.
+ * Genera (o regenera) el secreto TOTP y devuelve el QR para escanear. Recibe el
+ * preAuthToken emitido en /api/auth/login (paso 1: email ya paso la whitelist).
  */
 export async function POST(request) {
-  let sesion;
-  try {
-    sesion = await verificarAcceso(request, { requireMfa: false });
-  } catch (err) {
-    if (err instanceof AccesoError) return accesoErrorToResponse(err);
-    throw err;
+  const body = await request.json().catch(() => ({}));
+  const usuario = verificarPreAuthToken(body?.preAuthToken);
+  if (!usuario) {
+    return Response.json({ error: "Sesion de login vencida, volve a escribir tu email" }, { status: 401 });
   }
 
-  const { qrDataUrl, secretBase32 } = await iniciarSetupMfa(sesion.userId, sesion.email);
+  const { qrDataUrl, secretBase32 } = await iniciarSetupMfa(usuario.id, usuario.email);
   return Response.json({ qrDataUrl, secretBase32 });
 }

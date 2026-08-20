@@ -1,38 +1,34 @@
-import { verificarAcceso, accesoErrorToResponse, AccesoError, emitirSesionMfa } from "@/lib/server/auth-guard";
-import { verificarCodigoMfa, verificarCodigoRecuperacion, emitirTokenDispositivo } from "@/lib/server/totp";
+import { verificarPreAuthToken, crearSesion } from "@/lib/server/session";
+import { verificarCodigoMfa, verificarCodigoRecuperacion } from "@/lib/server/totp";
+import { marcarUltimoAcceso, auditarEvento } from "@/lib/server/whitelist";
 
 /**
- * Login normal (ya tiene 2FA configurado): valida el codigo de 6 digitos de la
- * app authenticator, o un codigo de recuperacion como fallback si perdio el
- * celular. Rate limiting de esto queda en Capa 1 (ver SeguidadApp.md - Vercel
- * Firewall / middleware), aca solo se valida el codigo en si.
+ * Login normal (ya tiene 2FA configurado): valida el codigo de 6 digitos, o un
+ * codigo de recuperacion como fallback si perdio el celular. Si es valido, crea
+ * la sesion de verdad (cookie httpOnly).
  */
 export async function POST(request) {
-  let sesion;
-  try {
-    sesion = await verificarAcceso(request, { requireMfa: false });
-  } catch (err) {
-    if (err instanceof AccesoError) return accesoErrorToResponse(err);
-    throw err;
+  const body = await request.json().catch(() => ({}));
+  const usuario = verificarPreAuthToken(body?.preAuthToken);
+  if (!usuario) {
+    return Response.json({ error: "Sesion de login vencida, volve a escribir tu email" }, { status: 401 });
   }
 
-  const body = await request.json().catch(() => ({}));
-  const { code, recoveryCode, trustDevice } = body ?? {};
+  const { code, recoveryCode, remember } = body ?? {};
+  const ip = request.headers.get("x-forwarded-for");
 
   const resultado = recoveryCode
-    ? await verificarCodigoRecuperacion(sesion.userId, recoveryCode)
-    : await verificarCodigoMfa(sesion.userId, code);
+    ? await verificarCodigoRecuperacion(usuario.id, recoveryCode)
+    : await verificarCodigoMfa(usuario.id, code);
 
   if (!resultado.ok) {
-    return Response.json({ error: "Codigo invalido o vencido" }, { status: 400 });
+    await auditarEvento(usuario.id, usuario.email, "mfa_fallido", ip);
+    return Response.json({ error: "Código inválido o vencido" }, { status: 400 });
   }
 
-  const payload = { mfaSessionToken: emitirSesionMfa(sesion.userId) };
+  await crearSesion(usuario, { remember: Boolean(remember) });
+  await marcarUltimoAcceso(usuario.id);
+  await auditarEvento(usuario.id, usuario.email, "mfa_ok", ip);
 
-  if (trustDevice) {
-    const { token } = await emitirTokenDispositivo(sesion.userId, request.headers.get("user-agent"));
-    payload.trustedDeviceToken = token;
-  }
-
-  return Response.json(payload);
+  return Response.json({ email: usuario.email, rol: usuario.rol });
 }

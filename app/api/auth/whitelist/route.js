@@ -7,12 +7,11 @@ import {
 } from "@/lib/server/whitelist";
 
 /**
- * Panel de administracion de la whitelist (Capa 2). Solo usuarios con rol='admin'
- * en la propia whitelist pueden ver o tocar esto - y como pasa por verificarAcceso
- * con requireMfa:true, tambien exige que ese admin ya haya pasado la Capa 3.
+ * Panel de administracion de la whitelist. Solo usuarios con rol='admin' (y ya
+ * logueados con 2FA, porque pasa por verificarAcceso) pueden ver o tocar esto.
  */
-async function requireAdmin(request) {
-  const sesion = await verificarAcceso(request, { requireMfa: true, ip: request.headers.get("x-forwarded-for") });
+function requireAdmin(request) {
+  const sesion = verificarAcceso(request);
   if (sesion.rol !== "admin") {
     return { error: Response.json({ error: "Necesitas rol de administrador" }, { status: 403 }) };
   }
@@ -21,7 +20,7 @@ async function requireAdmin(request) {
 
 export async function GET(request) {
   try {
-    const { error } = await requireAdmin(request);
+    const { error } = requireAdmin(request);
     if (error) return error;
   } catch (err) {
     if (err instanceof AccesoError) return accesoErrorToResponse(err);
@@ -33,7 +32,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const { error } = await requireAdmin(request);
+    const { error } = requireAdmin(request);
     if (error) return error;
   } catch (err) {
     if (err instanceof AccesoError) return accesoErrorToResponse(err);
@@ -51,7 +50,7 @@ export async function POST(request) {
 
 export async function PATCH(request) {
   try {
-    const { error } = await requireAdmin(request);
+    const { error } = requireAdmin(request);
     if (error) return error;
   } catch (err) {
     if (err instanceof AccesoError) return accesoErrorToResponse(err);
@@ -69,7 +68,7 @@ export async function PATCH(request) {
 
 export async function DELETE(request) {
   try {
-    const { error } = await requireAdmin(request);
+    const { error } = requireAdmin(request);
     if (error) return error;
   } catch (err) {
     if (err instanceof AccesoError) return accesoErrorToResponse(err);

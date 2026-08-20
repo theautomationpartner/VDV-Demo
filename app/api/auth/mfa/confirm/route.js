@@ -1,38 +1,30 @@
-import { verificarAcceso, accesoErrorToResponse, AccesoError, emitirSesionMfa } from "@/lib/server/auth-guard";
-import { confirmarSetupMfa, emitirTokenDispositivo } from "@/lib/server/totp";
+import { verificarPreAuthToken, crearSesion } from "@/lib/server/session";
+import { confirmarSetupMfa } from "@/lib/server/totp";
+import { marcarUltimoAcceso, auditarEvento } from "@/lib/server/whitelist";
 
 /**
- * Confirma el primer codigo del setup de 2FA. Si es valido: queda 2FA activo,
- * se devuelven los 10 codigos de recuperacion (SOLO esta vez, en texto plano) y
- * un token de sesion MFA ya listo para usar.
+ * Confirma el primer codigo del setup de 2FA. Si es valido: se crea la sesion de
+ * verdad (cookie httpOnly) y se devuelven los 10 codigos de recuperacion, SOLO
+ * esta vez, en texto plano.
  */
 export async function POST(request) {
-  let sesion;
-  try {
-    sesion = await verificarAcceso(request, { requireMfa: false });
-  } catch (err) {
-    if (err instanceof AccesoError) return accesoErrorToResponse(err);
-    throw err;
+  const body = await request.json().catch(() => ({}));
+  const usuario = verificarPreAuthToken(body?.preAuthToken);
+  if (!usuario) {
+    return Response.json({ error: "Sesion de login vencida, volve a escribir tu email" }, { status: 401 });
   }
 
-  const body = await request.json().catch(() => ({}));
-  const { code, trustDevice } = body ?? {};
+  const { code, remember } = body ?? {};
   if (!code) return Response.json({ error: "Falta 'code'" }, { status: 400 });
 
-  const resultado = await confirmarSetupMfa(sesion.userId, code);
+  const resultado = await confirmarSetupMfa(usuario.id, code);
   if (!resultado.ok) {
-    return Response.json({ error: "Codigo invalido" }, { status: 400 });
+    return Response.json({ error: "Código inválido" }, { status: 400 });
   }
 
-  const payload = {
-    recoveryCodes: resultado.recoveryCodes,
-    mfaSessionToken: emitirSesionMfa(sesion.userId),
-  };
+  await crearSesion(usuario, { remember: Boolean(remember) });
+  await marcarUltimoAcceso(usuario.id);
+  await auditarEvento(usuario.id, usuario.email, "mfa_setup_ok", request.headers.get("x-forwarded-for"));
 
-  if (trustDevice) {
-    const { token } = await emitirTokenDispositivo(sesion.userId, request.headers.get("user-agent"));
-    payload.trustedDeviceToken = token;
-  }
-
-  return Response.json(payload);
+  return Response.json({ recoveryCodes: resultado.recoveryCodes, email: usuario.email, rol: usuario.rol });
 }
