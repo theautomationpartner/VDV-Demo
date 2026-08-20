@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# storage local (roles/usuarios) - no versionar
+/data/storage.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

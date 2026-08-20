@@ -1,0 +1,98 @@
+/* Tokens originales de Vale Express ("dark pro-tool" palette), escopeados para no afectar a las otras apps. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
+[data-app="vale-express"] {
+    --radius: 0.375rem;
+    --radius-sm: 0.25rem;
+    --radius-md: 0.375rem;
+    --radius-lg: 0.5rem;
+    --radius-xl: 0.625rem;
+    --radius-2xl: 0.75rem;
+
+    --font-heading: 'Inter', system-ui, sans-serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+
+    --font-weight-light: 300;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+
+    --spacing-unit: 0.25rem;
+
+    /* Valores envueltos en hsl(...) (no tripletes "pelados"): los tokens
+       --color-* de Tailwind (@theme inline en globals.css) se inlinean tal
+       cual en las utilities compiladas (ej. ".bg-card{background-color:var(--card)}"),
+       sin wrapper hsl() propio. Un triplete "H S% L%" ahi no es un color CSS
+       valido y la regla se descarta (bg-card/bg-primary/etc. quedan
+       transparentes). Ver theme-oc-tracker.css para el mismo fix. */
+    --background: hsl(225 6% 8%);
+    --foreground: hsl(225 6% 92%);
+    --card: hsl(225 6% 11%);
+    --card-foreground: hsl(225 6% 92%);
+    --popover: hsl(225 6% 11%);
+    --popover-foreground: hsl(225 6% 92%);
+    --primary: hsl(245 58% 64%);
+    --primary-foreground: hsl(225 6% 98%);
+    --secondary: hsl(225 6% 14%);
+    --secondary-foreground: hsl(225 6% 80%);
+    --muted: hsl(225 6% 14%);
+    --muted-foreground: hsl(225 6% 60%);
+    --accent: hsl(245 58% 64%);
+    --accent-foreground: hsl(225 6% 98%);
+    --destructive: hsl(0 55% 58%);
+    --border: hsl(225 6% 18%);
+    --input: hsl(225 6% 22%);
+    --ring: hsl(245 58% 64%);
+    --chart-1: hsl(245 58% 64%);
+    --chart-2: hsl(160 50% 50%);
+    --chart-3: hsl(35 60% 55%);
+    --chart-4: hsl(280 45% 58%);
+    --chart-5: hsl(190 55% 50%);
+    --sidebar: hsl(225 6% 9%);
+    --sidebar-foreground: hsl(225 6% 88%);
+    --sidebar-primary: hsl(245 58% 64%);
+    --sidebar-primary-foreground: hsl(225 6% 98%);
+    --sidebar-accent: hsl(225 6% 14%);
+    --sidebar-accent-foreground: hsl(225 6% 88%);
+    --sidebar-border: hsl(225 6% 16%);
+    --sidebar-ring: hsl(245 58% 64%);
+
+    --surface-1: hsl(225 6% 11%);
+    --surface-2: hsl(225 6% 14%);
+    --surface-3: hsl(225 6% 18%);
+    --border-subtle: hsl(225 6% 18%);
+    --border-default: hsl(225 6% 24%);
+    --fg-muted: hsl(225 6% 64%);
+    --fg-subtle: hsl(225 6% 48%);
+    --accent-soft: hsl(245 58% 64%);
+    --success: hsl(145 50% 45%);
+    --warning: hsl(35 60% 55%);
+
+    font-family: var(--font-body);
+    font-feature-settings: "ss01", "ss02", "cv11", "tnum";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: none;
+}
+
+[data-app="vale-express"] h1,
+[data-app="vale-express"] h2,
+[data-app="vale-express"] h3,
+[data-app="vale-express"] h4,
+[data-app="vale-express"] h5,
+[data-app="vale-express"] h6 {
+    font-family: var(--font-heading);
+}
+
+[data-app="vale-express"] .safe-area-bottom {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0.75rem));
+}
+
+@supports (-webkit-touch-callout: none) {
+    [data-app="vale-express"] input,
+    [data-app="vale-express"] select,
+    [data-app="vale-express"] textarea {
+        font-size: 16px !important;
+    }
+}

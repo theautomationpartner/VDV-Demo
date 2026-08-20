@@ -1,0 +1,205 @@
+import { getBoardSchema, resolveColumnId } from "@/lib/board-schemas";
+import { mondayFetch, getBoardIdOrThrow } from "@/lib/server/monday-client";
+import { verificarSessionToken, MondayAuthError } from "@/lib/server/monday-guard";
+
+/**
+ * monday.com siempre devuelve column_values.text como string plano. Las paginas
+ * migradas (igual que el codigo original) esperan numeros reales para columnas de
+ * tipo "numbers" y objetos Date para columnas de tipo "date". Antes esto se
+ * inferia adivinando por la FORMA del texto (si parecia un numero, se convertia) -
+ * eso rompia columnas de tipo texto que solo contienen digitos (ej. "NUMERO OC",
+ * que en monday es tipo texto, no numeros): terminaban convertidas a Number y
+ * cualquier .trim()/.toLowerCase() de la app migrada explotaba en runtime.
+ * Ahora se usa el tipo REAL de columna (column.type, pedido a la API de monday)
+ * para decidir la conversion, no una adivinanza.
+ */
+function coerceColumnValue(cv) {
+  const { text, column } = cv;
+  if (text == null || text === "") return null;
+  if (column?.type === "numbers") {
+    const n = Number(text);
+    return Number.isNaN(n) ? text : n;
+  }
+  if (column?.type === "date") {
+    const d = new Date(text);
+    return Number.isNaN(d.getTime()) ? text : d;
+  }
+  return text;
+}
+
+function mapItemColumns(item, columnIdToFriendly) {
+  const mapped = { id: item.id, name: item.name, group: item.group ?? null };
+  for (const cv of item.column_values ?? []) {
+    const friendlyKey = columnIdToFriendly[cv.id];
+    if (friendlyKey) mapped[friendlyKey] = coerceColumnValue(cv);
+  }
+  return mapped;
+}
+
+function invertColumns(columns) {
+  const inverted = {};
+  for (const [friendly, columnId] of Object.entries(columns)) {
+    inverted[columnId] = friendly;
+  }
+  return inverted;
+}
+
+async function handleItems(boardKey, schema, params) {
+  const boardId = getBoardIdOrThrow(schema, boardKey);
+  const { columns = [], where = {}, limit = 100, cursor = null } = params;
+
+  const columnIds = columns.map((key) => resolveColumnId(boardKey, key));
+  const columnIdToFriendly = invertColumns(schema.columns);
+
+  // Filtro por nombre de item: la API de monday no soporta esto de forma consistente
+  // via query_params, asi que se filtra client-side (post-fetch) sobre la pagina traida.
+  const nameFilter = typeof where.name === "string" ? where.name.toLowerCase() : null;
+
+  const rules = [];
+  for (const [key, cond] of Object.entries(where)) {
+    if (key === "name" || cond == null) continue;
+    const columnId = resolveColumnId(boardKey, key);
+    if (typeof cond === "object" && Array.isArray(cond.neq)) {
+      rules.push({ column_id: columnId, compare_value: cond.neq, operator: "not_any_of" });
+    } else if (typeof cond === "object" && typeof cond.contains === "string") {
+      rules.push({ column_id: columnId, compare_value: [cond.contains], operator: "contains_text" });
+    }
+  }
+
+  let data;
+  if (cursor) {
+    data = await mondayFetch(
+      `query ($cursor: String!, $limit: Int!) {
+        next_items_page(cursor: $cursor, limit: $limit) {
+          cursor
+          items { id name group { id title } column_values { id text value column { type } } }
+        }
+      }`,
+      { cursor, limit }
+    );
+    const page = data.next_items_page;
+    let items = page.items.map((it) => mapItemColumns(it, columnIdToFriendly));
+    if (nameFilter) items = items.filter((it) => it.name?.toLowerCase().includes(nameFilter));
+    return { items, cursor: page.cursor };
+  }
+
+  const queryParams = rules.length ? { rules } : undefined;
+  data = await mondayFetch(
+    `query ($boardId: ID!, $limit: Int!, $queryParams: ItemsQuery) {
+      boards(ids: [$boardId]) {
+        items_page(limit: $limit, query_params: $queryParams) {
+          cursor
+          items { id name group { id title } column_values { id text value column { type } } }
+        }
+      }
+    }`,
+    { boardId, limit, queryParams }
+  );
+  const page = data.boards?.[0]?.items_page;
+  if (!page) return { items: [], cursor: null };
+  let items = page.items.map((it) => mapItemColumns(it, columnIdToFriendly));
+  if (nameFilter) items = items.filter((it) => it.name?.toLowerCase().includes(nameFilter));
+  return { items, cursor: page.cursor };
+}
+
+async function handleItemUpdate(boardKey, schema, params) {
+  const boardId = getBoardIdOrThrow(schema, boardKey);
+  const { itemId, values = {} } = params;
+
+  const entries = Object.entries(values);
+  if (!entries.length) return { id: itemId };
+
+  const mutationParts = entries.map(([friendlyKey, value], i) => {
+    const columnId = resolveColumnId(boardKey, friendlyKey);
+    return `c${i}: change_simple_column_value(item_id: $itemId, board_id: $boardId, column_id: ${JSON.stringify(
+      columnId
+    )}, value: ${JSON.stringify(String(value))}) { id }`;
+  });
+
+  await mondayFetch(
+    `mutation ($itemId: ID!, $boardId: ID!) { ${mutationParts.join("\n")} }`,
+    { itemId, boardId }
+  );
+
+  return { id: itemId };
+}
+
+async function handleItemCreate(boardKey, schema, params) {
+  const boardId = getBoardIdOrThrow(schema, boardKey);
+  const { name, groupId, values = {}, returnColumns = [] } = params;
+
+  const data = await mondayFetch(
+    `mutation ($boardId: ID!, $groupId: String, $name: String!) {
+      create_item(board_id: $boardId, group_id: $groupId, item_name: $name) { id name }
+    }`,
+    { boardId, groupId: groupId ?? null, name }
+  );
+  const itemId = data.create_item.id;
+
+  const entries = Object.entries(values);
+  if (entries.length) {
+    await handleItemUpdate(boardKey, schema, { itemId, values });
+  }
+
+  if (returnColumns.length) {
+    const { items } = await handleItems(boardKey, schema, {
+      columns: returnColumns,
+      where: {},
+      limit: 1,
+    });
+    const created = items.find((it) => String(it.id) === String(itemId));
+    return created ?? { id: itemId, name: data.create_item.name };
+  }
+
+  return { id: itemId, name: data.create_item.name };
+}
+
+async function handleUsersMe() {
+  const data = await mondayFetch(`{ me { id name email photo_url } }`);
+  return data.me;
+}
+
+async function handleUsersList(params) {
+  const { limit = 200 } = params;
+  const data = await mondayFetch(`query ($limit: Int!) { users(limit: $limit) { id name email photo_url } }`, {
+    limit,
+  });
+  return data.users;
+}
+
+export async function POST(request) {
+  try {
+    verificarSessionToken(request.headers.get("authorization"));
+  } catch (err) {
+    if (err instanceof MondayAuthError) {
+      return Response.json({ error: err.message }, { status: 401 });
+    }
+    throw err;
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "Body invalido, se esperaba JSON" }, { status: 400 });
+  }
+
+  const { boardKey, op, params = {} } = body ?? {};
+
+  try {
+    if (op === "usersMe") {
+      return Response.json({ result: await handleUsersMe() });
+    }
+
+    const schema = getBoardSchema(boardKey);
+
+    if (op === "items") return Response.json({ result: await handleItems(boardKey, schema, params) });
+    if (op === "itemUpdate") return Response.json({ result: await handleItemUpdate(boardKey, schema, params) });
+    if (op === "itemCreate") return Response.json({ result: await handleItemCreate(boardKey, schema, params) });
+    if (op === "usersList") return Response.json({ result: await handleUsersList(params) });
+
+    return Response.json({ error: `Operacion desconocida: "${op}"` }, { status: 400 });
+  } catch (err) {
+    return Response.json({ error: err.message }, { status: err.status ?? 500 });
+  }
+}

@@ -1,0 +1,103 @@
+/* Tokens de OC Tracker, calcados 1:1 del artifact de referencia (theme-tokens.css /
+   "OC Tracker.txt"): consola tiled-dark con magenta como acento primario,
+   escopeados para no afectar a las otras apps. */
+
+@import url("https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap");
+
+[data-app="oc-tracker"] {
+    /* Nota: valores envueltos en hsl(...) (no tripletes "pelados") porque los
+       tokens --color-* de Tailwind (@theme inline en globals.css) se inlinean
+       tal cual en las utilities compiladas (ej. ".bg-card{background-color:var(--card)}"),
+       sin wrapper hsl() propio. Un triplete "H S% L%" ahi no es un color CSS
+       valido y la regla se descarta (bg-card/bg-primary/etc. quedan transparentes).
+       Los usos puntuales que necesitan modificar opacidad usan color-mix(),
+       no hsl(var(--x) / N), porque --x ya es una funcion hsl() completa. */
+    --background: hsl(222 8% 6%);         /* Canvas #0D0D0F */
+    --foreground: hsl(0 0% 100%);         /* Text White #FFFFFF */
+    --card: hsl(240 7% 10%);              /* Tile #1A1A1C */
+    --card-foreground: hsl(0 0% 100%);
+    --popover: hsl(240 7% 10%);
+    --popover-foreground: hsl(0 0% 100%);
+    --primary: hsl(328 100% 62%);         /* Magenta #FF3D9A */
+    --primary-foreground: hsl(0 0% 100%);
+    --secondary: hsl(240 5% 9%);          /* Panel #161618 */
+    --secondary-foreground: hsl(0 0% 100%);
+    --muted: hsl(240 5% 9%);
+    --muted-foreground: hsl(240 2% 55%);  /* Text Muted #8A8A8F */
+    --accent: hsl(277 100% 62%);          /* Violet #B23DFF */
+    --accent-foreground: hsl(0 0% 100%);
+    --destructive: hsl(0 84% 60%);
+    --destructive-foreground: hsl(0 0% 100%);
+    --border: hsl(240 7% 16%);            /* Hairline #26262A */
+    --input: hsl(240 7% 16%);
+    --ring: hsl(328 100% 62%);
+
+    --chart-1: hsl(328 100% 62%);         /* Magenta */
+    --chart-2: hsl(277 100% 62%);         /* Violet */
+    --chart-3: hsl(217 91% 60%);          /* Blue */
+    --chart-4: hsl(142 71% 45%);          /* Green */
+    --chart-5: hsl(38 92% 50%);           /* Orange */
+
+    --sidebar: hsl(240 7% 10%);
+    --sidebar-foreground: hsl(0 0% 100%);
+    --sidebar-primary: hsl(328 100% 62%);
+    --sidebar-primary-foreground: hsl(0 0% 100%);
+    --sidebar-accent: hsl(240 5% 9%);
+    --sidebar-accent-foreground: hsl(0 0% 100%);
+    --sidebar-border: hsl(240 7% 16%);
+    --sidebar-ring: hsl(328 100% 62%);
+
+    /* Radius - closed set calcado 1:1 de theme-tokens.css: tiles 24px, panels
+       16px, icons 12px, pills 9999px (rounded-full, sin variable propia).
+       Los componentes referencian estos tokens vía rounded-[var(--x)] en vez
+       de rounded-3xl/2xl/xl porque globals.css remapea esa escala global de
+       Tailwind con una fórmula distinta (@theme inline); usar var(--radius*)
+       explícito evita heredar ese remapeo y mantiene una única fuente de
+       verdad (theme-tokens.css) para el valor real. */
+    --radius: 24px;
+    --radius-sm: 12px;
+    --radius-md: 16px;
+    --radius-lg: 24px;
+    --radius-xl: 24px;
+    --radius-2xl: 24px;
+
+    --font-heading: "Figtree", "Inter", ui-sans-serif, system-ui, sans-serif;
+    --font-body: "Figtree", "Inter", ui-sans-serif, system-ui, sans-serif;
+
+    --font-weight-light: 400;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+
+    --spacing-unit: 8px;
+
+    font-family: var(--font-body);
+}
+
+[data-app="oc-tracker"] h1,
+[data-app="oc-tracker"] h2,
+[data-app="oc-tracker"] h3,
+[data-app="oc-tracker"] h4,
+[data-app="oc-tracker"] h5,
+[data-app="oc-tracker"] h6 {
+    font-family: var(--font-heading);
+}
+
+/* Gradiente para el stat hero (Total OC) */
+[data-app="oc-tracker"] .gradient-stat {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* El TableCell compartido (components/ui/table.jsx) trae p-2 (8px) por
+   defecto. El h-7/h-8 puesto en TableRow no alcanza a definir el alto real
+   (una fila nunca se comprime por debajo de su contenido); el alto real de
+   fila lo termina fijando este padding. La referencia usa filas notablemente
+   mas espaciosas que el default de shadcn. */
+[data-app="oc-tracker"] [data-slot="table-cell"] {
+    padding-top: 1.25rem;
+    padding-bottom: 1.25rem;
+}
