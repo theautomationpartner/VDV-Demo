@@ -20,11 +20,11 @@ export const ROLES = {
 // siempre igual sin importar lo que haya guardado en storage.
 const FIXED_ROLE_DATA = {
     'test-viewer': { role: 'viewer', obras: [], restrictObras: false },
-    'demo-super-admin': { role: 'super_admin', obras: [], restrictObras: false },
-    'demo-admin': { role: 'admin', obras: [], restrictObras: false },
-    'demo-bodeguero': { role: 'bodeguero', obras: [], restrictObras: false },
-    'demo-jefe-obra': { role: 'jefe_obra', obras: [], restrictObras: false },
-    'demo-apr': { role: 'apr', obras: [], restrictObras: false },
+    'demo-ve-super-admin': { role: 'super_admin', obras: [], restrictObras: false },
+    'demo-ve-admin': { role: 'admin', obras: [], restrictObras: false },
+    'demo-ve-bodeguero': { role: 'bodeguero', obras: [], restrictObras: false },
+    'demo-ve-jefe-obra': { role: 'jefe_obra', obras: [], restrictObras: false },
+    'demo-ve-apr': { role: 'apr', obras: [], restrictObras: false },
 };
 
 export function getUserRoleData(roles, userId) {

@@ -70,9 +70,9 @@ export default function LoginPage() {
   // Siempre entran con el mismo rol y nunca caen en el flujo de bootstrap a Super Admin.
   const FIXED_DEMO_USERS = {
     'test-viewer': { role: 'admin', proveedorName: null },
-    'demo-super-admin': { role: 'super_admin', proveedorName: null },
-    'demo-admin': { role: 'admin', proveedorName: null },
-    'demo-subcontratista': { role: 'subcontratista', proveedorName: 'Constructora Demo SPA' },
+    'demo-pp-super-admin': { role: 'super_admin', proveedorName: null },
+    'demo-pp-admin': { role: 'admin', proveedorName: null },
+    'demo-pp-subcontratista': { role: 'subcontratista', proveedorName: 'Constructora Demo SPA' },
   };
   const fixedDemo = currentUser ? FIXED_DEMO_USERS[currentUser.id] : null;
 
