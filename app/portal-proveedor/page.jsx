@@ -64,18 +64,26 @@ export default function LoginPage() {
     ? users.find((u) => String(u.mondayUserId) === String(currentUser.id))
     : null;
 
-  // Cuenta de prueba de solo lectura (login con admin@test.com): siempre entra como
-  // Administrador normal, nunca puede quedar en el flujo de bootstrap a Super Admin.
-  const isTestViewer = currentUser?.id === 'test-viewer';
+  // Cuentas fijas que no dependen de storage.json (que en Vercel no persiste): la de
+  // solo lectura de prueba (admin@test.com) y las de la cuenta demo con datos 100%
+  // inventados (login con *@demo.vdv.cl, ver lib/server/demo-data.js DEMO_USERS).
+  // Siempre entran con el mismo rol y nunca caen en el flujo de bootstrap a Super Admin.
+  const FIXED_DEMO_USERS = {
+    'test-viewer': { role: 'admin', proveedorName: null },
+    'demo-super-admin': { role: 'super_admin', proveedorName: null },
+    'demo-admin': { role: 'admin', proveedorName: null },
+    'demo-subcontratista': { role: 'subcontratista', proveedorName: 'Constructora Demo SPA' },
+  };
+  const fixedDemo = currentUser ? FIXED_DEMO_USERS[currentUser.id] : null;
 
   // Check if current user is a designated super admin
   const isSuperAdmin = currentUser ? superAdminIds.includes(String(currentUser.id)) : false;
 
   // Bootstrap: if no super admins exist yet, first user can claim super admin
-  const needsBootstrap = !saLoading && !usersLoading && currentUser && !isTestViewer && superAdminIds.length === 0 && !matchedUser;
+  const needsBootstrap = !saLoading && !usersLoading && currentUser && !fixedDemo && superAdminIds.length === 0 && !matchedUser;
 
   // Determine assigned role: stored profile takes priority, then super admin check
-  const assignedRole = isTestViewer ? 'admin' : (matchedUser?.role || (isSuperAdmin ? 'super_admin' : null));
+  const assignedRole = fixedDemo ? fixedDemo.role : (matchedUser?.role || (isSuperAdmin ? 'super_admin' : null));
 
   const handleEnter = () => {
     if (!assignedRole || entering) return;
@@ -86,7 +94,7 @@ export default function LoginPage() {
       mondayUserId: currentUser?.id || null,
       adminName: currentUser?.name || null,
       adminPhoto: currentUser?.photo_url || null,
-      proveedorName: null,
+      proveedorName: fixedDemo?.proveedorName || null,
       adminUserId: matchedUser?.id || null,
       allowedObras: matchedUser?.allowedObras || null,
       allowedProveedores: matchedUser?.allowedProveedores || null,

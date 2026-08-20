@@ -14,13 +14,22 @@ export const ROLES = {
     viewer: { label: 'Visualizador (Prueba)', description: 'Solo puede ver, no puede crear ni editar nada' }
 };
 
-// Cuenta de prueba de solo lectura (login con admin@test.com, ver app/vale-express/page.jsx).
-// No vive en storage.json: se resuelve en memoria para no depender de datos reales del board.
-const TEST_VIEWER_ID = 'test-viewer';
-const TEST_VIEWER_DATA = { role: 'viewer', obras: [], restrictObras: false };
+// Cuentas fijas que no dependen de storage.json (que en Vercel no persiste): la de
+// solo lectura (login con admin@test.com) y las de la cuenta demo con datos 100%
+// inventados (ver lib/server/demo-data.js DEMO_USERS / DEMO_MODE). Se resuelven
+// siempre igual sin importar lo que haya guardado en storage.
+const FIXED_ROLE_DATA = {
+    'test-viewer': { role: 'viewer', obras: [], restrictObras: false },
+    'demo-super-admin': { role: 'super_admin', obras: [], restrictObras: false },
+    'demo-admin': { role: 'admin', obras: [], restrictObras: false },
+    'demo-bodeguero': { role: 'bodeguero', obras: [], restrictObras: false },
+    'demo-jefe-obra': { role: 'jefe_obra', obras: [], restrictObras: false },
+    'demo-apr': { role: 'apr', obras: [], restrictObras: false },
+};
 
 export function getUserRoleData(roles, userId) {
-    if (String(userId) === TEST_VIEWER_ID) return TEST_VIEWER_DATA;
+    const fixed = FIXED_ROLE_DATA[String(userId)];
+    if (fixed) return fixed;
     return roles[String(userId)] || null;
 }
 

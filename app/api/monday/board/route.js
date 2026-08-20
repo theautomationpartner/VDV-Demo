@@ -1,6 +1,18 @@
 import { getBoardSchema, resolveColumnId } from "@/lib/board-schemas";
 import { mondayFetch, getBoardIdOrThrow } from "@/lib/server/monday-client";
 import { verificarSessionToken, MondayAuthError } from "@/lib/server/monday-guard";
+import {
+  demoHandleItems,
+  demoHandleItemUpdate,
+  demoHandleItemCreate,
+  demoHandleUsersList,
+  demoHandleUsersMe,
+} from "@/lib/server/demo-data";
+
+// Modo demo: no le pega a monday.com en absoluto, sirve datos 100% inventados
+// (lib/server/demo-data.js). Pensado para el link publico de prueba - no requiere
+// sessionToken de monday ni expone ningun dato real de la cuenta.
+const DEMO_MODE = process.env.DEMO_MODE === "true";
 
 /**
  * monday.com siempre devuelve column_values.text como string plano. Las paginas
@@ -168,13 +180,15 @@ async function handleUsersList(params) {
 }
 
 export async function POST(request) {
-  try {
-    verificarSessionToken(request.headers.get("authorization"));
-  } catch (err) {
-    if (err instanceof MondayAuthError) {
-      return Response.json({ error: err.message }, { status: 401 });
+  if (!DEMO_MODE) {
+    try {
+      verificarSessionToken(request.headers.get("authorization"));
+    } catch (err) {
+      if (err instanceof MondayAuthError) {
+        return Response.json({ error: err.message }, { status: 401 });
+      }
+      throw err;
     }
-    throw err;
   }
 
   let body;
@@ -187,6 +201,15 @@ export async function POST(request) {
   const { boardKey, op, params = {} } = body ?? {};
 
   try {
+    if (DEMO_MODE) {
+      if (op === "usersMe") return Response.json({ result: demoHandleUsersMe() });
+      if (op === "usersList") return Response.json({ result: demoHandleUsersList() });
+      if (op === "items") return Response.json({ result: demoHandleItems(boardKey, params) });
+      if (op === "itemUpdate") return Response.json({ result: demoHandleItemUpdate(boardKey, params) });
+      if (op === "itemCreate") return Response.json({ result: demoHandleItemCreate(boardKey, params) });
+      return Response.json({ error: `Operacion desconocida: "${op}"` }, { status: 400 });
+    }
+
     if (op === "usersMe") {
       return Response.json({ result: await handleUsersMe() });
     }

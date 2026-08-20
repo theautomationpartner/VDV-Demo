@@ -1,6 +1,7 @@
 import { verificarSessionToken, MondayAuthError } from "@/lib/server/monday-guard";
 
 const MONDAY_FILE_API_URL = "https://api.monday.com/v2/file";
+const DEMO_MODE = process.env.DEMO_MODE === "true";
 
 /**
  * Proxy server-side para subir archivos a una columna file de monday.com
@@ -8,13 +9,20 @@ const MONDAY_FILE_API_URL = "https://api.monday.com/v2/file";
  * Body esperado (multipart/form-data): itemId, columnId, file.
  */
 export async function POST(request) {
-  try {
-    verificarSessionToken(request.headers.get("authorization"));
-  } catch (err) {
-    if (err instanceof MondayAuthError) {
-      return Response.json({ errors: [{ message: err.message }] }, { status: 401 });
+  if (!DEMO_MODE) {
+    try {
+      verificarSessionToken(request.headers.get("authorization"));
+    } catch (err) {
+      if (err instanceof MondayAuthError) {
+        return Response.json({ errors: [{ message: err.message }] }, { status: 401 });
+      }
+      throw err;
     }
-    throw err;
+  }
+
+  if (DEMO_MODE) {
+    // No hay archivo real que subir a ningun lado: se simula un id de archivo fijo.
+    return Response.json({ data: { add_file_to_column: { id: "demo-file" } } });
   }
 
   const token = process.env.MONDAY_API_TOKEN;
