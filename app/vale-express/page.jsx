@@ -1,19 +1,23 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Spinner } from '@/components/ui/spinner';
-import { Warehouse, Mail, AlertCircle, ShieldAlert } from 'lucide-react';
-import { VALE_EXPRESS_ACCOUNTS as FIXED_LOGIN_ACCOUNTS, getGlobalEmail, appForEmail } from '@/lib/client/fixed-accounts';
+import { ShieldAlert } from 'lucide-react';
+import { seedAppSessionFromEmail, getGlobalEmail, appForEmail } from '@/lib/client/fixed-accounts';
 
-export default function LoginPage() {
+/**
+ * Vale Express no tiene login propio - el login es el global (whitelist + 2FA,
+ * ver components/auth/AuthGate.jsx), que ya sabe con cual de las 8 cuentas
+ * fijas entraste. Esta pantalla es solo un gate de redireccion:
+ *  - Sesion de Vale Express ya armada -> directo al dashboard.
+ *  - Cuenta global conocida y es de Vale Express -> la arma y redirige.
+ *  - Cuenta global conocida pero es de Portal Proveedor -> "Sin acceso".
+ *  - No hay ninguna cuenta global todavia (AuthGate no corrio) -> manda a "/"
+ *    para que se resuelva el login desde ahi.
+ */
+export default function ValeExpressGate() {
     const router = useRouter();
-    const [loading, setLoading] = useState(true);
-    const [authenticating, setAuthenticating] = useState(false);
-    const [email, setEmail] = useState('');
-    const [errorMsg, setErrorMsg] = useState('');
-    // Cuenta global de otra app (login legado no llegaria a poner esto) - no
-    // tiene sentido ofrecerle el formulario, esa cuenta nunca va a matchear.
     const [wrongApp, setWrongApp] = useState(false);
 
     useEffect(() => {
@@ -22,45 +26,21 @@ export default function LoginPage() {
             router.push('/vale-express/dashboard');
             return;
         }
+
         const globalEmail = getGlobalEmail();
-        if (globalEmail && appForEmail(globalEmail) !== 'vale-express') {
-            setWrongApp(true);
-        }
-        setLoading(false);
-    }, [router]);
-
-    const handleEmailLogin = async (e) => {
-        e.preventDefault();
-        if (!email.trim()) return;
-        setAuthenticating(true);
-        setErrorMsg('');
-
-        const normalizedEmail = email.trim().toLowerCase();
-        const matchedUser = FIXED_LOGIN_ACCOUNTS[normalizedEmail];
-
-        if (!matchedUser) {
-            setErrorMsg('Este correo no tiene acceso al sistema.');
-            setAuthenticating(false);
+        if (!globalEmail) {
+            router.push('/');
             return;
         }
 
-        localStorage.setItem('ve_session', JSON.stringify({
-            userId: matchedUser.id,
-            userName: matchedUser.name,
-            email: normalizedEmail,
-            loginTime: new Date().toISOString()
-        }));
+        if (appForEmail(globalEmail) !== 'vale-express') {
+            setWrongApp(true);
+            return;
+        }
 
+        seedAppSessionFromEmail(globalEmail);
         router.push('/vale-express/dashboard');
-    };
-
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
-                <Spinner className="size-8 text-accent" />
-            </div>
-        );
-    }
+    }, [router]);
 
     if (wrongApp) {
         return (
@@ -77,66 +57,8 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-5">
-            <div className="w-full max-w-md">
-                {/* Logo/Brand */}
-                <div className="flex flex-col items-center mb-8">
-                    <div className="w-20 h-20 rounded-[var(--radius-xl)] bg-[color-mix(in_hsl,var(--accent)_12%,transparent)] flex items-center justify-center mb-4">
-                        <Warehouse className="w-10 h-10 text-[var(--accent)]" />
-                    </div>
-                    <h1 className="text-2xl font-semibold tracking-[-0.02em] mb-1">Gestión de Bodega</h1>
-                    <p className="text-sm text-[var(--fg-muted)]">Sistema de control de materiales</p>
-                </div>
-
-                {/* Error message */}
-                {errorMsg && (
-                    <div className="mb-4 p-3 rounded-[var(--radius-md)] bg-[color-mix(in_hsl,var(--destructive)_10%,transparent)] border border-[color-mix(in_hsl,var(--destructive)_30%,transparent)] flex items-start gap-2.5">
-                        <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
-                        <span className="text-sm text-destructive">{errorMsg}</span>
-                    </div>
-                )}
-
-                {/* Email login */}
-                <form onSubmit={handleEmailLogin} className="bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-[var(--radius-lg)] p-4">
-                    <div className="text-[10px] uppercase tracking-wider text-[var(--fg-subtle)] font-medium mb-3">
-                        Ingreso con correo electrónico
-                    </div>
-                    <div className="relative mb-3">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--fg-subtle)]" />
-                        <input
-                            type="email"
-                            id="login-email"
-                            aria-label="Correo electrónico"
-                            value={email}
-                            onChange={(e) => { setEmail(e.target.value); setErrorMsg(''); }}
-                            placeholder="tu@correo.com"
-                            autoComplete="email"
-                            className="w-full h-12 pl-10 pr-4 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
-                        />
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={authenticating || !email.trim()}
-                        className="w-full h-12 flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-3)] border border-[var(--border-default)] text-sm font-medium text-foreground disabled:opacity-40 disabled:cursor-not-allowed active:bg-[color-mix(in_hsl,var(--accent)_10%,transparent)] active:border-[var(--accent)] transition-all"
-                    >
-                        {authenticating ? (
-                            <>
-                                <Spinner className="size-4" />
-                                <span>Verificando...</span>
-                            </>
-                        ) : (
-                            <>
-                                <Mail className="w-4 h-4" />
-                                <span>Verificar y Entrar</span>
-                            </>
-                        )}
-                    </button>
-                </form>
-
-                <div className="text-center text-xs text-[var(--fg-subtle)] mt-5">
-                    Solo usuarios autorizados pueden acceder
-                </div>
-            </div>
+        <div className="min-h-screen bg-background flex items-center justify-center">
+            <Spinner className="size-8 text-accent" />
         </div>
     );
 }
