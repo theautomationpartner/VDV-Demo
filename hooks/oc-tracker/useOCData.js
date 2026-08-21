@@ -6,6 +6,26 @@ import { OrdenesDeCompraMaxxaBoard, FacturasIaBoard } from "@/lib/board-sdk";
 const ordenesBoard = new OrdenesDeCompraMaxxaBoard();
 const facturasBoard = new FacturasIaBoard();
 
+// Grupo "oc duplicadas" en monday - la app original de monday excluye este
+// grupo de todos sus totales (Control General, por obra, etc). Confirmado
+// contra los numeros reales del board: Total OC de la app original
+// ($523.003.159) = suma de "oc emitidas desde maxxa" + "Oc rechazadas",
+// sin el grupo "oc duplicadas" (que solo son OCs re-emitidas, no montos
+// reales adicionales).
+const GRUPO_OC_DUPLICADAS = "group_mm3c59ax";
+
+async function fetchAllPages(builder) {
+  let result = await builder.execute();
+  let items = result.items ?? [];
+  let cursor = result.cursor;
+  while (cursor) {
+    result = await builder.withPagination({ cursor }).execute();
+    items = items.concat(result.items ?? []);
+    cursor = result.cursor;
+  }
+  return items;
+}
+
 export function useOCData() {
   const [ordenes, setOrdenes] = useState([]);
   const [facturas, setFacturas] = useState([]);
@@ -22,44 +42,46 @@ export function useOCData() {
       }
       setError(null);
 
-      const [ordenesResult, facturasResult] = await Promise.all([
-        ordenesBoard
-          .items()
-          .withColumns([
-            "numeroOc",
-            "obra",
-            "monto",
-            "moneda",
-            "estadoDocumento",
-            "responsable",
-            "validezDocumento",
-            "condicionDeCompra",
-            "rut1",
-            "proveedores",
-          ])
-          .withPagination({ limit: 500 })
-          .execute(),
-        facturasBoard
-          .items()
-          .withColumns([
-            "numeroFactura",
-            "oc",
-            "obra",
-            "montoConIva",
-            "fechaFactura",
-            "estado",
-            "proveedores",
-            "fechaVencimiento",
-            "centroDeCosto",
-            "tipoDePago",
-            "correoElectrnico",
-          ])
-          .withPagination({ limit: 500 })
-          .execute(),
+      const [ordenesItems, facturasItems] = await Promise.all([
+        fetchAllPages(
+          ordenesBoard
+            .items()
+            .withColumns([
+              "numeroOc",
+              "obra",
+              "monto",
+              "moneda",
+              "estadoDocumento",
+              "responsable",
+              "validezDocumento",
+              "condicionDeCompra",
+              "rut1",
+              "proveedores",
+            ])
+            .withPagination({ limit: 500 })
+        ),
+        fetchAllPages(
+          facturasBoard
+            .items()
+            .withColumns([
+              "numeroFactura",
+              "oc",
+              "obra",
+              "montoConIva",
+              "fechaFactura",
+              "estado",
+              "proveedores",
+              "fechaVencimiento",
+              "centroDeCosto",
+              "tipoDePago",
+              "correoElectrnico",
+            ])
+            .withPagination({ limit: 500 })
+        ),
       ]);
 
-      setOrdenes(ordenesResult.items);
-      setFacturas(facturasResult.items);
+      setOrdenes(ordenesItems.filter((oc) => oc.group?.id !== GRUPO_OC_DUPLICADAS));
+      setFacturas(facturasItems);
     } catch (err) {
       console.error("Error loading OC data:", err);
       setError(err.message);
