@@ -2,44 +2,36 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ValesBoard } from '@/lib/board-sdk';
 import { Spinner } from '@/components/ui/spinner';
 import { Warehouse, Mail, AlertCircle } from 'lucide-react';
 
-const valesBoard = new ValesBoard();
+// Cuentas fijas por rol - son las UNICAS que pueden entrar a Vale Express. No se
+// buscan contra los usuarios reales del board de monday (esta app comparte
+// cuenta por rol, no una cuenta por empleado). Los ids resuelven el rol en
+// hooks/vale-express/useUserRole.js (FIXED_ROLE_DATA).
+const FIXED_LOGIN_ACCOUNTS = {
+    'superadmin.valeexpress@demo.vdv.cl': { id: 'demo-ve-super-admin', name: 'Super Admin' },
+    'admin.valeexpress@demo.vdv.cl': { id: 'demo-ve-admin', name: 'Administrador' },
+    'bodega.valeexpress@demo.vdv.cl': { id: 'demo-ve-bodeguero', name: 'Bodeguero' },
+    'jefeobra.valeexpress@demo.vdv.cl': { id: 'demo-ve-jefe-obra', name: 'Jefe de Obra' },
+    'apr.valeexpress@demo.vdv.cl': { id: 'demo-ve-apr', name: 'APR' },
+};
 
 export default function LoginPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [authenticating, setAuthenticating] = useState(false);
-    const [subscribers, setSubscribers] = useState([]);
     const [email, setEmail] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
 
     useEffect(() => {
-        initPage();
-    }, []);
-
-    const initPage = async () => {
-        try {
-            // Check if already has session
-            const session = localStorage.getItem('ve_session');
-            if (session) {
-                router.push('/vale-express/dashboard');
-                return;
-            }
-
-            // Load all account users (board subscribers)
-            const allUsers = await valesBoard.users.withPagination({ limit: 500 }).execute();
-
-            console.log('Account users loaded:', allUsers.length, allUsers.map(u => u.name));
-            setSubscribers(allUsers);
-        } catch (err) {
-            console.error('Init failed:', err);
-        } finally {
-            setLoading(false);
+        const session = localStorage.getItem('ve_session');
+        if (session) {
+            router.push('/vale-express/dashboard');
+            return;
         }
-    };
+        setLoading(false);
+    }, [router]);
 
     const handleEmailLogin = async (e) => {
         e.preventDefault();
@@ -47,33 +39,23 @@ export default function LoginPage() {
         setAuthenticating(true);
         setErrorMsg('');
 
-        try {
-            // Find user by email among board subscribers
-            const normalizedEmail = email.trim().toLowerCase();
-            const matchedUser = normalizedEmail === 'admin@test.com'
-                ? { id: 'test-viewer', name: 'Admin (Solo lectura)', email: normalizedEmail }
-                : subscribers.find(s => s.email?.toLowerCase() === normalizedEmail);
+        const normalizedEmail = email.trim().toLowerCase();
+        const matchedUser = FIXED_LOGIN_ACCOUNTS[normalizedEmail];
 
-            if (!matchedUser) {
-                setErrorMsg('Este correo no tiene acceso al sistema. Verifica que estés registrado como participante del tablero.');
-                setAuthenticating(false);
-                return;
-            }
-
-            localStorage.setItem('ve_session', JSON.stringify({
-                userId: matchedUser.id,
-                userName: matchedUser.name,
-                email: matchedUser.email,
-                loginTime: new Date().toISOString()
-            }));
-
-            router.push('/vale-express/dashboard');
-        } catch (err) {
-            console.error('Email login failed:', err);
-            setErrorMsg('Error al verificar el correo. Intenta nuevamente.');
-        } finally {
+        if (!matchedUser) {
+            setErrorMsg('Este correo no tiene acceso al sistema.');
             setAuthenticating(false);
+            return;
         }
+
+        localStorage.setItem('ve_session', JSON.stringify({
+            userId: matchedUser.id,
+            userName: matchedUser.name,
+            email: normalizedEmail,
+            loginTime: new Date().toISOString()
+        }));
+
+        router.push('/vale-express/dashboard');
     };
 
     if (loading) {
@@ -142,7 +124,7 @@ export default function LoginPage() {
                 </form>
 
                 <div className="text-center text-xs text-[var(--fg-subtle)] mt-5">
-                    Solo usuarios registrados en el tablero pueden acceder
+                    Solo usuarios autorizados pueden acceder
                 </div>
             </div>
         </div>

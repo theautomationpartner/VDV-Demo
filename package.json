@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "migrate": "node scripts/migrate.js",
-    "seed-admin": "node scripts/seed-admin.js"
+    "seed-admin": "node scripts/seed-admin.js",
+    "seed-whitelist": "node scripts/seed-whitelist.js"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

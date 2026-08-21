@@ -1,6 +1,7 @@
-// Da de alta el primer admin de la whitelist (Capa 2) - hace falta uno para poder
-// usar despues el panel /api/auth/whitelist (el panel mismo exige rol='admin').
+// Da de alta el primer admin de la whitelist - hace falta uno para poder usar
+// despues el panel /api/auth/whitelist (el panel mismo exige rol='admin').
 // Uso: node scripts/seed-admin.js correo@cliente.com
+require("./load-env");
 const { neon } = require("@neondatabase/serverless");
 
 async function main() {

@@ -1,5 +1,6 @@
 // Corre lib/server/schema.sql contra DATABASE_URL. Uso: node scripts/migrate.js
 // Idempotente (todo IF NOT EXISTS) - se puede correr las veces que haga falta.
+require("./load-env");
 const fs = require("fs");
 const path = require("path");
 const { neon } = require("@neondatabase/serverless");
