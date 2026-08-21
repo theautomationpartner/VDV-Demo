@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Spinner } from '@/components/ui/spinner';
-import { Warehouse, Mail, AlertCircle } from 'lucide-react';
-import { VALE_EXPRESS_ACCOUNTS as FIXED_LOGIN_ACCOUNTS } from '@/lib/client/fixed-accounts';
+import { Warehouse, Mail, AlertCircle, ShieldAlert } from 'lucide-react';
+import { VALE_EXPRESS_ACCOUNTS as FIXED_LOGIN_ACCOUNTS, getGlobalEmail, appForEmail } from '@/lib/client/fixed-accounts';
 
 export default function LoginPage() {
     const router = useRouter();
@@ -12,12 +12,19 @@ export default function LoginPage() {
     const [authenticating, setAuthenticating] = useState(false);
     const [email, setEmail] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
+    // Cuenta global de otra app (login legado no llegaria a poner esto) - no
+    // tiene sentido ofrecerle el formulario, esa cuenta nunca va a matchear.
+    const [wrongApp, setWrongApp] = useState(false);
 
     useEffect(() => {
         const session = localStorage.getItem('ve_session');
         if (session) {
             router.push('/vale-express/dashboard');
             return;
+        }
+        const globalEmail = getGlobalEmail();
+        if (globalEmail && appForEmail(globalEmail) !== 'vale-express') {
+            setWrongApp(true);
         }
         setLoading(false);
     }, [router]);
@@ -51,6 +58,20 @@ export default function LoginPage() {
         return (
             <div className="min-h-screen bg-background flex items-center justify-center">
                 <Spinner className="size-8 text-accent" />
+            </div>
+        );
+    }
+
+    if (wrongApp) {
+        return (
+            <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-5 text-center">
+                <div className="w-16 h-16 rounded-[var(--radius-xl)] bg-[color-mix(in_hsl,var(--destructive)_12%,transparent)] flex items-center justify-center mb-4">
+                    <ShieldAlert className="w-8 h-8 text-destructive" />
+                </div>
+                <h1 className="text-lg font-semibold mb-1">Sin acceso</h1>
+                <p className="text-sm text-[var(--fg-muted)] max-w-xs">
+                    No tenés acceso a esta sección debido a tu rol.
+                </p>
             </div>
         );
     }

@@ -7,6 +7,7 @@ import { ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut } from "lucide-reac
 import { NAV_SECTIONS } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/vale-express/useUserRole";
+import { getGlobalEmail, appForEmail } from "@/lib/client/fixed-accounts";
 
 const COLLAPSE_KEY = "sidebar_collapsed";
 const MOBILE_QUERY = "(max-width: 768px)";
@@ -51,6 +52,24 @@ function useSidebarRoles(pathname) {
     "vale-express": veUserId === undefined ? undefined : veRole,
     "portal-proveedor": ppRole,
   };
+}
+
+/**
+ * Cada una de las 8 cuentas fijas (login global, ver lib/client/fixed-accounts.js)
+ * es de UNA sola app - Vale Express o Portal Proveedor, nunca las dos. El
+ * sidebar no debe ofrecer la seccion que esa cuenta no puede usar (evita el
+ * "login" confuso de esa app al entrar por curiosidad). null = no hay cuenta
+ * global conocida todavia (AUTH_LAYERS_ENABLED=false / login legado): no
+ * restringe nada, mismo comportamiento de siempre.
+ */
+function useHomeApp(pathname) {
+  const [homeApp, setHomeApp] = useState(null);
+
+  useEffect(() => {
+    setHomeApp(appForEmail(getGlobalEmail()));
+  }, [pathname]);
+
+  return homeApp;
 }
 
 /**
@@ -104,10 +123,18 @@ function useSidebarCollapse() {
 export function AppSidebar() {
   const pathname = usePathname();
   const roles = useSidebarRoles(pathname);
+  const homeApp = useHomeApp(pathname);
   const { collapsed, mobileOpen, toggleCollapsed, toggleMobile, closeMobile } = useSidebarCollapse();
 
+  // OC Tracker no tiene dueño (cualquier cuenta lo puede ver); Vale Express y
+  // Portal Proveedor solo se muestran si son la app de la cuenta global actual,
+  // o si todavia no hay ninguna cuenta global conocida (login legado).
+  const visibleSections = NAV_SECTIONS.filter(
+    (section) => section.key === "oc-tracker" || homeApp === null || section.key === homeApp
+  );
+
   const activeSection =
-    NAV_SECTIONS.find((section) => pathname.startsWith(section.basePath)) ?? null;
+    visibleSections.find((section) => pathname.startsWith(section.basePath)) ?? null;
 
   // Acordeon de un solo nivel abierto a la vez. La seccion activa (segun la
   // ruta actual) arranca expandida; navegar a otra seccion la vuelve a abrir.
@@ -140,6 +167,7 @@ export function AppSidebar() {
     try {
       localStorage.removeItem("ve_session");
       localStorage.removeItem("pp_session");
+      localStorage.removeItem("vdv_global_email");
     } catch {
       // localStorage no disponible (modo privado) - igual redirige.
     }
@@ -225,7 +253,7 @@ export function AppSidebar() {
 
           <nav aria-label="Aplicaciones" className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
             <ul className="flex flex-col gap-1 px-2">
-              {NAV_SECTIONS.map((section) => {
+              {visibleSections.map((section) => {
                 const isSectionActive = activeSection?.key === section.key;
                 const isExpanded = !collapsed && expandedKey === section.key;
                 const SectionIcon = section.icon;
