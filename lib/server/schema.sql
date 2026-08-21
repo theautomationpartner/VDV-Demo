@@ -40,3 +40,7 @@ CREATE TABLE IF NOT EXISTS auditoria (
   creado_en         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_auditoria_creado_en ON auditoria (creado_en DESC);
+-- Usados por lib/server/rate-limit.js para contar intentos recientes por
+-- cuenta o por IP sin escanear toda la tabla.
+CREATE INDEX IF NOT EXISTS idx_auditoria_usuario_accion ON auditoria (usuario_id, accion, creado_en);
+CREATE INDEX IF NOT EXISTS idx_auditoria_ip_accion ON auditoria (ip, accion, creado_en);

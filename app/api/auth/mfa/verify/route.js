@@ -1,6 +1,7 @@
 import { verificarPreAuthToken, crearSesion } from "@/lib/server/session";
 import { verificarCodigoMfa, verificarCodigoRecuperacion } from "@/lib/server/totp";
 import { marcarUltimoAcceso, auditarEvento } from "@/lib/server/whitelist";
+import { verificarLimite, RateLimitError } from "@/lib/server/rate-limit";
 
 /**
  * Login normal (ya tiene 2FA configurado): valida el codigo de 6 digitos, o un
@@ -18,6 +19,11 @@ export async function POST(request) {
   const ip = request.headers.get("x-forwarded-for");
 
   try {
+    // 5 intentos fallidos cada 15 min por cuenta - se cuenta por usuario_id,
+    // no por IP, porque el atacante puede rotar de IP pero no de cuenta
+    // objetivo (necesita un preAuthToken valido, que ya identifica a quien).
+    await verificarLimite({ usuarioId: usuario.id, acciones: ["mfa_fallido"], maxIntentos: 5, ventanaMinutos: 15 });
+
     const resultado = recoveryCode
       ? await verificarCodigoRecuperacion(usuario.id, recoveryCode)
       : await verificarCodigoMfa(usuario.id, code);
@@ -43,6 +49,9 @@ export async function POST(request) {
 
     return Response.json({ status: "ready", email: usuario.email, rol: usuario.rol });
   } catch (err) {
+    if (err instanceof RateLimitError) {
+      return Response.json({ error: err.message }, { status: 429 });
+    }
     console.error("[/api/auth/mfa/verify]", err);
     return Response.json({ error: "Error interno del servidor" }, { status: 500 });
   }

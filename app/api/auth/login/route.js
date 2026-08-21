@@ -1,6 +1,7 @@
 import { verificarEmailEnWhitelist, NoAutorizado, marcarUltimoAcceso, auditarEvento } from "@/lib/server/whitelist";
 import { tieneMfaConfigurado } from "@/lib/server/totp";
 import { emitirPreAuthToken, crearSesion } from "@/lib/server/session";
+import { verificarLimite, RateLimitError } from "@/lib/server/rate-limit";
 
 const AUTH_LAYERS_ENABLED = process.env.AUTH_LAYERS_ENABLED === "true";
 
@@ -26,13 +27,19 @@ export async function POST(request) {
   const email = String(body?.email ?? "").trim();
   if (!email) return Response.json({ error: "Falta 'email'" }, { status: 400 });
 
+  const ip = request.headers.get("x-forwarded-for");
+
   try {
-    const usuario = await verificarEmailEnWhitelist(email, { ip: request.headers.get("x-forwarded-for") });
+    // Corta el tanteo de emails contra la whitelist antes de gastar el intento
+    // de verdad (10 intentos rechazados cada 15 min por IP).
+    await verificarLimite({ ip, acciones: ["no_autorizado"], maxIntentos: 10, ventanaMinutos: 15 });
+
+    const usuario = await verificarEmailEnWhitelist(email, { ip });
 
     if (!MFA_REQUIRED) {
       await crearSesion(usuario, { remember: true });
       await marcarUltimoAcceso(usuario.id);
-      await auditarEvento(usuario.id, usuario.email, "login_sin_2fa", request.headers.get("x-forwarded-for"));
+      await auditarEvento(usuario.id, usuario.email, "login_sin_2fa", ip);
       return Response.json({ status: "ready", email: usuario.email, rol: usuario.rol });
     }
 
@@ -40,6 +47,9 @@ export async function POST(request) {
     const configurado = await tieneMfaConfigurado(usuario.id);
     return Response.json({ status: configurado ? "needs_code" : "needs_setup", preAuthToken });
   } catch (err) {
+    if (err instanceof RateLimitError) {
+      return Response.json({ error: err.message }, { status: 429 });
+    }
     if (err instanceof NoAutorizado) {
       return Response.json(
         { error: "No tenés acceso a esta aplicación. Contactá al administrador." },
