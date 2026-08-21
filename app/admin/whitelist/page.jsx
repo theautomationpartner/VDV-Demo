@@ -11,7 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { ShieldAlert, Plus, Pencil, Trash2, UserCog } from "lucide-react";
+import { ShieldAlert, Plus, Pencil, Trash2, UserCog, X } from "lucide-react";
+
+const APP_LABELS = { "vale-express": "Vale Express", "portal-proveedor": "Portal Proveedor" };
 
 const APP_ROLES = {
   "vale-express": [
@@ -28,14 +30,20 @@ const APP_ROLES = {
   ],
 };
 
-const emptyForm = { id: null, email: "", nombre: "", rol: "usuario", app: "vale-express", appRol: "admin", obras: "", restrictObras: false, proveedorName: "" };
+function nuevaAsignacion(app) {
+  return { app, appRol: APP_ROLES[app][0].value, obras: "", restrictObras: false, proveedorName: "" };
+}
+
+const emptyForm = { id: null, email: "", nombre: "", rol: "usuario", asignaciones: [nuevaAsignacion("vale-express")] };
 
 /**
- * Panel de administracion de la whitelist (Capa 2: quien puede entrar a la app
- * + a que app/rol pertenece). Solo llega gente con rol='admin' en la whitelist
- * global (distinto del rol DENTRO de Vale Express/Portal Proveedor) - el
- * servidor lo vuelve a validar en cada pedido a /api/auth/whitelist, esto de
- * aca es solo para no mostrar el formulario a quien igual no puede usarlo.
+ * Panel de administracion de la whitelist (quien puede entrar a la app + a
+ * que app(s)/rol pertenece cada uno - la mayoria de la gente tiene una sola
+ * asignacion, pero puede tener mas de una, ej. alguien con Super Admin en
+ * Vale Express Y Portal Proveedor). Solo llega gente con rol='admin' en la
+ * whitelist global (distinto del rol DENTRO de cada app) - el servidor lo
+ * vuelve a validar en cada pedido a /api/auth/whitelist, esto de aca es solo
+ * para no mostrar el formulario a quien igual no puede usarlo.
  */
 export default function WhitelistAdminPage() {
   const [loading, setLoading] = useState(true);
@@ -68,36 +76,60 @@ export default function WhitelistAdminPage() {
   };
 
   const openEdit = (u) => {
+    const asignaciones = (u.asignaciones ?? []).map((a) => ({
+      app: a.app,
+      appRol: a.appRol,
+      obras: (a.appConfig?.obras ?? []).join(", "),
+      restrictObras: a.appConfig?.restrictObras === true,
+      proveedorName: a.appConfig?.proveedorName ?? "",
+    }));
     setForm({
       id: u.id,
       email: u.email,
       nombre: u.nombre ?? "",
       rol: u.rol,
-      app: u.app ?? "vale-express",
-      appRol: u.app_rol ?? "admin",
-      obras: (u.app_config?.obras ?? []).join(", "),
-      restrictObras: u.app_config?.restrictObras === true,
-      proveedorName: u.app_config?.proveedorName ?? "",
+      asignaciones: asignaciones.length ? asignaciones : [nuevaAsignacion("vale-express")],
     });
     setDialogOpen(true);
   };
 
+  const updateAsignacion = (index, cambios) => {
+    setForm((f) => ({
+      ...f,
+      asignaciones: f.asignaciones.map((a, i) => (i === index ? { ...a, ...cambios } : a)),
+    }));
+  };
+
+  const addAsignacion = () => {
+    // Si ya tiene una de cada app, no ofrecemos una tercera - solo hay 2 apps.
+    const yaUsadas = form.asignaciones.map((a) => a.app);
+    const disponible = Object.keys(APP_LABELS).find((app) => !yaUsadas.includes(app));
+    if (!disponible) return;
+    setForm((f) => ({ ...f, asignaciones: [...f.asignaciones, nuevaAsignacion(disponible)] }));
+  };
+
+  const removeAsignacion = (index) => {
+    setForm((f) => ({ ...f, asignaciones: f.asignaciones.filter((_, i) => i !== index) }));
+  };
+
   const handleSave = async () => {
-    if (!form.email.trim()) return;
+    if (!form.email.trim() || form.asignaciones.length === 0) return;
     setSaving(true);
     try {
-      const appConfig =
-        form.app === "vale-express"
-          ? { obras: form.obras.split(",").map((s) => s.trim()).filter(Boolean), restrictObras: form.restrictObras }
-          : { proveedorName: form.proveedorName.trim() || null };
+      const asignaciones = form.asignaciones.map((a) => ({
+        app: a.app,
+        appRol: a.appRol,
+        appConfig:
+          a.app === "vale-express"
+            ? { obras: a.obras.split(",").map((s) => s.trim()).filter(Boolean), restrictObras: a.restrictObras }
+            : { proveedorName: a.proveedorName.trim() || null },
+      }));
 
       const payload = {
         email: form.email.trim(),
         nombre: form.nombre.trim() || null,
         rol: form.rol,
-        app: form.app,
-        appRol: form.appRol,
-        appConfig,
+        asignaciones,
       };
 
       const res = await fetch("/api/auth/whitelist", {
@@ -170,7 +202,7 @@ export default function WhitelistAdminPage() {
     );
   }
 
-  const roleOptions = APP_ROLES[form.app] ?? [];
+  const puedeAgregarMas = form.asignaciones.length < Object.keys(APP_LABELS).length;
 
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6">
@@ -182,7 +214,7 @@ export default function WhitelistAdminPage() {
             Whitelist de acceso
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Quién puede entrar a la app, y a qué app/rol pertenece cada uno.
+            Quién puede entrar a la app, y a qué app(s)/rol pertenece cada uno.
           </p>
         </div>
         <Button onClick={openNew} className="gap-1.5">
@@ -198,8 +230,7 @@ export default function WhitelistAdminPage() {
               <tr>
                 <th className="text-left px-4 py-2.5">Email</th>
                 <th className="text-left px-4 py-2.5">Nombre</th>
-                <th className="text-left px-4 py-2.5">App</th>
-                <th className="text-left px-4 py-2.5">Rol</th>
+                <th className="text-left px-4 py-2.5">App(s) / Rol</th>
                 <th className="text-left px-4 py-2.5">Estado</th>
                 <th className="text-right px-4 py-2.5">Acciones</th>
               </tr>
@@ -210,10 +241,14 @@ export default function WhitelistAdminPage() {
                   <td className="px-4 py-2.5 font-mono text-xs">{u.email}</td>
                   <td className="px-4 py-2.5">{u.nombre ?? "-"}</td>
                   <td className="px-4 py-2.5">
-                    {u.app ? (u.app === "vale-express" ? "Vale Express" : "Portal Proveedor") : "-"}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {(APP_ROLES[u.app]?.find((r) => r.value === u.app_rol)?.label) ?? u.app_rol ?? "-"}
+                    <div className="flex flex-wrap gap-1.5">
+                      {(u.asignaciones ?? []).length === 0 && <span className="text-muted-foreground">-</span>}
+                      {(u.asignaciones ?? []).map((a, i) => (
+                        <Badge key={i} variant="secondary">
+                          {APP_LABELS[a.app] ?? a.app}: {APP_ROLES[a.app]?.find((r) => r.value === a.appRol)?.label ?? a.appRol}
+                        </Badge>
+                      ))}
+                    </div>
                   </td>
                   <td className="px-4 py-2.5">
                     <Badge variant={u.estado === "activo" ? "default" : "destructive"}>{u.estado}</Badge>
@@ -235,7 +270,7 @@ export default function WhitelistAdminPage() {
               ))}
               {usuarios.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
                     Todavía no hay nadie en la whitelist.
                   </td>
                 </tr>
@@ -246,7 +281,7 @@ export default function WhitelistAdminPage() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{form.id ? "Editar usuario" : "Agregar usuario"}</DialogTitle>
           </DialogHeader>
@@ -269,52 +304,6 @@ export default function WhitelistAdminPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>App</Label>
-                <Select value={form.app} onValueChange={(v) => setForm({ ...form, app: v, appRol: APP_ROLES[v][0].value })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="vale-express">Vale Express</SelectItem>
-                    <SelectItem value="portal-proveedor">Portal Proveedor</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Rol en la app</Label>
-                <Select value={form.appRol} onValueChange={(v) => setForm({ ...form, appRol: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {roleOptions.map((r) => (
-                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {form.app === "vale-express" && (
-              <div className="space-y-1.5">
-                <Label>Obras permitidas (vacío = todas)</Label>
-                <Input
-                  value={form.obras}
-                  onChange={(e) => setForm({ ...form, obras: e.target.value, restrictObras: e.target.value.trim().length > 0 })}
-                  placeholder="VIK, SAMOA, NUEVO (separadas por coma)"
-                />
-              </div>
-            )}
-
-            {form.app === "portal-proveedor" && form.appRol === "subcontratista" && (
-              <div className="space-y-1.5">
-                <Label>Nombre del proveedor (tal cual figura en monday)</Label>
-                <Input
-                  value={form.proveedorName}
-                  onChange={(e) => setForm({ ...form, proveedorName: e.target.value })}
-                  placeholder="Constructora Ejemplo SPA"
-                />
-              </div>
-            )}
-
             <div className="space-y-1.5">
               <Label>Rol en la whitelist</Label>
               <Select value={form.rol} onValueChange={(v) => setForm({ ...form, rol: v })}>
@@ -324,6 +313,71 @@ export default function WhitelistAdminPage() {
                   <SelectItem value="admin">Admin (puede administrar esta whitelist)</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Apps y roles</Label>
+                {puedeAgregarMas && (
+                  <Button type="button" variant="outline" size="sm" onClick={addAsignacion} className="gap-1 h-7 text-xs">
+                    <Plus className="w-3 h-3" />
+                    Agregar otra app
+                  </Button>
+                )}
+              </div>
+
+              {form.asignaciones.map((a, index) => (
+                <Card key={index} className="p-3 space-y-3 bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <div className="grid grid-cols-2 gap-2 flex-1">
+                      <Select
+                        value={a.app}
+                        onValueChange={(v) => updateAsignacion(index, { app: v, appRol: APP_ROLES[v][0].value })}
+                      >
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(APP_LABELS)
+                            .filter(([app]) => app === a.app || !form.asignaciones.some((x) => x.app === app))
+                            .map(([app, label]) => (
+                              <SelectItem key={app} value={app}>{label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={a.appRol} onValueChange={(v) => updateAsignacion(index, { appRol: v })}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {APP_ROLES[a.app].map((r) => (
+                            <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {form.asignaciones.length > 1 && (
+                      <Button type="button" variant="ghost" size="sm" onClick={() => removeAsignacion(index)}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+
+                  {a.app === "vale-express" && (
+                    <Input
+                      value={a.obras}
+                      onChange={(e) => updateAsignacion(index, { obras: e.target.value, restrictObras: e.target.value.trim().length > 0 })}
+                      placeholder="Obras permitidas, separadas por coma (vacío = todas)"
+                      className="h-9 text-xs"
+                    />
+                  )}
+
+                  {a.app === "portal-proveedor" && a.appRol === "subcontratista" && (
+                    <Input
+                      value={a.proveedorName}
+                      onChange={(e) => updateAsignacion(index, { proveedorName: e.target.value })}
+                      placeholder="Nombre del proveedor (tal cual figura en monday)"
+                      className="h-9 text-xs"
+                    />
+                  )}
+                </Card>
+              ))}
             </div>
           </div>
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShieldAlert } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
-import { seedAppSessionFromEmail, getGlobalEmail, appForEmail } from '@/lib/client/fixed-accounts';
+import { seedAppSessionFromEmail, getGlobalEmail, hasAccessToApp } from '@/lib/client/fixed-accounts';
 
 /**
  * Portal Proveedor no tiene login propio - el login es el global (whitelist +
@@ -34,13 +34,18 @@ export default function PortalProveedorGate() {
       return;
     }
 
-    if (appForEmail(globalEmail) !== 'portal-proveedor') {
+    if (!hasAccessToApp('portal-proveedor')) {
       setWrongApp(true);
       return;
     }
 
-    const seeded = seedAppSessionFromEmail(globalEmail);
-    router.push(seeded.dashboardPath);
+    // seedAppSessionFromEmail siembra ve_session Y pp_session si la cuenta
+    // tiene las dos asignaciones - releemos pp_session especificamente ac,
+    // el "primero" que devuelve la funcion podria ser Vale Express si la
+    // cuenta tiene ambas y esa quedo primera en el array.
+    seedAppSessionFromEmail(globalEmail);
+    const ppSession = JSON.parse(localStorage.getItem('pp_session'));
+    router.push(ppSession.role === 'super_admin' ? '/portal-proveedor/super-admin-filter' : '/portal-proveedor/dashboard');
   }, [router]);
 
   if (wrongApp) {

@@ -7,7 +7,7 @@ import { ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut, UserCog } from "lu
 import { NAV_SECTIONS } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useUserRole, ROLES } from "@/hooks/vale-express/useUserRole";
-import { getGlobalEmail, appForEmail, getGlobalWhitelistRol } from "@/lib/client/fixed-accounts";
+import { getGlobalEmail, getGlobalApps, getGlobalWhitelistRol } from "@/lib/client/fixed-accounts";
 
 const COLLAPSE_KEY = "sidebar_collapsed";
 const MOBILE_QUERY = "(max-width: 768px)";
@@ -122,14 +122,17 @@ function useSidebarRoles(pathname) {
  * global conocida todavia (AUTH_LAYERS_ENABLED=false / login legado): no
  * restringe nada, mismo comportamiento de siempre.
  */
-function useHomeApp(pathname) {
-  const [homeApp, setHomeApp] = useState(null);
+function useHomeApps(pathname) {
+  // null = todavia no sabemos (no hay cuenta global conocida, login legado) -
+  // distinto de [] (cuenta conocida, pero sin ninguna app asignada).
+  const [homeApps, setHomeApps] = useState(null);
 
   useEffect(() => {
-    setHomeApp(appForEmail(getGlobalEmail()));
+    const email = getGlobalEmail();
+    setHomeApps(email ? getGlobalApps() : null);
   }, [pathname]);
 
-  return homeApp;
+  return homeApps;
 }
 
 /** rol='admin' en la whitelist global -> puede administrar /admin/whitelist. */
@@ -207,16 +210,17 @@ function useSidebarCollapse() {
 export function AppSidebar() {
   const pathname = usePathname();
   const roles = useSidebarRoles(pathname);
-  const homeApp = useHomeApp(pathname);
+  const homeApps = useHomeApps(pathname);
   const isWhitelistAdmin = useIsWhitelistAdmin(pathname);
   const { collapsed, mobileOpen, toggleCollapsed, expand, toggleMobile, closeMobile } = useSidebarCollapse();
   const currentUser = useCurrentUser(pathname, roles["vale-express"]);
 
   // OC Tracker no tiene dueño (cualquier cuenta lo puede ver); Vale Express y
-  // Portal Proveedor solo se muestran si son la app de la cuenta global actual,
-  // o si todavia no hay ninguna cuenta global conocida (login legado).
+  // Portal Proveedor solo se muestran si estan entre las apps asignadas a la
+  // cuenta global actual (puede ser mas de una), o si todavia no hay ninguna
+  // cuenta global conocida (login legado).
   const visibleSections = NAV_SECTIONS.filter(
-    (section) => section.key === "oc-tracker" || homeApp === null || section.key === homeApp
+    (section) => section.key === "oc-tracker" || homeApps === null || homeApps.includes(section.key)
   );
 
   const activeSection =

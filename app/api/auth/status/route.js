@@ -23,9 +23,7 @@ export async function GET(request) {
     id: sesion.id,
     email: sesion.email,
     rol: sesion.rol,
-    app: sesion.app,
-    appRol: sesion.appRol,
-    appConfig: sesion.appConfig,
+    asignaciones: sesion.asignaciones,
     nombre: sesion.nombre,
   });
 }

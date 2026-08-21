@@ -13,23 +13,24 @@ CREATE TABLE IF NOT EXISTS usuarios_autorizados (
   estado            TEXT NOT NULL DEFAULT 'activo',   -- 'activo' | 'revocado'
   creado_en         TIMESTAMPTZ NOT NULL DEFAULT now(),
   ultimo_acceso     TIMESTAMPTZ,
-  -- A que app pertenece esta cuenta (cada persona es de UNA sola, ver
-  -- lib/client/fixed-accounts.js) y que rol tiene ADENTRO de esa app - distinto
-  -- de `rol` de arriba, que es solo para el panel de whitelist. app_config
-  -- guarda los extras especificos de cada app: obras/restrictObras en Vale
-  -- Express, proveedorName en Portal Proveedor.
-  app               TEXT,                   -- 'vale-express' | 'portal-proveedor' | null
-  app_rol           TEXT,                   -- super_admin | admin | bodeguero | jefe_obra | apr | subcontratista
-  app_config        JSONB NOT NULL DEFAULT '{}'::jsonb
+  -- Array de a que app(s) pertenece esta cuenta y que rol tiene en cada una -
+  -- la mayoria de la gente tiene UNA sola, pero alguien (ej. un admin de la
+  -- agencia) puede necesitar acceso a las dos. Cada elemento:
+  -- {"app": "vale-express" | "portal-proveedor", "appRol": "...", "appConfig": {...}}
+  -- appConfig son los extras especificos de cada app: obras/restrictObras en
+  -- Vale Express, proveedorName en Portal Proveedor.
+  asignaciones      JSONB NOT NULL DEFAULT '[]'::jsonb
 );
 
--- La tabla ya existia en produccion antes de estas 3 columnas - CREATE TABLE
+-- La tabla ya existia en produccion antes de estas columnas - CREATE TABLE
 -- IF NOT EXISTS de arriba no las agrega a una tabla preexistente, hace falta
 -- este ALTER idempotente aparte.
 ALTER TABLE usuarios_autorizados ADD COLUMN IF NOT EXISTS nombre TEXT;
-ALTER TABLE usuarios_autorizados ADD COLUMN IF NOT EXISTS app TEXT;
-ALTER TABLE usuarios_autorizados ADD COLUMN IF NOT EXISTS app_rol TEXT;
-ALTER TABLE usuarios_autorizados ADD COLUMN IF NOT EXISTS app_config JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE usuarios_autorizados ADD COLUMN IF NOT EXISTS asignaciones JSONB NOT NULL DEFAULT '[]'::jsonb;
+-- Las columnas viejas (app/app_rol/app_config - una sola asignacion por
+-- cuenta) se migraron a `asignaciones` con scripts/migrate-asignaciones.js
+-- (logica condicional en JS, no en SQL: un DO $$...$$ con ";" adentro
+-- rompe el separador ingenuo de scripts/migrate.js). Se corre una sola vez.
 
 CREATE TABLE IF NOT EXISTS mfa_usuarios (
   usuario_id        INTEGER PRIMARY KEY REFERENCES usuarios_autorizados (id) ON DELETE CASCADE,

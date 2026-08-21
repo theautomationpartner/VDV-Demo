@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Spinner } from '@/components/ui/spinner';
 import { ShieldAlert } from 'lucide-react';
-import { seedAppSessionFromEmail, getGlobalEmail, appForEmail } from '@/lib/client/fixed-accounts';
+import { seedAppSessionFromEmail, getGlobalEmail, hasAccessToApp } from '@/lib/client/fixed-accounts';
 
 /**
  * Vale Express no tiene login propio - el login es el global (whitelist + 2FA,
@@ -33,7 +33,7 @@ export default function ValeExpressGate() {
             return;
         }
 
-        if (appForEmail(globalEmail) !== 'vale-express') {
+        if (!hasAccessToApp('vale-express')) {
             setWrongApp(true);
             return;
         }

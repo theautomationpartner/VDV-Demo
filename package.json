@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "migrate": "node scripts/migrate.js",
+    "migrate-asignaciones": "node scripts/migrate-asignaciones.js",
     "seed-admin": "node scripts/seed-admin.js",
     "seed-whitelist": "node scripts/seed-whitelist.js",
     "reset-mfa": "node scripts/reset-mfa.js"
