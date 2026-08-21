@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import { ArrowLeft, Plus, Trash2, Shield, Building2, UserCog, Check, ChevronsUpDown, X, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -36,7 +37,11 @@ export default function AdminUsuariosPage() {
     const ctx = localStorage.getItem('pp_session');
     if (!ctx) { router.push('/portal-proveedor'); return; }
     const parsed = JSON.parse(ctx);
-    if (parsed.role !== 'super_admin') { router.push('/portal-proveedor/dashboard'); return; }
+    if (parsed.role !== 'super_admin') {
+      toast.error('No tenés acceso a esta sección debido a tu rol.');
+      router.push('/portal-proveedor/dashboard');
+      return;
+    }
     setUserContext(parsed);
   }, [router]);
 

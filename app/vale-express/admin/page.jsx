@@ -35,7 +35,7 @@ export default function AdminPage() {
             const userData = getUserRoleData(currentRoles, sessionData.userId);
             const userRole = getRoleFromData(userData);
             if (!canAccessAdmin(userRole)) {
-                toast.error('No tienes permisos de administrador');
+                toast.error('No tenés acceso a esta sección debido a tu rol.');
                 router.push('/vale-express/dashboard');
                 return;
             }

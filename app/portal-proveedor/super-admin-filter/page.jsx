@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { Search, Grid3x3, Building2, ArrowRight, Check, ChevronsUpDown, UserPlus, Users, Shield, Trash2, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -54,7 +55,11 @@ export default function SuperAdminFilterPage() {
     const ctx = localStorage.getItem('pp_session');
     if (!ctx) { router.push('/portal-proveedor'); return; }
     const parsed = JSON.parse(ctx);
-    if (parsed.role !== 'super_admin') { router.push('/portal-proveedor/dashboard'); return; }
+    if (parsed.role !== 'super_admin') {
+      toast.error('No tenés acceso a esta sección debido a tu rol.');
+      router.push('/portal-proveedor/dashboard');
+      return;
+    }
     setUserContext(parsed);
   }, [router]);
 

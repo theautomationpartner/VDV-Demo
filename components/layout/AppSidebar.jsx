@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut } from "lucide-react";
 import { NAV_SECTIONS } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/vale-express/useUserRole";
@@ -125,6 +125,25 @@ export function AppSidebar() {
   const toggleSection = (key) => {
     if (collapsed) return;
     setExpandedKey((prev) => (prev === key ? null : key));
+  };
+
+  // Cierra la sesion global (whitelist + 2FA, cookie httpOnly) y las sesiones
+  // por-app (Vale Express / Portal Proveedor, en localStorage). Recarga entera
+  // para que AuthGate vuelva a pedir login desde cero, sin arrastrar estado.
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // Si la sesion global no esta activada (AUTH_LAYERS_ENABLED=false) esta
+      // ruta puede no tener nada que hacer - no bloquea el resto del logout.
+    }
+    try {
+      localStorage.removeItem("ve_session");
+      localStorage.removeItem("pp_session");
+    } catch {
+      // localStorage no disponible (modo privado) - igual redirige.
+    }
+    window.location.href = "/";
   };
 
   return (
@@ -309,6 +328,34 @@ export function AppSidebar() {
               })}
             </ul>
           </nav>
+
+          <div className="border-t border-[hsl(var(--sidebar-border))] p-2">
+            <div className="group/item relative">
+              <button
+                type="button"
+                onClick={handleLogout}
+                aria-label="Cerrar sesión"
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium text-[hsl(var(--sidebar-foreground)/.85)] transition-colors hover:bg-destructive/15 hover:text-destructive",
+                  collapsed && "justify-center px-0"
+                )}
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--sidebar-foreground)/.08)]">
+                  <LogOut className="size-4" />
+                </span>
+                <span className={cn("flex-1 truncate text-left", collapsed && "hidden")}>Cerrar sesión</span>
+              </button>
+
+              {collapsed && (
+                <span
+                  role="tooltip"
+                  className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar))] px-2.5 py-1.5 text-xs font-medium text-[hsl(var(--sidebar-foreground))] opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-within/item:translate-x-0 group-focus-within/item:opacity-100"
+                >
+                  Cerrar sesión
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       </aside>
     </>

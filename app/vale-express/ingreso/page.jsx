@@ -62,7 +62,7 @@ export default function IngresoPage() {
                 console.log('[INGRESO] User access:', { userRole, userObras, restricted });
 
                 if (!canAccessIngreso(userRole)) {
-                    toast.error('No tienes permisos para acceder a esta sección');
+                    toast.error('No tenés acceso a esta sección debido a tu rol.');
                     router.push('/vale-express/dashboard');
                     return;
                 }

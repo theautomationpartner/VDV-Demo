@@ -59,7 +59,7 @@ export default function SolicitudPage() {
                 console.log('[SOLICITUD] User access:', { userRole, userObras, restricted });
 
                 if (!canAccessSolicitud(userRole)) {
-                    toast.error('No tienes permisos para solicitar material');
+                    toast.error('No tenés acceso a esta sección debido a tu rol.');
                     router.push('/vale-express/dashboard');
                     return;
                 }

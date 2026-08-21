@@ -47,7 +47,7 @@ export default function ValesPendientesPage() {
             const restricted = isObrasRestricted(userData);
 
             if (!canAccessValesPendientes(userRole)) {
-                toast.error('No tienes permisos para esta sección');
+                toast.error('No tenés acceso a esta sección debido a tu rol.');
                 router.push('/vale-express/dashboard');
                 return;
             }
