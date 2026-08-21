@@ -17,14 +17,19 @@ export async function POST(request) {
   const { code, remember } = body ?? {};
   if (!code) return Response.json({ error: "Falta 'code'" }, { status: 400 });
 
-  const resultado = await confirmarSetupMfa(usuario.id, code);
-  if (!resultado.ok) {
-    return Response.json({ error: "Código inválido" }, { status: 400 });
+  try {
+    const resultado = await confirmarSetupMfa(usuario.id, code);
+    if (!resultado.ok) {
+      return Response.json({ error: "Código inválido" }, { status: 400 });
+    }
+
+    await crearSesion(usuario, { remember: Boolean(remember) });
+    await marcarUltimoAcceso(usuario.id);
+    await auditarEvento(usuario.id, usuario.email, "mfa_setup_ok", request.headers.get("x-forwarded-for"));
+
+    return Response.json({ recoveryCodes: resultado.recoveryCodes, email: usuario.email, rol: usuario.rol });
+  } catch (err) {
+    console.error("[/api/auth/mfa/confirm]", err);
+    return Response.json({ error: "Error interno del servidor" }, { status: 500 });
   }
-
-  await crearSesion(usuario, { remember: Boolean(remember) });
-  await marcarUltimoAcceso(usuario.id);
-  await auditarEvento(usuario.id, usuario.email, "mfa_setup_ok", request.headers.get("x-forwarded-for"));
-
-  return Response.json({ recoveryCodes: resultado.recoveryCodes, email: usuario.email, rol: usuario.rol });
 }

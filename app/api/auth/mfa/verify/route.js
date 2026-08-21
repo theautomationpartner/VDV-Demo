@@ -17,18 +17,23 @@ export async function POST(request) {
   const { code, recoveryCode, remember } = body ?? {};
   const ip = request.headers.get("x-forwarded-for");
 
-  const resultado = recoveryCode
-    ? await verificarCodigoRecuperacion(usuario.id, recoveryCode)
-    : await verificarCodigoMfa(usuario.id, code);
+  try {
+    const resultado = recoveryCode
+      ? await verificarCodigoRecuperacion(usuario.id, recoveryCode)
+      : await verificarCodigoMfa(usuario.id, code);
 
-  if (!resultado.ok) {
-    await auditarEvento(usuario.id, usuario.email, "mfa_fallido", ip);
-    return Response.json({ error: "Código inválido o vencido" }, { status: 400 });
+    if (!resultado.ok) {
+      await auditarEvento(usuario.id, usuario.email, "mfa_fallido", ip);
+      return Response.json({ error: "Código inválido o vencido" }, { status: 400 });
+    }
+
+    await crearSesion(usuario, { remember: Boolean(remember) });
+    await marcarUltimoAcceso(usuario.id);
+    await auditarEvento(usuario.id, usuario.email, "mfa_ok", ip);
+
+    return Response.json({ email: usuario.email, rol: usuario.rol });
+  } catch (err) {
+    console.error("[/api/auth/mfa/verify]", err);
+    return Response.json({ error: "Error interno del servidor" }, { status: 500 });
   }
-
-  await crearSesion(usuario, { remember: Boolean(remember) });
-  await marcarUltimoAcceso(usuario.id);
-  await auditarEvento(usuario.id, usuario.email, "mfa_ok", ip);
-
-  return Response.json({ email: usuario.email, rol: usuario.rol });
 }

@@ -12,6 +12,11 @@ export async function POST(request) {
     return Response.json({ error: "Sesion de login vencida, volve a escribir tu email" }, { status: 401 });
   }
 
-  const { qrDataUrl, secretBase32 } = await iniciarSetupMfa(usuario.id, usuario.email);
-  return Response.json({ qrDataUrl, secretBase32 });
+  try {
+    const { qrDataUrl, secretBase32 } = await iniciarSetupMfa(usuario.id, usuario.email);
+    return Response.json({ qrDataUrl, secretBase32 });
+  } catch (err) {
+    console.error("[/api/auth/mfa/setup]", err);
+    return Response.json({ error: "Error interno del servidor" }, { status: 500 });
+  }
 }

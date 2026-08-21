@@ -19,9 +19,11 @@ export async function POST(request) {
   const email = String(body?.email ?? "").trim();
   if (!email) return Response.json({ error: "Falta 'email'" }, { status: 400 });
 
-  let usuario;
   try {
-    usuario = await verificarEmailEnWhitelist(email, { ip: request.headers.get("x-forwarded-for") });
+    const usuario = await verificarEmailEnWhitelist(email, { ip: request.headers.get("x-forwarded-for") });
+    const preAuthToken = emitirPreAuthToken(usuario);
+    const configurado = await tieneMfaConfigurado(usuario.id);
+    return Response.json({ status: configurado ? "needs_code" : "needs_setup", preAuthToken });
   } catch (err) {
     if (err instanceof NoAutorizado) {
       return Response.json(
@@ -29,11 +31,10 @@ export async function POST(request) {
         { status: 401 }
       );
     }
-    throw err;
+    // Nunca dejar que un pedido a esta ruta vuelva sin JSON (ver logs de Vercel
+    // para la causa real - falta comun: DATABASE_URL / MFA_ENCRYPTION_KEY /
+    // MFA_SESSION_SECRET no configuradas).
+    console.error("[/api/auth/login]", err);
+    return Response.json({ error: "Error interno del servidor" }, { status: 500 });
   }
-
-  const preAuthToken = emitirPreAuthToken(usuario);
-  const configurado = await tieneMfaConfigurado(usuario.id);
-
-  return Response.json({ status: configurado ? "needs_code" : "needs_setup", preAuthToken });
 }
