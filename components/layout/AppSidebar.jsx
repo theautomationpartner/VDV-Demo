@@ -223,7 +223,7 @@ export function AppSidebar() {
             Aplicaciones
           </div>
 
-          <nav aria-label="Aplicaciones" className="min-h-0 flex-1 overflow-y-auto">
+          <nav aria-label="Aplicaciones" className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
             <ul className="flex flex-col gap-1 px-2">
               {NAV_SECTIONS.map((section) => {
                 const isSectionActive = activeSection?.key === section.key;
@@ -243,18 +243,18 @@ export function AppSidebar() {
                         "group flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium transition-colors",
                         collapsed && "justify-center px-0",
                         isSectionActive
-                          ? "bg-[var(--accent)] text-black/85"
-                          : "text-[color-mix(in_hsl,var(--sidebar-foreground)_85%,transparent)] hover:bg-[color-mix(in_hsl,var(--accent)_16%,transparent)] hover:text-[var(--sidebar-foreground)]"
+                          ? "bg-[hsl(var(--accent))] text-black/85"
+                          : "text-[color-mix(in_hsl,var(--sidebar-foreground)_85%,transparent)] hover:bg-[hsl(var(--accent)/.16)] hover:text-[var(--sidebar-foreground)]"
                       )}
                     >
                       <span
                         className={cn(
                           "flex size-8 shrink-0 items-center justify-center rounded-lg",
-                          isSectionActive ? "bg-black/15" : "bg-[color-mix(in_hsl,var(--accent)_16%,transparent)]"
+                          isSectionActive ? "bg-black/15" : "bg-[hsl(var(--accent)/.16)]"
                         )}
                       >
                         <SectionIcon
-                          className={cn("size-4", isSectionActive ? "text-black/80" : "text-[var(--accent)]")}
+                          className={cn("size-4", isSectionActive ? "text-black/80" : "text-[hsl(var(--accent))]")}
                         />
                       </span>
                       <span
@@ -296,7 +296,7 @@ export function AppSidebar() {
                       <div className="overflow-hidden">
                         <ul
                           className={cn(
-                            "mt-1 mb-1 ml-[18px] flex flex-col gap-0.5 border-l-2 border-[color-mix(in_hsl,var(--accent)_35%,transparent)] bg-[color-mix(in_hsl,var(--accent)_10%,transparent)] py-1.5 pr-1.5 pl-2.5 transition-opacity duration-200",
+                            "mt-1 mb-1 ml-[18px] flex flex-col gap-0.5 border-l-2 border-[hsl(var(--accent)/.35)] bg-[hsl(var(--accent)/.1)] py-1.5 pr-1.5 pl-2.5 transition-opacity duration-200",
                             isExpanded ? "opacity-100" : "opacity-0"
                           )}
                         >
@@ -310,7 +310,7 @@ export function AppSidebar() {
                                   className={cn(
                                     "flex items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] leading-tight transition-colors",
                                     isItemActive
-                                      ? "font-semibold text-[var(--accent)]"
+                                      ? "font-semibold text-[hsl(var(--accent))]"
                                       : "text-[color-mix(in_hsl,var(--sidebar-foreground)_65%,transparent)] hover:bg-[color-mix(in_hsl,var(--sidebar-foreground)_6%,transparent)] hover:text-[var(--sidebar-foreground)]"
                                   )}
                                 >
