@@ -1,23 +1,14 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Building2, UserCog, Users, ShieldAlert, Loader2, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-// Cuentas fijas por rol - son las UNICAS que pueden entrar a Portal Proveedor. No
-// se buscan contra los usuarios reales del board de monday (esta app comparte
-// cuenta por rol, no una cuenta por empleado).
-// proveedorName: null en subcontratista = ve todos los pagos por ahora (sin
-// restringir a un proveedor real todavia).
-const FIXED_LOGIN_ACCOUNTS = {
-  'superadmin.portalproveedor@demo.vdv.cl': { id: 'demo-pp-super-admin', name: 'Super Admin', role: 'super_admin', proveedorName: null },
-  'admin.portalproveedor@demo.vdv.cl': { id: 'demo-pp-admin', name: 'Administrador', role: 'admin', proveedorName: null },
-  'subcontratista.portalproveedor@demo.vdv.cl': { id: 'demo-pp-subcontratista', name: 'Subcontratista', role: 'subcontratista', proveedorName: null },
-};
+import { Spinner } from '@/components/ui/spinner';
+import { PORTAL_PROVEEDOR_ACCOUNTS as FIXED_LOGIN_ACCOUNTS } from '@/lib/client/fixed-accounts';
 
 const roleConfig = {
   super_admin: { label: 'Super Administrador', icon: UserCog, desc: 'Acceso completo al portal', color: 'text-primary', bg: 'bg-primary/10' },
@@ -27,10 +18,21 @@ const roleConfig = {
 
 export default function LoginPage() {
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
   const [searched, setSearched] = useState(false);
   const [entering, setEntering] = useState(false);
+
+  useEffect(() => {
+    const session = localStorage.getItem('pp_session');
+    if (session) {
+      const parsed = JSON.parse(session);
+      router.push(parsed.role === 'super_admin' ? '/portal-proveedor/super-admin-filter' : '/portal-proveedor/dashboard');
+      return;
+    }
+    setLoading(false);
+  }, [router]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -64,6 +66,14 @@ export default function LoginPage() {
       router.push('/portal-proveedor/dashboard');
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Spinner className="size-8 text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">

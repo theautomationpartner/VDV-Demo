@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { ShieldAlert, ShieldCheck, Mail } from "lucide-react";
+import { seedAppSessionFromEmail } from "@/lib/client/fixed-accounts";
 
 /**
  * Login propio de la app (whitelist de emails + 2FA) - se monta una sola vez en
@@ -18,6 +20,7 @@ import { ShieldAlert, ShieldCheck, Mail } from "lucide-react";
  * devuelve 'ready' de entrada y esto es un pass-through invisible.
  */
 export function AuthGate({ children }) {
+  const router = useRouter();
   const [state, setState] = useState({ phase: "loading" });
 
   useEffect(() => {
@@ -28,6 +31,16 @@ export function AuthGate({ children }) {
       })
       .catch(() => setState({ phase: "error" }));
   }, []);
+
+  // Login recien completado (email + 2FA, o sin 2FA si MFA_REQUIRED=false): ya
+  // sabemos exactamente cual de las 8 cuentas fijas entro, asi que autocompleta
+  // la sesion de Vale Express / Portal Proveedor y lleva directo al dashboard -
+  // pedirle el email de nuevo ahi adentro seria un segundo login redundante.
+  const handleLoginDone = (email) => {
+    const seeded = email ? seedAppSessionFromEmail(email) : null;
+    setState({ phase: "ready" });
+    if (seeded) router.push(seeded.dashboardPath);
+  };
 
   if (state.phase === "loading") {
     return (
@@ -53,7 +66,7 @@ export function AuthGate({ children }) {
     );
   }
 
-  return <LoginFlow onDone={() => setState({ phase: "ready" })} />;
+  return <LoginFlow onDone={handleLoginDone} />;
 }
 
 function LoginFlow({ onDone }) {
@@ -61,12 +74,14 @@ function LoginFlow({ onDone }) {
   // tiene 2FA configurado, solo pide el codigo) -> 'blocked' (email no autorizado)
   const [step, setStep] = useState("email");
   const [preAuthToken, setPreAuthToken] = useState(null);
+  const [email, setEmail] = useState(null);
 
   if (step === "email") {
     return (
       <EmailScreen
-        onAuthorized={(token, status) => {
-          if (status === "ready") return onDone(); // MFA_REQUIRED=false: la whitelist ya alcanza
+        onAuthorized={(token, status, authorizedEmail) => {
+          setEmail(authorizedEmail);
+          if (status === "ready") return onDone(authorizedEmail); // MFA_REQUIRED=false: la whitelist ya alcanza
           setPreAuthToken(token);
           setStep(status === "needs_setup" ? "setup" : "code");
         }}
@@ -93,10 +108,10 @@ function LoginFlow({ onDone }) {
   }
 
   if (step === "setup") {
-    return <SetupScreen preAuthToken={preAuthToken} onDone={onDone} />;
+    return <SetupScreen preAuthToken={preAuthToken} onDone={() => onDone(email)} />;
   }
 
-  return <CodeScreen preAuthToken={preAuthToken} onDone={onDone} />;
+  return <CodeScreen preAuthToken={preAuthToken} onDone={() => onDone(email)} />;
 }
 
 function EmailScreen({ onAuthorized, onBlocked }) {
@@ -120,7 +135,7 @@ function EmailScreen({ onAuthorized, onBlocked }) {
         if (res.status === 401) return onBlocked();
         throw new Error(json.error ?? "Error al verificar el correo");
       }
-      onAuthorized(json.preAuthToken, json.status);
+      onAuthorized(json.preAuthToken, json.status, json.email ?? email.trim().toLowerCase());
     } catch (err) {
       setError(err.message);
     } finally {

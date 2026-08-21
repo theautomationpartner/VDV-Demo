@@ -4,18 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Spinner } from '@/components/ui/spinner';
 import { Warehouse, Mail, AlertCircle } from 'lucide-react';
-
-// Cuentas fijas por rol - son las UNICAS que pueden entrar a Vale Express. No se
-// buscan contra los usuarios reales del board de monday (esta app comparte
-// cuenta por rol, no una cuenta por empleado). Los ids resuelven el rol en
-// hooks/vale-express/useUserRole.js (FIXED_ROLE_DATA).
-const FIXED_LOGIN_ACCOUNTS = {
-    'superadmin.valeexpress@demo.vdv.cl': { id: 'demo-ve-super-admin', name: 'Super Admin' },
-    'admin.valeexpress@demo.vdv.cl': { id: 'demo-ve-admin', name: 'Administrador' },
-    'bodega.valeexpress@demo.vdv.cl': { id: 'demo-ve-bodeguero', name: 'Bodeguero' },
-    'jefeobra.valeexpress@demo.vdv.cl': { id: 'demo-ve-jefe-obra', name: 'Jefe de Obra' },
-    'apr.valeexpress@demo.vdv.cl': { id: 'demo-ve-apr', name: 'APR' },
-};
+import { VALE_EXPRESS_ACCOUNTS as FIXED_LOGIN_ACCOUNTS } from '@/lib/client/fixed-accounts';
 
 export default function LoginPage() {
     const router = useRouter();

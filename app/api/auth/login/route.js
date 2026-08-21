@@ -33,7 +33,7 @@ export async function POST(request) {
       await crearSesion(usuario, { remember: true });
       await marcarUltimoAcceso(usuario.id);
       await auditarEvento(usuario.id, usuario.email, "login_sin_2fa", request.headers.get("x-forwarded-for"));
-      return Response.json({ status: "ready" });
+      return Response.json({ status: "ready", email: usuario.email, rol: usuario.rol });
     }
 
     const preAuthToken = emitirPreAuthToken(usuario);
