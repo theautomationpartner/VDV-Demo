@@ -66,6 +66,7 @@ function LoginFlow({ onDone }) {
     return (
       <EmailScreen
         onAuthorized={(token, status) => {
+          if (status === "ready") return onDone(); // MFA_REQUIRED=false: la whitelist ya alcanza
           setPreAuthToken(token);
           setStep(status === "needs_setup" ? "setup" : "code");
         }}
