@@ -3,17 +3,15 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Building2, ChevronRight, CheckCircle2, Clock, FileText, Receipt, ShoppingCart, LogOut } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Building2, ChevronRight, CheckCircle2, Clock, FileText, Receipt, ShoppingCart } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { usePaymentData, clearPaymentCache } from '@/hooks/portal-proveedor/usePaymentData';
-import { useContracts, useEstadosDePago, useOrdenesCompra, clearSubcontractCache } from '@/hooks/portal-proveedor/useSubcontractData';
-import { useFacturacion, clearFacturacionCache } from '@/hooks/portal-proveedor/useFacturacion';
-import { clearFacturasPendientesCache } from '@/hooks/portal-proveedor/useFacturasPendientes';
+import { usePaymentData } from '@/hooks/portal-proveedor/usePaymentData';
+import { useContracts, useEstadosDePago, useOrdenesCompra } from '@/hooks/portal-proveedor/useSubcontractData';
+import { useFacturacion } from '@/hooks/portal-proveedor/useFacturacion';
 
 const OBRA_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'hsl(210,60%,55%)', 'hsl(340,60%,55%)', 'hsl(160,55%,45%)', 'hsl(30,70%,50%)', 'hsl(260,55%,55%)'];
 
@@ -102,34 +100,19 @@ export default function DashboardPage() {
     return { obraStats: Array.from(obraMap.values()).sort((a, b) => b.totalMonto - a.totalMonto), totalPagos: pagos, totalMonto: monto, totalListo: listo, countListo: cListo, countEnProceso: cProceso };
   }, [items]);
 
-  const handleLogout = () => {
-    clearPaymentCache();
-    clearSubcontractCache();
-    clearFacturacionCache();
-    clearFacturasPendientesCache();
-    localStorage.removeItem('pp_session');
-    router.push('/portal-proveedor');
-  };
-
   if (!userContext) return null;
 
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b border-border bg-card">
-        <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-4 md:py-5 flex items-center justify-between">
-          <div className="flex items-center gap-3 min-w-0">
-            <h1 className="text-base md:text-lg font-semibold text-foreground truncate">Resumen de Pagos</h1>
-            {userContext.role === 'super_admin' && userContext.filterMode === 'specific' && userContext.filterProveedor && (
-              <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md bg-primary/10 border border-primary/20">
-                <Building2 className="w-3.5 h-3.5 text-primary" />
-                <span className="text-xs font-medium text-primary truncate max-w-[200px]">{userContext.filterProveedor}</span>
-              </div>
-            )}
-          </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-1.5 text-muted-foreground hover:text-foreground shrink-0">
-            <LogOut className="w-4 h-4" />
-            <span className="hidden sm:inline">Cerrar sesión</span>
-          </Button>
+        <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-4 md:py-5 flex items-center gap-3 min-w-0">
+          <h1 className="text-base md:text-lg font-semibold text-foreground truncate">Resumen de Pagos</h1>
+          {userContext.role === 'super_admin' && userContext.filterMode === 'specific' && userContext.filterProveedor && (
+            <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md bg-primary/10 border border-primary/20">
+              <Building2 className="w-3.5 h-3.5 text-primary" />
+              <span className="text-xs font-medium text-primary truncate max-w-[200px]">{userContext.filterProveedor}</span>
+            </div>
+          )}
         </div>
       </div>
 

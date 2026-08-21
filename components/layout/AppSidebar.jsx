@@ -6,11 +6,71 @@ import { useEffect, useState } from "react";
 import { ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut } from "lucide-react";
 import { NAV_SECTIONS } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
-import { useUserRole } from "@/hooks/vale-express/useUserRole";
+import { useUserRole, ROLES } from "@/hooks/vale-express/useUserRole";
 import { getGlobalEmail, appForEmail } from "@/lib/client/fixed-accounts";
 
 const COLLAPSE_KEY = "sidebar_collapsed";
 const MOBILE_QUERY = "(max-width: 768px)";
+
+// Portal Proveedor tiene su propio vocabulario de roles (no pasa por
+// hooks/vale-express/useUserRole.js), asi que no comparte el mapa ROLES de
+// arriba - se etiqueta aca mismo.
+const PP_ROLE_LABELS = {
+  super_admin: "Super Admin",
+  admin: "Administrador",
+  subcontratista: "Subcontratista",
+};
+
+function humanizeEmailLocalPart(email) {
+  if (!email) return null;
+  const local = email.split("@")[0];
+  return local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function initialsFor(name) {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  return parts.map((part) => part[0]?.toUpperCase()).join("") || "?";
+}
+
+/**
+ * No hay un login/usuario unico todavia (ver useSidebarRoles arriba) - esta
+ * identidad "quien esta logeado" se arma leyendo las mismas 3 fuentes que ya
+ * usa el resto del sidebar: sesion de Portal Proveedor > sesion de Vale
+ * Express > email global (login legado / cuenta sin app asignada). Se re-lee
+ * en cada cambio de ruta por la misma razon que useSidebarRoles.
+ */
+function useCurrentUser(pathname, veRole) {
+  const [identity, setIdentity] = useState({ name: null, email: null, roleLabel: null });
+
+  useEffect(() => {
+    const email = getGlobalEmail();
+    const ppSession = readSession("pp_session");
+    const veSession = readSession("ve_session");
+
+    if (ppSession?.adminName) {
+      setIdentity({
+        name: ppSession.adminName,
+        email,
+        roleLabel: PP_ROLE_LABELS[ppSession.role] ?? ppSession.role ?? null,
+      });
+    } else if (veSession?.userName) {
+      setIdentity({
+        name: veSession.userName,
+        email,
+        roleLabel: veRole ? (ROLES[veRole]?.label ?? veRole) : null,
+      });
+    } else {
+      setIdentity({ name: humanizeEmailLocalPart(email), email, roleLabel: null });
+    }
+  }, [pathname, veRole]);
+
+  return { ...identity, initials: initialsFor(identity.name) };
+}
 
 function isItemVisible(item, role) {
   if (item.roles === null) return true;
@@ -95,17 +155,29 @@ function useSidebarCollapse() {
     }
   }, []);
 
+  const persistCollapsed = (value) => {
+    try {
+      window.localStorage.setItem(COLLAPSE_KEY, String(value));
+    } catch {
+      // localStorage no disponible (modo privado, cuota) - el estado sigue funcionando en memoria
+    }
+  };
+
   // Rail angosto/ancho en escritorio - persiste entre recargas.
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
       const next = !prev;
-      try {
-        window.localStorage.setItem(COLLAPSE_KEY, String(next));
-      } catch {
-        // localStorage no disponible (modo privado, cuota) - el estado sigue funcionando en memoria
-      }
+      persistCollapsed(next);
       return next;
     });
+  };
+
+  // Fuerza el rail a ancho (a diferencia de toggleCollapsed, no alterna): la usa
+  // el click en una seccion estando colapsado, para desplegar el rail y su
+  // submenu en un solo gesto en vez de tener que abrir el rail primero.
+  const expand = () => {
+    setCollapsed(false);
+    persistCollapsed(false);
   };
 
   // Drawer superpuesto en movil - abre/cierra, no persiste (siempre arranca cerrado).
@@ -115,6 +187,7 @@ function useSidebarCollapse() {
     collapsed,
     mobileOpen,
     toggleCollapsed,
+    expand,
     toggleMobile,
     closeMobile: () => setMobileOpen(false),
   };
@@ -124,7 +197,8 @@ export function AppSidebar() {
   const pathname = usePathname();
   const roles = useSidebarRoles(pathname);
   const homeApp = useHomeApp(pathname);
-  const { collapsed, mobileOpen, toggleCollapsed, toggleMobile, closeMobile } = useSidebarCollapse();
+  const { collapsed, mobileOpen, toggleCollapsed, expand, toggleMobile, closeMobile } = useSidebarCollapse();
+  const currentUser = useCurrentUser(pathname, roles["vale-express"]);
 
   // OC Tracker no tiene dueño (cualquier cuenta lo puede ver); Vale Express y
   // Portal Proveedor solo se muestran si son la app de la cuenta global actual,
@@ -149,8 +223,15 @@ export function AppSidebar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
+  // Con el rail colapsado, un click en la seccion la despliega en un solo
+  // gesto: expande el rail a ancho completo y abre el acordeon de esa
+  // seccion, en vez de requerir abrir el rail primero y despues elegirla.
   const toggleSection = (key) => {
-    if (collapsed) return;
+    if (collapsed) {
+      expand();
+      setExpandedKey(key);
+      return;
+    }
     setExpandedKey((prev) => (prev === key ? null : key));
   };
 
@@ -358,6 +439,41 @@ export function AppSidebar() {
           </nav>
 
           <div className="border-t border-[var(--sidebar-border)] p-2">
+            {(currentUser.name || currentUser.email) && (
+              <div className="group/item relative mb-1">
+                <div
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-xl px-2.5 py-2",
+                    collapsed && "justify-center px-0"
+                  )}
+                >
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_hsl,var(--sidebar-primary)_18%,transparent)] text-[11px] font-bold leading-none text-[var(--sidebar-primary)]">
+                    {currentUser.initials}
+                  </span>
+                  <div className={cn("min-w-0 flex-1", collapsed && "hidden")}>
+                    <div className="truncate text-[13px] font-semibold leading-tight text-[var(--sidebar-foreground)]">
+                      {currentUser.name ?? currentUser.email}
+                    </div>
+                    {currentUser.roleLabel && (
+                      <div className="truncate text-[11px] leading-tight text-[color-mix(in_hsl,var(--sidebar-foreground)_55%,transparent)]">
+                        {currentUser.roleLabel}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {collapsed && (
+                  <span
+                    role="tooltip"
+                    className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md border border-[var(--sidebar-border)] bg-[var(--sidebar)] px-2.5 py-1.5 text-xs font-medium text-[var(--sidebar-foreground)] opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-within/item:translate-x-0 group-focus-within/item:opacity-100"
+                  >
+                    {currentUser.name ?? currentUser.email}
+                    {currentUser.roleLabel ? ` · ${currentUser.roleLabel}` : ""}
+                  </span>
+                )}
+              </div>
+            )}
+
             <div className="group/item relative">
               <button
                 type="button"
