@@ -25,10 +25,10 @@ export default function RootLayout({ children }) {
       lang="es"
       className={`dark ${geistSans.variable} ${geistMono.variable} h-full overflow-x-hidden antialiased`}
     >
-      <body data-app="shell" className="flex h-full min-h-screen overflow-x-hidden bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
+      <body data-app="shell" className="flex h-full min-h-screen overflow-x-hidden bg-[var(--background)] text-[var(--foreground)]">
         <AuthGate>
           <AppSidebar />
-          <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
+          <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">{children}</main>
         </AuthGate>
         <Toaster richColors position="top-center" />
       </body>

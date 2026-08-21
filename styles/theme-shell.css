@@ -1,31 +1,38 @@
 /* Tema neutro para el chrome nuevo (sidebar global, topbar) que no pertenece a ninguna de las 3 apps originales. */
 [data-app="shell"] {
-    --background: 222 12% 7%;
-    --foreground: 0 0% 96%;
-    --card: 222 12% 10%;
-    --card-foreground: 0 0% 96%;
-    --popover: 222 12% 10%;
-    --popover-foreground: 0 0% 96%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 222 12% 13%;
-    --secondary-foreground: 0 0% 90%;
-    --muted: 222 12% 13%;
-    --muted-foreground: 222 6% 62%;
-    --accent: 217 91% 60%;
-    --accent-foreground: 0 0% 100%;
-    --border: 222 12% 17%;
-    --input: 222 12% 17%;
-    --ring: 217 91% 60%;
+    /* Valores envueltos en hsl(...) (no tripletes "pelados"): los tokens
+       --color-* de Tailwind (@theme inline en globals.css) se inlinean tal
+       cual en las utilities compiladas (ej. ".bg-primary{background-color:var(--primary)}"),
+       sin wrapper hsl() propio. Un triplete "H S% L%" ahi no es un color CSS
+       valido y la regla se descarta (bg-primary/bg-card/etc. quedan
+       transparentes) - mismo fix que ya tienen los otros 3 temas.
+       (theme-portal-proveedor.css, theme-vale-express.css, theme-oc-tracker.css). */
+    --background: hsl(222 12% 7%);
+    --foreground: hsl(0 0% 96%);
+    --card: hsl(222 12% 10%);
+    --card-foreground: hsl(0 0% 96%);
+    --popover: hsl(222 12% 10%);
+    --popover-foreground: hsl(0 0% 96%);
+    --primary: hsl(217 91% 60%);
+    --primary-foreground: hsl(0 0% 100%);
+    --secondary: hsl(222 12% 13%);
+    --secondary-foreground: hsl(0 0% 90%);
+    --muted: hsl(222 12% 13%);
+    --muted-foreground: hsl(222 6% 62%);
+    --accent: hsl(217 91% 60%);
+    --accent-foreground: hsl(0 0% 100%);
+    --border: hsl(222 12% 17%);
+    --input: hsl(222 12% 17%);
+    --ring: hsl(217 91% 60%);
 
-    --sidebar: 222 14% 8%;
-    --sidebar-foreground: 0 0% 92%;
-    --sidebar-primary: 217 91% 65%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 12% 15%;
-    --sidebar-accent-foreground: 0 0% 96%;
-    --sidebar-border: 222 12% 17%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar: hsl(222 14% 8%);
+    --sidebar-foreground: hsl(0 0% 92%);
+    --sidebar-primary: hsl(217 91% 65%);
+    --sidebar-primary-foreground: hsl(0 0% 100%);
+    --sidebar-accent: hsl(222 12% 15%);
+    --sidebar-accent-foreground: hsl(0 0% 96%);
+    --sidebar-border: hsl(222 12% 17%);
+    --sidebar-ring: hsl(217 91% 60%);
 
     --radius-md: 0.5rem;
 

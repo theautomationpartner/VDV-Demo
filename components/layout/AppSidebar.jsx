@@ -153,7 +153,7 @@ export function AppSidebar() {
           type="button"
           onClick={toggleMobile}
           aria-label="Abrir menú lateral"
-          className="fixed left-4 top-4 z-30 flex size-9 items-center justify-center rounded-lg border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar))] text-[hsl(var(--sidebar-foreground))] shadow-md md:hidden"
+          className="fixed left-4 top-4 z-30 flex size-9 items-center justify-center rounded-lg border border-[var(--sidebar-border)] bg-[var(--sidebar)] text-[var(--sidebar-foreground)] shadow-md md:hidden"
         >
           <PanelLeftOpen className="size-4" />
         </button>
@@ -172,7 +172,7 @@ export function AppSidebar() {
         <div
           data-collapsed={collapsed}
           className={cn(
-            "flex h-full flex-col overflow-hidden border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar))] text-[hsl(var(--sidebar-foreground))] transition-[width] duration-300 ease-in-out",
+            "flex h-full flex-col overflow-hidden border-r border-[var(--sidebar-border)] bg-[var(--sidebar)] text-[var(--sidebar-foreground)] transition-[width] duration-300 ease-in-out",
             collapsed ? "w-[76px]" : "w-64",
             "max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:!w-64 max-md:shadow-2xl max-md:transition-transform max-md:duration-300",
             "max-md:" + (mobileOpen ? "translate-x-0" : "-translate-x-full")
@@ -185,11 +185,11 @@ export function AppSidebar() {
             )}
           >
             <div className={cn("flex min-w-0 items-center gap-2.5", collapsed ? "shrink-0" : "flex-1 overflow-hidden")}>
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--sidebar-foreground)/.08)] text-[11px] font-bold leading-none tracking-tight">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)] text-[11px] font-bold leading-none tracking-tight">
                 VDV
               </span>
               <div className={cn("overflow-hidden", collapsed && "hidden")}>
-                <div className="whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.15em] text-[hsl(var(--sidebar-foreground)/.45)]">
+                <div className="whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.15em] text-[color-mix(in_hsl,var(--sidebar-foreground)_45%,transparent)]">
                   Vergara del Valle
                 </div>
               </div>
@@ -199,7 +199,7 @@ export function AppSidebar() {
               onClick={toggleCollapsed}
               aria-expanded={!collapsed}
               aria-label={collapsed ? "Expandir menú lateral" : "Colapsar menú lateral"}
-              className="flex size-7 shrink-0 items-center justify-center rounded-lg text-[hsl(var(--sidebar-foreground)/.5)] transition-colors hover:bg-[hsl(var(--sidebar-foreground)/.08)] hover:text-[hsl(var(--sidebar-foreground))] max-md:hidden"
+              className="flex size-7 shrink-0 items-center justify-center rounded-lg text-[color-mix(in_hsl,var(--sidebar-foreground)_50%,transparent)] transition-colors hover:bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)] hover:text-[var(--sidebar-foreground)] max-md:hidden"
             >
               {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
             </button>
@@ -208,7 +208,7 @@ export function AppSidebar() {
               onClick={toggleMobile}
               aria-expanded={mobileOpen}
               aria-label="Cerrar menú lateral"
-              className="hidden size-7 shrink-0 items-center justify-center rounded-lg text-[hsl(var(--sidebar-foreground)/.5)] transition-colors hover:bg-[hsl(var(--sidebar-foreground)/.08)] hover:text-[hsl(var(--sidebar-foreground))] max-md:flex"
+              className="hidden size-7 shrink-0 items-center justify-center rounded-lg text-[color-mix(in_hsl,var(--sidebar-foreground)_50%,transparent)] transition-colors hover:bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)] hover:text-[var(--sidebar-foreground)] max-md:flex"
             >
               <PanelLeftClose className="size-4" />
             </button>
@@ -216,7 +216,7 @@ export function AppSidebar() {
 
           <div
             className={cn(
-              "overflow-hidden whitespace-nowrap px-4 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--sidebar-foreground)/.4)] transition-[opacity,max-height] duration-200",
+              "overflow-hidden whitespace-nowrap px-4 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[color-mix(in_hsl,var(--sidebar-foreground)_40%,transparent)] transition-[opacity,max-height] duration-200",
               collapsed ? "max-h-0 opacity-0" : "max-h-4 opacity-100"
             )}
           >
@@ -243,18 +243,18 @@ export function AppSidebar() {
                         "group flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium transition-colors",
                         collapsed && "justify-center px-0",
                         isSectionActive
-                          ? "bg-[hsl(var(--accent))] text-black/85"
-                          : "text-[hsl(var(--sidebar-foreground)/.85)] hover:bg-[hsl(var(--accent)/.16)] hover:text-[hsl(var(--sidebar-foreground))]"
+                          ? "bg-[var(--accent)] text-black/85"
+                          : "text-[color-mix(in_hsl,var(--sidebar-foreground)_85%,transparent)] hover:bg-[color-mix(in_hsl,var(--accent)_16%,transparent)] hover:text-[var(--sidebar-foreground)]"
                       )}
                     >
                       <span
                         className={cn(
                           "flex size-8 shrink-0 items-center justify-center rounded-lg",
-                          isSectionActive ? "bg-black/15" : "bg-[hsl(var(--accent)/.16)]"
+                          isSectionActive ? "bg-black/15" : "bg-[color-mix(in_hsl,var(--accent)_16%,transparent)]"
                         )}
                       >
                         <SectionIcon
-                          className={cn("size-4", isSectionActive ? "text-black/80" : "text-[hsl(var(--accent))]")}
+                          className={cn("size-4", isSectionActive ? "text-black/80" : "text-[var(--accent)]")}
                         />
                       </span>
                       <span
@@ -268,7 +268,7 @@ export function AppSidebar() {
                       <ChevronRight
                         className={cn(
                           "size-3.5 shrink-0 transition-transform duration-200",
-                          isSectionActive ? "text-black/70" : "text-[hsl(var(--sidebar-foreground)/.4)]",
+                          isSectionActive ? "text-black/70" : "text-[color-mix(in_hsl,var(--sidebar-foreground)_40%,transparent)]",
                           isExpanded && "rotate-90",
                           collapsed && "hidden"
                         )}
@@ -279,7 +279,7 @@ export function AppSidebar() {
                     {collapsed && (
                       <span
                         role="tooltip"
-                        className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar))] px-2.5 py-1.5 text-xs font-medium text-[hsl(var(--sidebar-foreground))] opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-within/item:translate-x-0 group-focus-within/item:opacity-100"
+                        className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md border border-[var(--sidebar-border)] bg-[var(--sidebar)] px-2.5 py-1.5 text-xs font-medium text-[var(--sidebar-foreground)] opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-within/item:translate-x-0 group-focus-within/item:opacity-100"
                       >
                         {section.label}
                       </span>
@@ -296,7 +296,7 @@ export function AppSidebar() {
                       <div className="overflow-hidden">
                         <ul
                           className={cn(
-                            "mt-1 mb-1 ml-[18px] flex flex-col gap-0.5 border-l-2 border-[hsl(var(--accent)/.35)] bg-[hsl(var(--accent)/.1)] py-1.5 pr-1.5 pl-2.5 transition-opacity duration-200",
+                            "mt-1 mb-1 ml-[18px] flex flex-col gap-0.5 border-l-2 border-[color-mix(in_hsl,var(--accent)_35%,transparent)] bg-[color-mix(in_hsl,var(--accent)_10%,transparent)] py-1.5 pr-1.5 pl-2.5 transition-opacity duration-200",
                             isExpanded ? "opacity-100" : "opacity-0"
                           )}
                         >
@@ -310,8 +310,8 @@ export function AppSidebar() {
                                   className={cn(
                                     "flex items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] leading-tight transition-colors",
                                     isItemActive
-                                      ? "font-semibold text-[hsl(var(--accent))]"
-                                      : "text-[hsl(var(--sidebar-foreground)/.65)] hover:bg-[hsl(var(--sidebar-foreground)/.06)] hover:text-[hsl(var(--sidebar-foreground))]"
+                                      ? "font-semibold text-[var(--accent)]"
+                                      : "text-[color-mix(in_hsl,var(--sidebar-foreground)_65%,transparent)] hover:bg-[color-mix(in_hsl,var(--sidebar-foreground)_6%,transparent)] hover:text-[var(--sidebar-foreground)]"
                                   )}
                                 >
                                   <ItemIcon className="size-3 shrink-0" />
@@ -329,18 +329,18 @@ export function AppSidebar() {
             </ul>
           </nav>
 
-          <div className="border-t border-[hsl(var(--sidebar-border))] p-2">
+          <div className="border-t border-[var(--sidebar-border)] p-2">
             <div className="group/item relative">
               <button
                 type="button"
                 onClick={handleLogout}
                 aria-label="Cerrar sesión"
                 className={cn(
-                  "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium text-[hsl(var(--sidebar-foreground)/.85)] transition-colors hover:bg-destructive/15 hover:text-destructive",
+                  "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium text-[color-mix(in_hsl,var(--sidebar-foreground)_85%,transparent)] transition-colors hover:bg-destructive/15 hover:text-destructive",
                   collapsed && "justify-center px-0"
                 )}
               >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--sidebar-foreground)/.08)]">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)]">
                   <LogOut className="size-4" />
                 </span>
                 <span className={cn("flex-1 truncate text-left", collapsed && "hidden")}>Cerrar sesión</span>
@@ -349,7 +349,7 @@ export function AppSidebar() {
               {collapsed && (
                 <span
                   role="tooltip"
-                  className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar))] px-2.5 py-1.5 text-xs font-medium text-[hsl(var(--sidebar-foreground))] opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-within/item:translate-x-0 group-focus-within/item:opacity-100"
+                  className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md border border-[var(--sidebar-border)] bg-[var(--sidebar)] px-2.5 py-1.5 text-xs font-medium text-[var(--sidebar-foreground)] opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-within/item:translate-x-0 group-focus-within/item:opacity-100"
                 >
                   Cerrar sesión
                 </span>
