@@ -27,6 +27,11 @@ export function AuthGate({ children }) {
     fetch("/api/auth/status")
       .then((res) => res.json())
       .then((json) => {
+        // Sesion global ya activa (cookie valida de un login anterior, o recarga
+        // de pagina) - autocompleta ve_session/pp_session igual que en un login
+        // recien hecho, pero SIN redirigir (no hay que sacar a nadie de donde
+        // ya esta navegando solo por refrescar la pagina).
+        if (json.status === "ready" && json.email) seedAppSessionFromEmail(json.email);
         setState(json.status === "ready" ? { phase: "ready" } : { phase: "login" });
       })
       .catch(() => setState({ phase: "error" }));
