@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut } from "lucide-react";
+import { ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut, UserCog } from "lucide-react";
 import { NAV_SECTIONS } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useUserRole, ROLES } from "@/hooks/vale-express/useUserRole";
-import { getGlobalEmail, appForEmail } from "@/lib/client/fixed-accounts";
+import { getGlobalEmail, appForEmail, getGlobalWhitelistRol } from "@/lib/client/fixed-accounts";
 
 const COLLAPSE_KEY = "sidebar_collapsed";
 const MOBILE_QUERY = "(max-width: 768px)";
@@ -132,6 +132,17 @@ function useHomeApp(pathname) {
   return homeApp;
 }
 
+/** rol='admin' en la whitelist global -> puede administrar /admin/whitelist. */
+function useIsWhitelistAdmin(pathname) {
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    setIsAdmin(getGlobalWhitelistRol() === "admin");
+  }, [pathname]);
+
+  return isAdmin;
+}
+
 /**
  * Estado colapsado del sidebar. Persiste en localStorage como el resto de
  * las sesiones por-app (readSession de arriba), y arranca colapsado si la
@@ -197,6 +208,7 @@ export function AppSidebar() {
   const pathname = usePathname();
   const roles = useSidebarRoles(pathname);
   const homeApp = useHomeApp(pathname);
+  const isWhitelistAdmin = useIsWhitelistAdmin(pathname);
   const { collapsed, mobileOpen, toggleCollapsed, expand, toggleMobile, closeMobile } = useSidebarCollapse();
   const currentUser = useCurrentUser(pathname, roles["vale-express"]);
 
@@ -469,6 +481,32 @@ export function AppSidebar() {
                   >
                     {currentUser.name ?? currentUser.email}
                     {currentUser.roleLabel ? ` · ${currentUser.roleLabel}` : ""}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {isWhitelistAdmin && (
+              <div className="group/item relative">
+                <Link
+                  href="/admin/whitelist"
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium text-[color-mix(in_hsl,var(--sidebar-foreground)_85%,transparent)] transition-colors hover:bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)]",
+                    collapsed && "justify-center px-0"
+                  )}
+                >
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)]">
+                    <UserCog className="size-4" />
+                  </span>
+                  <span className={cn("flex-1 truncate text-left", collapsed && "hidden")}>Whitelist</span>
+                </Link>
+
+                {collapsed && (
+                  <span
+                    role="tooltip"
+                    className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md border border-[var(--sidebar-border)] bg-[var(--sidebar)] px-2.5 py-1.5 text-xs font-medium text-[var(--sidebar-foreground)] opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-within/item:translate-x-0 group-focus-within/item:opacity-100"
+                  >
+                    Whitelist
                   </span>
                 )}
               </div>

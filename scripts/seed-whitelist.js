@@ -3,17 +3,19 @@
 require("./load-env");
 const { neon } = require("@neondatabase/serverless");
 
-// Los super_admin de cada app quedan como 'admin' de la whitelist (pueden
-// administrar /api/auth/whitelist mas adelante); el resto queda como 'usuario'.
+// `rol` = rol en el panel de whitelist ('admin' puede administrar la lista).
+// `app`/`appRol`/`appConfig` = a que app pertenece y que rol tiene ADENTRO -
+// lo que antes vivia hardcodeado en lib/client/fixed-accounts.js, ahora en la
+// DB para que se pueda administrar sin tocar codigo (ver /admin/whitelist).
 const ACCOUNTS = [
-  { email: "superadmin.valeexpress@demo.vdv.cl", rol: "admin" },
-  { email: "admin.valeexpress@demo.vdv.cl", rol: "usuario" },
-  { email: "bodega.valeexpress@demo.vdv.cl", rol: "usuario" },
-  { email: "jefeobra.valeexpress@demo.vdv.cl", rol: "usuario" },
-  { email: "apr.valeexpress@demo.vdv.cl", rol: "usuario" },
-  { email: "superadmin.portalproveedor@demo.vdv.cl", rol: "admin" },
-  { email: "admin.portalproveedor@demo.vdv.cl", rol: "usuario" },
-  { email: "subcontratista.portalproveedor@demo.vdv.cl", rol: "usuario" },
+  { email: "superadmin.valeexpress@demo.vdv.cl", nombre: "Super Admin", rol: "admin", app: "vale-express", appRol: "super_admin" },
+  { email: "admin.valeexpress@demo.vdv.cl", nombre: "Administrador", rol: "usuario", app: "vale-express", appRol: "admin" },
+  { email: "bodega.valeexpress@demo.vdv.cl", nombre: "Bodeguero", rol: "usuario", app: "vale-express", appRol: "bodeguero" },
+  { email: "jefeobra.valeexpress@demo.vdv.cl", nombre: "Jefe de Obra", rol: "usuario", app: "vale-express", appRol: "jefe_obra" },
+  { email: "apr.valeexpress@demo.vdv.cl", nombre: "APR", rol: "usuario", app: "vale-express", appRol: "apr" },
+  { email: "superadmin.portalproveedor@demo.vdv.cl", nombre: "Super Admin", rol: "admin", app: "portal-proveedor", appRol: "super_admin" },
+  { email: "admin.portalproveedor@demo.vdv.cl", nombre: "Administrador", rol: "usuario", app: "portal-proveedor", appRol: "admin" },
+  { email: "subcontratista.portalproveedor@demo.vdv.cl", nombre: "Subcontratista", rol: "usuario", app: "portal-proveedor", appRol: "subcontratista" },
 ];
 
 async function main() {
@@ -24,12 +26,14 @@ async function main() {
   }
 
   const sql = neon(url);
-  for (const { email, rol } of ACCOUNTS) {
+  for (const { email, nombre, rol, app, appRol } of ACCOUNTS) {
     const rows = await sql`
-      insert into usuarios_autorizados (email, rol)
-      values (${email}, ${rol})
-      on conflict (email) do update set rol = excluded.rol, estado = 'activo'
-      returning email, rol, estado
+      insert into usuarios_autorizados (email, nombre, rol, app, app_rol)
+      values (${email}, ${nombre}, ${rol}, ${app}, ${appRol})
+      on conflict (email) do update set
+        nombre = excluded.nombre, rol = excluded.rol, estado = 'activo',
+        app = excluded.app, app_rol = excluded.app_rol
+      returning email, nombre, rol, estado, app, app_rol
     `;
     console.log("OK:", rows[0]);
   }

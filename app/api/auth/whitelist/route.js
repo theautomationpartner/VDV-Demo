@@ -40,12 +40,12 @@ export async function POST(request) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const { email, rol } = body ?? {};
+  const { email, nombre, rol, app, appRol, appConfig } = body ?? {};
   if (!email || typeof email !== "string") {
     return Response.json({ error: "Falta 'email'" }, { status: 400 });
   }
 
-  return Response.json({ result: await agregarUsuarioAutorizado(email, rol) });
+  return Response.json({ result: await agregarUsuarioAutorizado({ email, nombre, rol, app, appRol, appConfig }) });
 }
 
 export async function PATCH(request) {
@@ -58,10 +58,10 @@ export async function PATCH(request) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const { id, rol, estado } = body ?? {};
+  const { id, nombre, rol, estado, app, appRol, appConfig } = body ?? {};
   if (!id) return Response.json({ error: "Falta 'id'" }, { status: 400 });
 
-  const actualizado = await actualizarUsuarioAutorizado(id, { rol, estado });
+  const actualizado = await actualizarUsuarioAutorizado(id, { nombre, rol, estado, app, appRol, appConfig });
   if (!actualizado) return Response.json({ error: "No existe ese usuario" }, { status: 404 });
   return Response.json({ result: actualizado });
 }

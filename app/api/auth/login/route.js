@@ -1,6 +1,6 @@
 import { verificarEmailEnWhitelist, NoAutorizado, marcarUltimoAcceso, auditarEvento } from "@/lib/server/whitelist";
 import { tieneMfaConfigurado } from "@/lib/server/totp";
-import { emitirPreAuthToken, crearSesion } from "@/lib/server/session";
+import { emitirPreAuthToken, crearSesion, datosApp } from "@/lib/server/session";
 import { verificarLimite, RateLimitError } from "@/lib/server/rate-limit";
 
 const AUTH_LAYERS_ENABLED = process.env.AUTH_LAYERS_ENABLED === "true";
@@ -40,7 +40,7 @@ export async function POST(request) {
       await crearSesion(usuario, { remember: true });
       await marcarUltimoAcceso(usuario.id);
       await auditarEvento(usuario.id, usuario.email, "login_sin_2fa", ip);
-      return Response.json({ status: "ready", email: usuario.email, rol: usuario.rol });
+      return Response.json({ status: "ready", id: usuario.id, email: usuario.email, rol: usuario.rol, ...datosApp(usuario) });
     }
 
     const preAuthToken = emitirPreAuthToken(usuario);

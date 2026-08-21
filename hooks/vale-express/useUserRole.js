@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { storage } from '@/lib/storage';
+import { getCachedVeRole } from '@/lib/client/fixed-accounts';
 
 const ROLES_KEY = 'warehouse_user_roles';
 
@@ -30,6 +31,11 @@ const FIXED_ROLE_DATA = {
 export function getUserRoleData(roles, userId) {
     const fixed = FIXED_ROLE_DATA[String(userId)];
     if (fixed) return fixed;
+    // Cuentas reales (whitelist en la DB, userId tipo "db-<id>"): el rol lo
+    // resolvio el servidor en el login y lo cacheo seedAppSessionFromEmail -
+    // administrable desde /admin/whitelist, sin tocar codigo ni storage.json.
+    const cached = getCachedVeRole(String(userId));
+    if (cached) return cached;
     return roles[String(userId)] || null;
 }
 

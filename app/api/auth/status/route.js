@@ -18,5 +18,14 @@ export async function GET(request) {
   const sesion = leerSesion(request);
   if (!sesion) return Response.json({ status: "logged_out" });
 
-  return Response.json({ status: "ready", email: sesion.email, rol: sesion.rol });
+  return Response.json({
+    status: "ready",
+    id: sesion.id,
+    email: sesion.email,
+    rol: sesion.rol,
+    app: sesion.app,
+    appRol: sesion.appRol,
+    appConfig: sesion.appConfig,
+    nombre: sesion.nombre,
+  });
 }

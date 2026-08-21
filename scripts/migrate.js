@@ -13,10 +13,17 @@ async function main() {
   }
 
   const sql = neon(url);
-  const schema = fs.readFileSync(path.join(__dirname, "..", "lib", "server", "schema.sql"), "utf-8");
+  const raw = fs.readFileSync(path.join(__dirname, "..", "lib", "server", "schema.sql"), "utf-8");
 
   // neon() con template tag no soporta multiples statements en un solo query;
-  // se separan por ";" (ninguno de nuestros statements tiene ";" adentro de un string).
+  // se separan por ";". Se sacan los comentarios de linea ANTES de separar -
+  // un ";" adentro de un comentario (ej. documentando dos valores posibles)
+  // cortaria un statement a la mitad si no se limpia primero.
+  const schema = raw
+    .split("\n")
+    .map((line) => line.replace(/--.*$/, ""))
+    .join("\n");
+
   const statements = schema
     .split(";")
     .map((s) => s.trim())

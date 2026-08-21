@@ -1,4 +1,4 @@
-import { verificarPreAuthToken, crearSesion } from "@/lib/server/session";
+import { verificarPreAuthToken, crearSesion, datosApp } from "@/lib/server/session";
 import { verificarCodigoMfa, verificarCodigoRecuperacion } from "@/lib/server/totp";
 import { marcarUltimoAcceso, auditarEvento } from "@/lib/server/whitelist";
 import { verificarLimite, RateLimitError } from "@/lib/server/rate-limit";
@@ -47,7 +47,7 @@ export async function POST(request) {
     await marcarUltimoAcceso(usuario.id);
     await auditarEvento(usuario.id, usuario.email, "mfa_ok", ip);
 
-    return Response.json({ status: "ready", email: usuario.email, rol: usuario.rol });
+    return Response.json({ status: "ready", id: usuario.id, email: usuario.email, rol: usuario.rol, ...datosApp(usuario) });
   } catch (err) {
     if (err instanceof RateLimitError) {
       return Response.json({ error: err.message }, { status: 429 });

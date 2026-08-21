@@ -31,18 +31,19 @@ export function AuthGate({ children }) {
         // de pagina) - autocompleta ve_session/pp_session igual que en un login
         // recien hecho, pero SIN redirigir (no hay que sacar a nadie de donde
         // ya esta navegando solo por refrescar la pagina).
-        if (json.status === "ready" && json.email) seedAppSessionFromEmail(json.email);
+        if (json.status === "ready" && json.email) seedAppSessionFromEmail(json.email, json);
         setState(json.status === "ready" ? { phase: "ready" } : { phase: "login" });
       })
       .catch(() => setState({ phase: "error" }));
   }, []);
 
-  // Login recien completado (email + 2FA, o sin 2FA si MFA_REQUIRED=false): ya
-  // sabemos exactamente cual de las 8 cuentas fijas entro, asi que autocompleta
-  // la sesion de Vale Express / Portal Proveedor y lleva directo al dashboard -
+  // Login recien completado (email + 2FA, o sin 2FA si MFA_REQUIRED=false): el
+  // servidor ya resolvio a que app pertenece esta cuenta y que rol tiene ahi
+  // adentro (whitelist -> tabla usuarios_autorizados), asi que autocompleta la
+  // sesion de Vale Express / Portal Proveedor y lleva directo al dashboard -
   // pedirle el email de nuevo ahi adentro seria un segundo login redundante.
-  const handleLoginDone = (email) => {
-    const seeded = email ? seedAppSessionFromEmail(email) : null;
+  const handleLoginDone = (json) => {
+    const seeded = json?.email ? seedAppSessionFromEmail(json.email, json) : null;
     setState({ phase: "ready" });
     if (seeded) router.push(seeded.dashboardPath);
   };
@@ -79,14 +80,12 @@ function LoginFlow({ onDone }) {
   // tiene 2FA configurado, solo pide el codigo) -> 'blocked' (email no autorizado)
   const [step, setStep] = useState("email");
   const [preAuthToken, setPreAuthToken] = useState(null);
-  const [email, setEmail] = useState(null);
 
   if (step === "email") {
     return (
       <EmailScreen
-        onAuthorized={(token, status, authorizedEmail) => {
-          setEmail(authorizedEmail);
-          if (status === "ready") return onDone(authorizedEmail); // MFA_REQUIRED=false: la whitelist ya alcanza
+        onAuthorized={(token, status, authorizedEmail, json) => {
+          if (status === "ready") return onDone(json); // MFA_REQUIRED=false: la whitelist ya alcanza
           setPreAuthToken(token);
           setStep(status === "needs_setup" ? "setup" : "code");
         }}
@@ -113,13 +112,13 @@ function LoginFlow({ onDone }) {
   }
 
   if (step === "setup") {
-    return <SetupScreen preAuthToken={preAuthToken} onDone={() => onDone(email)} />;
+    return <SetupScreen preAuthToken={preAuthToken} onDone={onDone} />;
   }
 
   return (
     <CodeScreen
       preAuthToken={preAuthToken}
-      onDone={() => onDone(email)}
+      onDone={onDone}
       onNeedsSetup={() => setStep("setup")}
     />
   );
@@ -146,7 +145,7 @@ function EmailScreen({ onAuthorized, onBlocked }) {
         if (res.status === 401) return onBlocked();
         throw new Error(json.error ?? "Error al verificar el correo");
       }
-      onAuthorized(json.preAuthToken, json.status, json.email ?? email.trim().toLowerCase());
+      onAuthorized(json.preAuthToken, json.status, json.email ?? email.trim().toLowerCase(), json);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -196,6 +195,7 @@ function SetupScreen({ preAuthToken, onDone }) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [recoveryCodes, setRecoveryCodes] = useState(null);
+  const [confirmedJson, setConfirmedJson] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -230,6 +230,7 @@ function SetupScreen({ preAuthToken, onDone }) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Código inválido");
+      setConfirmedJson(json);
       setRecoveryCodes(json.recoveryCodes);
     } catch (err) {
       setError(err.message);
@@ -255,7 +256,7 @@ function SetupScreen({ preAuthToken, onDone }) {
               <div key={c}>{c}</div>
             ))}
           </div>
-          <Button className="w-full" onClick={onDone}>
+          <Button className="w-full" onClick={() => onDone(confirmedJson)}>
             Ya los guardé, continuar
           </Button>
         </Card>
@@ -337,7 +338,7 @@ function CodeScreen({ preAuthToken, onDone, onNeedsSetup }) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Código inválido");
       if (json.status === "needs_setup") return onNeedsSetup();
-      onDone();
+      onDone(json);
     } catch (err) {
       setError(err.message);
     } finally {

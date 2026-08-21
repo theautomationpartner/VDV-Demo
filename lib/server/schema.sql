@@ -7,12 +7,29 @@
 CREATE TABLE IF NOT EXISTS usuarios_autorizados (
   id                SERIAL PRIMARY KEY,
   email             TEXT NOT NULL UNIQUE,
+  nombre            TEXT,                   -- nombre para mostrar (sidebar, etc)
   monday_user_id    BIGINT,                 -- opcional, solo referencia/futuro uso
-  rol               TEXT NOT NULL DEFAULT 'usuario',  -- 'admin' | 'usuario'
+  rol               TEXT NOT NULL DEFAULT 'usuario',  -- 'admin' | 'usuario' (administra la whitelist)
   estado            TEXT NOT NULL DEFAULT 'activo',   -- 'activo' | 'revocado'
   creado_en         TIMESTAMPTZ NOT NULL DEFAULT now(),
-  ultimo_acceso     TIMESTAMPTZ
+  ultimo_acceso     TIMESTAMPTZ,
+  -- A que app pertenece esta cuenta (cada persona es de UNA sola, ver
+  -- lib/client/fixed-accounts.js) y que rol tiene ADENTRO de esa app - distinto
+  -- de `rol` de arriba, que es solo para el panel de whitelist. app_config
+  -- guarda los extras especificos de cada app: obras/restrictObras en Vale
+  -- Express, proveedorName en Portal Proveedor.
+  app               TEXT,                   -- 'vale-express' | 'portal-proveedor' | null
+  app_rol           TEXT,                   -- super_admin | admin | bodeguero | jefe_obra | apr | subcontratista
+  app_config        JSONB NOT NULL DEFAULT '{}'::jsonb
 );
+
+-- La tabla ya existia en produccion antes de estas 3 columnas - CREATE TABLE
+-- IF NOT EXISTS de arriba no las agrega a una tabla preexistente, hace falta
+-- este ALTER idempotente aparte.
+ALTER TABLE usuarios_autorizados ADD COLUMN IF NOT EXISTS nombre TEXT;
+ALTER TABLE usuarios_autorizados ADD COLUMN IF NOT EXISTS app TEXT;
+ALTER TABLE usuarios_autorizados ADD COLUMN IF NOT EXISTS app_rol TEXT;
+ALTER TABLE usuarios_autorizados ADD COLUMN IF NOT EXISTS app_config JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS mfa_usuarios (
   usuario_id        INTEGER PRIMARY KEY REFERENCES usuarios_autorizados (id) ON DELETE CASCADE,
