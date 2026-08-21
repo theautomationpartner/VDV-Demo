@@ -167,12 +167,12 @@ function EmailScreen({ onAuthorized, onBlocked }) {
                 placeholder="tu@vdv.cl"
                 autoComplete="email"
                 autoFocus
-                className="pl-9"
+                className="pl-9 h-11"
               />
             </div>
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" className="w-full" disabled={submitting || !email.trim()}>
+          <Button type="submit" size="lg" className="w-full h-11" disabled={submitting || !email.trim()}>
             {submitting ? "Verificando..." : "Continuar"}
           </Button>
         </form>
@@ -286,6 +286,7 @@ function SetupScreen({ preAuthToken, onDone }) {
                   maxLength={6}
                   autoFocus
                   placeholder="123456"
+                  className="h-11"
                 />
               </div>
               <label className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -293,7 +294,7 @@ function SetupScreen({ preAuthToken, onDone }) {
                 Mantener la sesión iniciada 30 días en este dispositivo
               </label>
               {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" className="w-full" disabled={submitting}>
+              <Button type="submit" size="lg" className="w-full h-11" disabled={submitting}>
                 {submitting ? "Verificando..." : "Confirmar"}
               </Button>
             </form>
@@ -351,6 +352,7 @@ function CodeScreen({ preAuthToken, onDone }) {
               maxLength={useRecovery ? 9 : 6}
               autoFocus
               placeholder={useRecovery ? "XXXX-XXXX" : "123456"}
+              className="h-11"
             />
           </div>
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -358,7 +360,7 @@ function CodeScreen({ preAuthToken, onDone }) {
             Mantener la sesión iniciada 30 días en este dispositivo
           </label>
           {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" className="w-full" disabled={submitting}>
+          <Button type="submit" size="lg" className="w-full h-11" disabled={submitting}>
             {submitting ? "Verificando..." : "Verificar"}
           </Button>
           <button
