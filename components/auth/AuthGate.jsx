@@ -116,7 +116,13 @@ function LoginFlow({ onDone }) {
     return <SetupScreen preAuthToken={preAuthToken} onDone={() => onDone(email)} />;
   }
 
-  return <CodeScreen preAuthToken={preAuthToken} onDone={() => onDone(email)} />;
+  return (
+    <CodeScreen
+      preAuthToken={preAuthToken}
+      onDone={() => onDone(email)}
+      onNeedsSetup={() => setStep("setup")}
+    />
+  );
 }
 
 function EmailScreen({ onAuthorized, onBlocked }) {
@@ -307,7 +313,7 @@ function SetupScreen({ preAuthToken, onDone }) {
   );
 }
 
-function CodeScreen({ preAuthToken, onDone }) {
+function CodeScreen({ preAuthToken, onDone, onNeedsSetup }) {
   const [code, setCode] = useState("");
   const [useRecovery, setUseRecovery] = useState(false);
   const [remember, setRemember] = useState(true);
@@ -330,6 +336,7 @@ function CodeScreen({ preAuthToken, onDone }) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Código inválido");
+      if (json.status === "needs_setup") return onNeedsSetup();
       onDone();
     } catch (err) {
       setError(err.message);
@@ -354,6 +361,12 @@ function CodeScreen({ preAuthToken, onDone }) {
               placeholder={useRecovery ? "XXXX-XXXX" : "123456"}
               className="h-11"
             />
+            {useRecovery && (
+              <p className="text-xs text-muted-foreground">
+                Al usarlo te vamos a pedir configurar el 2FA de nuevo (QR nuevo) - el celular anterior deja de
+                servir.
+              </p>
+            )}
           </div>
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
