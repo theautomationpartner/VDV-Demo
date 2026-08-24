@@ -12,6 +12,12 @@ import { getAllRoles, canAccessSolicitud, getRoleFromData, getObrasFromData, isO
 import { useObraStock } from '@/hooks/vale-express/useObraStock';
 
 const valesBoard = new ValesBoard();
+
+// Foco visible (teclado) para los botones nativos de esta pantalla - ninguno usa
+// el componente Button de shadcn/ui (que ya trae su propio focus-visible), asi
+// que cada <button> a mano necesita este anillo para cumplir WCAG 2.1 AA.
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
 const SOLICITANTES = ["BASILIO GUZMAN", "PATRICIO SAN JUAN", "JORGE MUÑOZ", "RODRIGO ROZBACZYLO", "FRANCISCO SEGURA", "ROMINTA TORO", "MACARENA LIZAMA", "ROMINA TORO", "CRISTIAN HIGUERAS", "ISABEL DELGADO", "NICOLAS HERNANDEZ"];
 const DESTINOS = ["PISO 6", "PISO 5", "PISO 4", "PISO 3", "PISO 2", "PISO 1", "EXTERIORES", "GENERAL/obras pequeñas", "PATIO PARROQUIAL", "EPP", "ARTICULO ASEO", "POSVENTA LEON", "PRESTAMO OBRA FORESTAL", "AJUSTE INVENTARIO", "DORM 61", "DORM 62", "DORM 63", "DORM 64", "DORM 65", "DPTO 301", "601", "602", "603", "604", "605", "606", "607", "608", "609", "610", "501", "502", "503", "504", "505", "506", "507", "508", "509", "510", "101", "102", "103", "104", "105", "106", "107", "108", "109", "110", "201", "202", "203", "204", "205", "206", "207", "208", "209", "210", "301", "302", "303", "304", "305", "306", "307", "308", "309", "310", "401", "402", "403", "404", "405", "406", "407", "408", "409", "410"];
 
@@ -212,7 +218,7 @@ export default function SolicitudPage() {
 
     if (submitted) {
         return (
-            <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-5">
+            <div className="min-h-dvh bg-background text-foreground flex items-center justify-center p-5">
                 <Toaster richColors position="top-center" />
                 <div className="w-full max-w-md text-center">
                     <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-[color-mix(in_hsl,var(--success)_12%,transparent)] flex items-center justify-center">
@@ -250,14 +256,14 @@ export default function SolicitudPage() {
                     <div className="space-y-3">
                         <button
                             onClick={handleReset}
-                            className="w-full h-12 flex items-center justify-center gap-2 rounded-[var(--radius-lg)] bg-[var(--surface-2)] border border-[var(--border-subtle)] text-sm font-medium text-foreground active:bg-[var(--surface-3)] transition-colors"
+                            className={`w-full h-12 flex items-center justify-center gap-2 rounded-[var(--radius-lg)] bg-[var(--surface-2)] border border-[var(--border-subtle)] text-sm font-medium text-foreground active:bg-[var(--surface-3)] transition-colors ${FOCUS_RING}`}
                         >
                             <RotateCcw className="w-4 h-4" />
                             Crear Nuevo Vale
                         </button>
                         <button
                             onClick={() => router.push('/vale-express/dashboard')}
-                            className="w-full h-12 flex items-center justify-center gap-2 rounded-[var(--radius-lg)] bg-[var(--primary)] text-[var(--primary-foreground)] text-sm font-medium active:opacity-90 transition-all"
+                            className={`w-full h-12 flex items-center justify-center gap-2 rounded-[var(--radius-lg)] bg-[var(--primary)] text-[var(--primary-foreground)] text-sm font-medium active:opacity-90 transition-all ${FOCUS_RING}`}
                         >
                             Volver al Panel
                         </button>
@@ -268,14 +274,14 @@ export default function SolicitudPage() {
     }
 
     return (
-        <div className="min-h-screen bg-background text-foreground">
+        <div className="min-h-dvh bg-background text-foreground">
             <Toaster richColors position="top-center" />
 
             <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-[var(--border-subtle)]">
                 <div className="px-4 py-3 flex items-center gap-3">
                     <button
                         onClick={() => router.push('/vale-express/dashboard')}
-                        className="flex items-center justify-center w-9 h-9 rounded-[var(--radius-md)] text-[var(--fg-muted)] active:text-foreground active:bg-[var(--surface-2)] transition-colors shrink-0"
+                        className={`flex items-center justify-center min-h-12 min-w-12 sm:h-9 sm:w-9 rounded-[var(--radius-md)] text-[var(--fg-muted)] active:text-foreground active:bg-[var(--surface-2)] transition-colors shrink-0 ${FOCUS_RING}`}
                         aria-label="Volver"
                     >
                         <ArrowLeft className="w-[18px] h-[18px]" />
@@ -296,7 +302,8 @@ export default function SolicitudPage() {
                         <h3 className="text-sm font-semibold text-destructive">Error al crear vale</h3>
                         <button
                             onClick={() => setErrorDetails(null)}
-                            className="text-destructive/70 hover:text-destructive"
+                            aria-label="Cerrar detalle de error"
+                            className={`flex items-center justify-center min-h-12 min-w-12 -m-2 sm:min-h-0 sm:min-w-0 sm:m-0 text-destructive/70 hover:text-destructive rounded-[var(--radius-md)] ${FOCUS_RING}`}
                         >
                             <X className="w-4 h-4" />
                         </button>
@@ -368,7 +375,7 @@ export default function SolicitudPage() {
                                 value={quienRetira}
                                 onChange={(e) => setQuienRetira(e.target.value)}
                                 placeholder="Nombre de quien retira"
-                                className="w-full h-11 px-3 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
+                                className="w-full h-12 px-3 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
                             />
                         </div>
                     </div>
@@ -382,7 +389,7 @@ export default function SolicitudPage() {
                         {lines.length < 10 && (
                             <button
                                 onClick={addLine}
-                                className="flex items-center gap-1 text-xs font-medium text-[var(--accent)] active:opacity-70 transition-opacity"
+                                className={`flex items-center gap-1 min-h-12 sm:min-h-0 px-1 text-xs font-medium text-[var(--accent)] active:opacity-70 transition-opacity rounded-[var(--radius-sm)] ${FOCUS_RING}`}
                             >
                                 <Plus className="w-3.5 h-3.5" />
                                 Agregar
@@ -410,7 +417,7 @@ export default function SolicitudPage() {
                     {lines.length < 10 && (
                         <button
                             onClick={addLine}
-                            className="w-full py-3.5 border border-dashed border-[var(--border-default)] rounded-[var(--radius-lg)] text-sm text-[var(--fg-subtle)] active:text-foreground active:border-[var(--accent)] transition-colors"
+                            className={`w-full min-h-12 py-3.5 border border-dashed border-[var(--border-default)] rounded-[var(--radius-lg)] text-sm text-[var(--fg-subtle)] active:text-foreground active:border-[var(--accent)] transition-colors ${FOCUS_RING}`}
                         >
                             + Agregar material ({lines.length}/10)
                         </button>
@@ -432,7 +439,7 @@ export default function SolicitudPage() {
                     <button
                         onClick={handleSubmit}
                         disabled={!canSubmit || submitting}
-                        className="flex items-center justify-center gap-2 h-11 px-6 rounded-[var(--radius-md)] bg-[var(--primary)] text-[var(--primary-foreground)] text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed active:opacity-90 transition-all shrink-0"
+                        className={`flex items-center justify-center gap-2 h-12 px-6 rounded-[var(--radius-md)] bg-[var(--primary)] text-[var(--primary-foreground)] text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed active:opacity-90 transition-all shrink-0 ${FOCUS_RING}`}
                     >
                         {submitting ? (
                             <>
@@ -464,7 +471,7 @@ function FormSelect({ id, label, required, value, onChange, placeholder, options
                     aria-label={label}
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
-                    className="w-full h-11 px-3 pr-9 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors appearance-none cursor-pointer"
+                    className="w-full h-12 px-3 pr-9 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors appearance-none cursor-pointer"
                 >
                     <option value="">{placeholder}</option>
                     {options.map(o => <option key={o} value={o}>{o}</option>)}

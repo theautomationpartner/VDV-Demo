@@ -94,9 +94,9 @@ export default function ObraDetailPage() {
   if (!userContext) return null;
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-dvh flex flex-col">
       <div className="h-14 border-b border-border flex items-center px-4 md:px-6 bg-background shrink-0">
-        <Link href="/portal-proveedor/dashboard" className="mr-3 p-1 -ml-1 rounded-md active:bg-accent/50"><ArrowLeft className="w-5 h-5 text-muted-foreground" /></Link>
+        <Link href="/portal-proveedor/dashboard" aria-label="Volver" className="mr-3 -ml-1 flex min-h-12 min-w-12 items-center justify-center rounded-md active:bg-accent/50 md:min-h-0 md:min-w-0 md:p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"><ArrowLeft className="w-5 h-5 text-muted-foreground" /></Link>
         <div className="flex items-center gap-2 min-w-0"><Building2 className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground shrink-0" /><h1 className="text-base md:text-lg font-semibold text-foreground truncate">{decodeURIComponent(obraName)}</h1></div>
       </div>
 
@@ -120,10 +120,15 @@ export default function ObraDetailPage() {
               placeholder="Buscar por nombre o N° factura..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 pr-9 h-10 bg-card border-border text-sm"
+              className="pl-9 pr-9 h-12 sm:h-10 bg-card border-border text-sm"
             />
             {searchTerm && (
-              <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-accent">
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                aria-label="Limpiar búsqueda"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+              >
                 <X className="w-3.5 h-3.5 text-muted-foreground" />
               </button>
             )}
@@ -135,7 +140,7 @@ export default function ObraDetailPage() {
             <>
               {pagados.length > 0 && (
                 <Card className="border-border overflow-hidden">
-                  <button onClick={() => setPagadosExpanded(!pagadosExpanded)} className="w-full p-3 md:p-4 border-b border-border flex items-center justify-between bg-green-950/20 active:bg-green-950/30">
+                  <button type="button" onClick={() => setPagadosExpanded(!pagadosExpanded)} aria-expanded={pagadosExpanded} className="w-full p-3 md:p-4 border-b border-border flex items-center justify-between bg-green-950/20 active:bg-green-950/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset">
                     <div className="flex items-center gap-2.5"><div className="w-2.5 h-2.5 rounded-full bg-green-500" /><h2 className="text-sm font-semibold text-green-400">Pagado</h2><Badge variant="secondary" className="text-[10px] h-5">{pagados.length}</Badge></div>
                     <div className="flex items-center gap-2"><span className="text-xs md:text-sm font-semibold tabular-nums text-green-400">{fmt(pagados.reduce((s, i) => s + (parseFloat(i.monto) || 0), 0))}</span>{pagadosExpanded ? <ChevronUp className="w-4 h-4 text-green-400" /> : <ChevronDown className="w-4 h-4 text-green-400" />}</div>
                   </button>
@@ -194,7 +199,7 @@ export default function ObraDetailPage() {
               )}
               {enProceso.length > 0 && (
                 <Card className="border-border overflow-hidden">
-                  <button onClick={() => setProcesoExpanded(!procesoExpanded)} className="w-full p-3 md:p-4 border-b border-border flex items-center justify-between bg-yellow-950/20 active:bg-yellow-950/30">
+                  <button type="button" onClick={() => setProcesoExpanded(!procesoExpanded)} aria-expanded={procesoExpanded} className="w-full p-3 md:p-4 border-b border-border flex items-center justify-between bg-yellow-950/20 active:bg-yellow-950/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset">
                     <div className="flex items-center gap-2.5"><div className="w-2.5 h-2.5 rounded-full bg-yellow-500" /><h2 className="text-sm font-semibold text-yellow-400">En Proceso de Pago</h2><Badge variant="secondary" className="text-[10px] h-5">{enProceso.length}</Badge></div>
                     <div className="flex items-center gap-2"><span className="text-xs md:text-sm font-semibold tabular-nums text-yellow-400">{fmt(enProceso.reduce((s, i) => s + (parseFloat(i.monto) || 0), 0))}</span>{procesoExpanded ? <ChevronUp className="w-4 h-4 text-yellow-400" /> : <ChevronDown className="w-4 h-4 text-yellow-400" />}</div>
                   </button>

@@ -11,6 +11,11 @@ import { getAllRoles, canAccessValesPendientes, canEditVales, getRoleFromData, g
 
 const valesBoard = new ValesBoard();
 
+// Foco visible (teclado) para los botones nativos de esta pantalla - ninguno usa
+// el componente Button de shadcn/ui (que ya trae su propio focus-visible), asi
+// que cada <button> a mano necesita este anillo para cumplir WCAG 2.1 AA.
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
 export default function ValesPendientesPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
@@ -233,20 +238,20 @@ export default function ValesPendientesPage() {
 
     if (loading && items.length === 0) {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
+            <div className="min-h-dvh bg-background flex items-center justify-center">
                 <Spinner className="size-8 text-accent" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-background text-foreground">
+        <div className="min-h-dvh bg-background text-foreground">
             <Toaster richColors position="top-center" />
 
             {/* Header */}
             <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-[var(--border-subtle)]">
                 <div className="px-4 py-3 flex items-center gap-3">
-                    <button onClick={() => router.push('/vale-express/dashboard')} className="flex items-center justify-center w-9 h-9 rounded-[var(--radius-md)] text-[var(--fg-muted)] active:text-foreground active:bg-[var(--surface-2)] transition-colors shrink-0" aria-label="Volver">
+                    <button onClick={() => router.push('/vale-express/dashboard')} className={`flex items-center justify-center min-h-12 min-w-12 sm:h-9 sm:w-9 rounded-[var(--radius-md)] text-[var(--fg-muted)] active:text-foreground active:bg-[var(--surface-2)] transition-colors shrink-0 ${FOCUS_RING}`} aria-label="Volver">
                         <ArrowLeft className="w-[18px] h-[18px]" />
                     </button>
                     <div className="w-9 h-9 rounded-[var(--radius-md)] bg-[color-mix(in_hsl,var(--chart-1)_12%,transparent)] flex items-center justify-center shrink-0">
@@ -256,7 +261,7 @@ export default function ValesPendientesPage() {
                         <h1 className="text-[15px] font-semibold tracking-[-0.01em]">Solicitudes Pendientes</h1>
                         <p className="text-xs text-[var(--fg-subtle)]">{items.length} vale{items.length !== 1 ? 's' : ''}</p>
                     </div>
-                    <button onClick={handleRefresh} disabled={refetching} className="flex items-center justify-center w-9 h-9 rounded-[var(--radius-md)] text-[var(--fg-muted)] active:text-foreground active:bg-[var(--surface-2)] transition-colors shrink-0" aria-label="Recargar">
+                    <button onClick={handleRefresh} disabled={refetching} className={`flex items-center justify-center min-h-12 min-w-12 sm:h-9 sm:w-9 rounded-[var(--radius-md)] text-[var(--fg-muted)] active:text-foreground active:bg-[var(--surface-2)] transition-colors shrink-0 ${FOCUS_RING}`} aria-label="Recargar">
                         <RefreshCw className={`w-[18px] h-[18px] ${refetching ? 'animate-spin' : ''}`} />
                     </button>
                 </div>
@@ -267,7 +272,7 @@ export default function ValesPendientesPage() {
                         <select
                             value={filterObra}
                             onChange={(e) => handleFilterChange(e.target.value)}
-                            className="w-full h-10 px-3 pr-9 text-sm bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors appearance-none cursor-pointer"
+                            className="w-full h-12 px-3 pr-9 text-sm bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors appearance-none cursor-pointer"
                             aria-label="Filtrar por obra"
                         >
                             <option value="">Todas mis obras</option>
@@ -315,7 +320,7 @@ export default function ValesPendientesPage() {
                         <button
                             onClick={handleLoadMore}
                             disabled={loadingMore}
-                            className="w-full h-11 flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-2)] border border-[var(--border-subtle)] text-sm font-medium text-foreground disabled:opacity-50 active:bg-[var(--surface-3)] transition-colors"
+                            className={`w-full h-12 flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-2)] border border-[var(--border-subtle)] text-sm font-medium text-foreground disabled:opacity-50 active:bg-[var(--surface-3)] transition-colors ${FOCUS_RING}`}
                         >
                             {loadingMore ? <><Spinner className="size-4" />Cargando...</> : 'Cargar más solicitudes'}
                         </button>
@@ -383,10 +388,10 @@ function ValeCard({ item, readOnly, isEditing, editValue, onEditValueChange, onS
                                 if (e.key === 'Escape') onCancelEdit();
                             }}
                         />
-                        <button onClick={onSaveEdit} disabled={isSaving} className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-sm)] bg-[color-mix(in_hsl,var(--chart-2)_15%,transparent)] text-[var(--chart-2)] active:bg-[color-mix(in_hsl,var(--chart-2)_25%,transparent)] transition-colors" aria-label="Guardar">
+                        <button onClick={onSaveEdit} disabled={isSaving} className={`flex items-center justify-center min-h-12 min-w-12 sm:h-8 sm:w-8 rounded-[var(--radius-sm)] bg-[color-mix(in_hsl,var(--chart-2)_15%,transparent)] text-[var(--chart-2)] active:bg-[color-mix(in_hsl,var(--chart-2)_25%,transparent)] transition-colors ${FOCUS_RING}`} aria-label="Guardar">
                             {isSaving ? <Spinner className="size-3.5" /> : <Check className="w-4 h-4" />}
                         </button>
-                        <button onClick={onCancelEdit} className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-sm)] bg-[var(--surface-2)] text-[var(--fg-muted)] active:bg-[var(--surface-3)] transition-colors" aria-label="Cancelar">
+                        <button onClick={onCancelEdit} className={`flex items-center justify-center min-h-12 min-w-12 sm:h-8 sm:w-8 rounded-[var(--radius-sm)] bg-[var(--surface-2)] text-[var(--fg-muted)] active:bg-[var(--surface-3)] transition-colors ${FOCUS_RING}`} aria-label="Cancelar">
                             <X className="w-4 h-4" />
                         </button>
                     </div>
@@ -395,7 +400,7 @@ function ValeCard({ item, readOnly, isEditing, editValue, onEditValueChange, onS
                         <span className="text-xs font-medium text-[var(--fg-muted)]">Cantidad:</span>
                         <span className="text-lg font-bold text-foreground">{item.cantidad ?? '-'}</span>
                         {!readOnly && (
-                            <button onClick={onStartEdit} className="ml-1 w-7 h-7 flex items-center justify-center rounded-[var(--radius-sm)] text-[var(--fg-subtle)] active:text-foreground active:bg-[var(--surface-2)] transition-colors" aria-label="Editar cantidad">
+                            <button onClick={onStartEdit} className={`ml-1 flex items-center justify-center min-h-12 min-w-12 sm:h-7 sm:w-7 rounded-[var(--radius-sm)] text-[var(--fg-subtle)] active:text-foreground active:bg-[var(--surface-2)] transition-colors ${FOCUS_RING}`} aria-label="Editar cantidad">
                                 <Pencil className="w-3.5 h-3.5" />
                             </button>
                         )}
@@ -407,7 +412,7 @@ function ValeCard({ item, readOnly, isEditing, editValue, onEditValueChange, onS
                         <button
                             onClick={onNotDeliver}
                             disabled={isNotDelivering || isDelivering}
-                            className="h-10 px-3 flex items-center justify-center gap-1.5 rounded-[var(--radius-md)] bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold disabled:opacity-40 active:opacity-90 transition-all"
+                            className={`min-h-12 sm:h-10 px-3 flex items-center justify-center gap-1.5 rounded-[var(--radius-md)] bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold disabled:opacity-40 active:opacity-90 transition-all ${FOCUS_RING}`}
                         >
                             {isNotDelivering ? (
                                 <Spinner className="size-3.5" />
@@ -421,7 +426,7 @@ function ValeCard({ item, readOnly, isEditing, editValue, onEditValueChange, onS
                         <button
                             onClick={onDeliver}
                             disabled={isDelivering || isNotDelivering}
-                            className="h-10 px-4 flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--chart-2)] text-white text-xs font-semibold disabled:opacity-40 active:opacity-90 transition-all"
+                            className={`min-h-12 sm:h-10 px-4 flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--chart-2)] text-white text-xs font-semibold disabled:opacity-40 active:opacity-90 transition-all ${FOCUS_RING}`}
                         >
                             {isDelivering ? (
                                 <Spinner className="size-3.5" />

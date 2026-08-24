@@ -86,12 +86,12 @@ export default function OrdenesDeCompraPage() {
   if (!userContext) return null;
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-dvh flex flex-col">
       <div className="h-14 border-b border-border flex items-center px-4 md:px-6 bg-background shrink-0">
         {selectedObra ? (
-          <button onClick={() => setSelectedObra(null)} className="mr-3 p-1 -ml-1 rounded-md active:bg-accent/50"><ArrowLeft className="w-5 h-5 text-muted-foreground" /></button>
+          <button type="button" onClick={() => setSelectedObra(null)} aria-label="Volver" className="mr-3 -ml-1 flex min-h-12 min-w-12 items-center justify-center rounded-md active:bg-accent/50 md:min-h-0 md:min-w-0 md:p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"><ArrowLeft className="w-5 h-5 text-muted-foreground" /></button>
         ) : (
-          <Link href="/portal-proveedor/dashboard" className="mr-3 p-1 -ml-1 rounded-md active:bg-accent/50"><ArrowLeft className="w-5 h-5 text-muted-foreground" /></Link>
+          <Link href="/portal-proveedor/dashboard" aria-label="Volver" className="mr-3 -ml-1 flex min-h-12 min-w-12 items-center justify-center rounded-md active:bg-accent/50 md:min-h-0 md:min-w-0 md:p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"><ArrowLeft className="w-5 h-5 text-muted-foreground" /></Link>
         )}
         <div className="flex items-center gap-2.5 min-w-0">
           <ShoppingCart className="w-5 h-5 text-orange-400 shrink-0" />
@@ -140,8 +140,9 @@ export default function OrdenesDeCompraPage() {
                   <p className="text-[10px] text-yellow-400/60 mt-0.5">{pagosLoading ? '' : `de ${pagosStats.total} pagos`}</p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setShowPendientes(true)}
-                  className="rounded-lg border border-orange-500/30 bg-orange-950/10 p-3 md:p-4 text-left transition-all hover:border-orange-500/50 hover:bg-orange-950/20 active:scale-[0.98]"
+                  className="rounded-lg border border-orange-500/30 bg-orange-950/10 p-3 md:p-4 text-left transition-all hover:border-orange-500/50 hover:bg-orange-950/20 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   <div className="flex items-center gap-1.5 mb-1">
                     <AlertCircle className="w-3.5 h-3.5 text-orange-400" />
@@ -156,8 +157,10 @@ export default function OrdenesDeCompraPage() {
               {totals.pendientes > 0 && (
                 <Card className="border-orange-500/30 bg-orange-950/5 overflow-hidden">
                   <button
+                    type="button"
                     onClick={() => setExpandedPendientes(!expandedPendientes)}
-                    className="w-full p-4 flex items-center justify-between hover:bg-orange-950/10 transition-colors"
+                    aria-expanded={expandedPendientes}
+                    className="w-full p-4 flex items-center justify-between hover:bg-orange-950/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                   >
                     <div className="flex items-center gap-2.5">
                       <AlertCircle className="w-5 h-5 text-orange-400" />
@@ -229,7 +232,7 @@ export default function OrdenesDeCompraPage() {
                   {obraCards.map((card) => {
                     const pct = card.montoTotal > 0 ? Math.round((card.montoFacturado / card.montoTotal) * 100) : 0;
                     return (
-                      <button key={card.obra} onClick={() => setSelectedObra(card.obra)} className="group text-left rounded-lg border border-border bg-card p-4 transition-all hover:border-orange-500/40 hover:bg-orange-950/5 active:scale-[0.98]">
+                      <button type="button" key={card.obra} onClick={() => setSelectedObra(card.obra)} className="group text-left rounded-lg border border-border bg-card p-4 transition-all hover:border-orange-500/40 hover:bg-orange-950/5 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
                         <div className="flex items-center justify-between mb-3">
                           <h3 className="text-sm font-semibold text-foreground truncate pr-2">{card.obra}</h3>
                           <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-orange-400 shrink-0 transition-colors" />

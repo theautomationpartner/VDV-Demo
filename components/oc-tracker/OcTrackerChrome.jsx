@@ -28,10 +28,10 @@ export function OcTrackerChrome({ children }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background p-6">
+      <div className="min-h-dvh bg-background p-4 sm:p-6">
         <div className="mx-auto max-w-7xl space-y-6">
           <Skeleton className="h-8 w-64" />
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[1, 2, 3, 4].map((i) => (
               <Skeleton key={i} className="h-20" />
             ))}
@@ -44,14 +44,14 @@ export function OcTrackerChrome({ children }) {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+      <div className="flex min-h-dvh items-center justify-center bg-background p-6">
         <div className="max-w-md text-center">
           <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
             <AlertCircle className="h-6 w-6 text-destructive" />
           </div>
           <h2 className="mb-2 text-lg font-semibold">Error al cargar datos</h2>
           <p className="mb-4 text-sm text-muted-foreground">{error}</p>
-          <Button onClick={() => refetch()} variant="outline" size="sm">
+          <Button onClick={() => refetch()} variant="outline" size="sm" className="min-h-12">
             <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
             Reintentar
           </Button>
@@ -61,21 +61,54 @@ export function OcTrackerChrome({ children }) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh bg-background">
       <div className="border-b border-border bg-card">
-        <div className="max-w-7xl mx-auto px-6 py-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-3xl font-semibold tracking-tight">Control Consumo OC</h1>
-              <p className="text-sm text-muted-foreground mt-1">Seguimiento de órdenes de compra y facturación</p>
+        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 sm:py-5">
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-3xl font-semibold tracking-tight truncate">Control Consumo OC</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">Seguimiento de órdenes de compra y facturación</p>
             </div>
-            <Button onClick={() => refetch()} variant="outline" size="sm" disabled={refetching}>
-              <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", refetching && "animate-spin")} />
-              Actualizar
+            <Button
+              onClick={() => refetch()}
+              variant="outline"
+              size="sm"
+              disabled={refetching}
+              className="shrink-0 min-h-12 sm:min-h-9"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5 sm:mr-1.5", refetching && "animate-spin")} />
+              <span className="hidden sm:inline">Actualizar</span>
             </Button>
           </div>
 
-          <nav className="flex gap-1 overflow-x-auto">
+          {/* Mobile: en vez de repetir la nav completa (ya vive en el bottom
+              nav global, ver components/layout/AppSidebar.jsx), solo se
+              muestran las alertas con contador > 0 como chips tocables -
+              la senal de "atencion" que si vale la pena no perder. */}
+          {views.some((v) => v.badgeKey && badgeCounts[v.badgeKey] > 0) && (
+            <div className="flex md:hidden gap-1.5 overflow-x-auto">
+              {views
+                .filter((v) => v.badgeKey && badgeCounts[v.badgeKey] > 0)
+                .map((view) => {
+                  const Icon = view.icon;
+                  return (
+                    <Link
+                      key={view.href}
+                      href={view.href}
+                      className="flex shrink-0 items-center gap-1.5 min-h-9 rounded-full bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive whitespace-nowrap"
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {view.label}
+                      <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-destructive/20 text-[11px] font-semibold">
+                        {badgeCounts[view.badgeKey]}
+                      </span>
+                    </Link>
+                  );
+                })}
+            </div>
+          )}
+
+          <nav className="hidden md:flex gap-1 overflow-x-auto">
             {views.map((view) => {
               const Icon = view.icon;
               const isActive = pathname === view.href;
@@ -109,7 +142,7 @@ export function OcTrackerChrome({ children }) {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-6">{children}</div>
+      <div className="max-w-7xl mx-auto p-4 sm:p-6">{children}</div>
     </div>
   );
 }

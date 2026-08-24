@@ -7,6 +7,11 @@ import { X, Package, ChevronDown } from 'lucide-react';
 
 const materialesBoard = new BaseDeDatosMaterialesBoard();
 
+// Foco visible (teclado) para los botones nativos de este dialogo - ninguno usa
+// el componente Button de shadcn/ui (que ya trae su propio focus-visible), asi
+// que cada <button> a mano necesita este anillo para cumplir WCAG 2.1 AA.
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
 const UNIDADES = ["pieza", "caja", "litro", "metro", "TI", "UNID", "RO", "LT", "ML", "SC", "M2", "TN", "KG", "PAR", "KM", "L", "GLN", "MTs", "BL", "BALDE 5 KG", "TIRA", "TINETA", "BOLSA", "GAL"];
 const CATEGORIAS = ["EPP", "ASEO", "YESO CARTON", "HERRAMIENTAS MANUALES", "FIJACIONES", "GUARDAPOLVO", "PEGAMENTOS", "ACCESORIO BAÑO", "PORCELANATO", "AISLANTE", "LAVAPLATOS", "ARTEFACTO COCINA", "PUERTA", "INSUMO", "MADERAS", "CORNISAS", "METALCON", "MELÓN", "QUINCALLERIA", "TRAZADO", "CERAMICA", "PISO", "FIBROCEMENTO", "MOLDURA MADERA", "quinca", "FUNJIGLES", "PINTURA", "MATERIAL GENERAL", "SANITARIO", "NIVELADOR DE PISO", "GRIFERIA", "SILICONA", "PERFILES IPE", "PERFIL METALICO", "EQUIPAMIENTO BAÑO", "HORMIGON LISTO", "FIERRO CONSTRUCCION"];
 
@@ -78,7 +83,7 @@ export function CreateMaterialDialog({ searchTerm, onClose, onMaterialCreated })
                     </div>
                     <button
                         onClick={onClose}
-                        className="flex items-center justify-center w-8 h-8 rounded-[var(--radius-md)] text-[var(--fg-subtle)] active:text-foreground active:bg-[var(--surface-2)] transition-colors"
+                        className={`flex items-center justify-center min-h-12 min-w-12 sm:h-8 sm:w-8 rounded-[var(--radius-md)] text-[var(--fg-subtle)] active:text-foreground active:bg-[var(--surface-2)] transition-colors ${FOCUS_RING}`}
                         aria-label="Cerrar"
                     >
                         <X className="w-[18px] h-[18px]" />
@@ -97,7 +102,7 @@ export function CreateMaterialDialog({ searchTerm, onClose, onMaterialCreated })
                             value={nombre}
                             onChange={(e) => setNombre(e.target.value)}
                             placeholder="Ej: CEMENTO MELÓN 25KG"
-                            className="w-full h-11 px-3 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
+                            className="w-full h-12 px-3 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
                         />
                     </div>
 
@@ -110,7 +115,7 @@ export function CreateMaterialDialog({ searchTerm, onClose, onMaterialCreated })
                                 id="mat-unidad"
                                 value={unidad}
                                 onChange={(e) => setUnidad(e.target.value)}
-                                className="w-full h-11 px-3 pr-9 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors appearance-none cursor-pointer"
+                                className="w-full h-12 px-3 pr-9 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors appearance-none cursor-pointer"
                             >
                                 <option value="">Seleccionar...</option>
                                 {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
@@ -128,7 +133,7 @@ export function CreateMaterialDialog({ searchTerm, onClose, onMaterialCreated })
                                 id="mat-categoria"
                                 value={categoria}
                                 onChange={(e) => setCategoria(e.target.value)}
-                                className="w-full h-11 px-3 pr-9 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors appearance-none cursor-pointer"
+                                className="w-full h-12 px-3 pr-9 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors appearance-none cursor-pointer"
                             >
                                 <option value="">Seleccionar...</option>
                                 {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
@@ -150,7 +155,7 @@ export function CreateMaterialDialog({ searchTerm, onClose, onMaterialCreated })
                             value={precio}
                             onChange={(e) => setPrecio(e.target.value)}
                             placeholder="0"
-                            className="w-full h-11 px-3 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
+                            className="w-full h-12 px-3 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
                         />
                     </div>
 
@@ -159,14 +164,14 @@ export function CreateMaterialDialog({ searchTerm, onClose, onMaterialCreated })
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 h-11 flex items-center justify-center rounded-[var(--radius-md)] bg-[var(--surface-2)] border border-[var(--border-subtle)] text-sm font-medium text-foreground active:bg-[var(--surface-3)] transition-colors"
+                            className={`flex-1 h-12 flex items-center justify-center rounded-[var(--radius-md)] bg-[var(--surface-2)] border border-[var(--border-subtle)] text-sm font-medium text-foreground active:bg-[var(--surface-3)] transition-colors ${FOCUS_RING}`}
                         >
                             Cancelar
                         </button>
                         <button
                             type="submit"
                             disabled={!canSubmit || submitting}
-                            className="flex-1 h-11 flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--chart-2)] text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed active:opacity-90 transition-all"
+                            className={`flex-1 h-12 flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--chart-2)] text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed active:opacity-90 transition-all ${FOCUS_RING}`}
                         >
                             {submitting ? (
                                 <>

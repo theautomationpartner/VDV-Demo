@@ -191,10 +191,16 @@ export default function AdminUsuariosPage() {
   if (!userContext) return null;
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-dvh flex flex-col">
       <div className="h-14 border-b border-border flex items-center justify-between px-4 md:px-6 bg-background shrink-0">
         <div className="flex items-center gap-3">
-          <Link href="/portal-proveedor/dashboard" className="p-1 -ml-1 rounded-md active:bg-accent/50"><ArrowLeft className="w-5 h-5 text-muted-foreground" /></Link>
+          <Link
+            href="/portal-proveedor/dashboard"
+            aria-label="Volver"
+            className="-ml-1 flex min-h-12 min-w-12 items-center justify-center rounded-md active:bg-accent/50 md:min-h-0 md:min-w-0 md:p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            <ArrowLeft className="w-5 h-5 text-muted-foreground" />
+          </Link>
           <div className="flex items-center gap-2"><Shield className="w-5 h-5 text-primary" /><h1 className="text-base md:text-lg font-semibold text-foreground">Gestión de Usuarios</h1></div>
         </div>
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" /><span className="hidden sm:inline">Crear Usuario</span></Button>
@@ -347,7 +353,15 @@ export default function AdminUsuariosPage() {
                 <div className="flex flex-wrap gap-1 mt-1">
                   {formObras.map((o) => (
                     <Badge key={o} variant="outline" className="text-[10px] gap-1 pr-1">
-                      {o}<button onClick={() => toggleObra(o)} className="hover:text-destructive"><X className="w-3 h-3" /></button>
+                      {o}
+                      <button
+                        type="button"
+                        onClick={() => toggleObra(o)}
+                        aria-label={`Quitar ${o}`}
+                        className="rounded-full hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
                     </Badge>
                   ))}
                 </div>
@@ -394,7 +408,15 @@ export default function AdminUsuariosPage() {
                 <div className="flex flex-wrap gap-1 mt-1">
                   {formProveedores.slice(0, 5).map((p) => (
                     <Badge key={p} variant="outline" className="text-[10px] gap-1 pr-1">
-                      {p}<button onClick={() => toggleProv(p)} className="hover:text-destructive"><X className="w-3 h-3" /></button>
+                      {p}
+                      <button
+                        type="button"
+                        onClick={() => toggleProv(p)}
+                        aria-label={`Quitar ${p}`}
+                        className="rounded-full hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
                     </Badge>
                   ))}
                   {formProveedores.length > 5 && <Badge variant="outline" className="text-[10px]">+{formProveedores.length - 5} más</Badge>}
@@ -460,10 +482,25 @@ function UserCard({ user, onEdit, onDelete }) {
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(user)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 min-h-12 min-w-12 md:min-h-0 md:min-w-0"
+              onClick={() => onEdit(user)}
+              aria-label={`Editar ${user.name}`}
+            >
+              <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+            </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8"><Trash2 className="w-3.5 h-3.5 text-destructive" /></Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 min-h-12 min-w-12 md:min-h-0 md:min-w-0"
+                  aria-label={`Eliminar ${user.name}`}
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>

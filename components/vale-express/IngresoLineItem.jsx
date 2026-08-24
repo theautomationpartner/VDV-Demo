@@ -6,6 +6,11 @@ import { X, Search, Package, Plus } from 'lucide-react';
 import { useMaterialSearch } from '@/hooks/vale-express/useMaterialSearch';
 import { CreateMaterialDialog } from '@/components/vale-express/CreateMaterialDialog';
 
+// Foco visible (teclado) para los botones nativos de esta linea - ninguno usa
+// el componente Button de shadcn/ui (que ya trae su propio focus-visible), asi
+// que cada <button> a mano necesita este anillo para cumplir WCAG 2.1 AA.
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
 export function IngresoLineItem({ index, item, onUpdate, onRemove, canRemove }) {
     const { term, setTerm, results, loading } = useMaterialSearch();
     const [showDropdown, setShowDropdown] = useState(false);
@@ -81,7 +86,7 @@ export function IngresoLineItem({ index, item, onUpdate, onRemove, canRemove }) 
                     {canRemove && (
                         <button
                             onClick={onRemove}
-                            className="flex items-center justify-center w-8 h-8 rounded-[var(--radius-md)] text-[var(--fg-subtle)] active:text-destructive active:bg-[color-mix(in_hsl,var(--destructive)_10%,transparent)] transition-colors"
+                            className={`flex items-center justify-center min-h-12 min-w-12 sm:h-8 sm:w-8 rounded-[var(--radius-md)] text-[var(--fg-subtle)] active:text-destructive active:bg-[color-mix(in_hsl,var(--destructive)_10%,transparent)] transition-colors ${FOCUS_RING}`}
                             aria-label={`Eliminar línea ${index + 1}`}
                         >
                             <X className="w-4 h-4" />
@@ -128,7 +133,7 @@ export function IngresoLineItem({ index, item, onUpdate, onRemove, canRemove }) 
                         <span className="block text-[10px] uppercase tracking-wider text-[var(--fg-subtle)] font-medium mb-1">
                             Unidad
                         </span>
-                        <div className="h-11 flex items-center px-3 rounded-[var(--radius-md)] bg-[var(--surface-2)] border border-[var(--border-subtle)] text-sm text-[var(--fg-muted)]">
+                        <div className="h-12 flex items-center px-3 rounded-[var(--radius-md)] bg-[var(--surface-2)] border border-[var(--border-subtle)] text-sm text-[var(--fg-muted)]">
                             {item.unidad || '-'}
                         </div>
                     </div>
@@ -146,7 +151,7 @@ export function IngresoLineItem({ index, item, onUpdate, onRemove, canRemove }) 
                             value={item.cantidad}
                             onChange={handleQuantityChange}
                             placeholder="0"
-                            className="w-full h-11 px-3 text-sm text-right bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="w-full h-12 px-3 text-sm text-right bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                     </div>
                 </div>
@@ -174,7 +179,7 @@ function SelectedMaterial({ item, onClear }) {
             </span>
             <button
                 onClick={onClear}
-                className="flex items-center justify-center w-8 h-8 rounded-full text-[var(--fg-subtle)] active:text-destructive active:bg-[var(--surface-2)] transition-colors shrink-0"
+                className={`flex items-center justify-center min-h-12 min-w-12 sm:h-8 sm:w-8 rounded-full text-[var(--fg-subtle)] active:text-destructive active:bg-[var(--surface-2)] transition-colors shrink-0 ${FOCUS_RING}`}
                 aria-label="Cambiar material"
             >
                 <X className="w-4 h-4" />
@@ -197,7 +202,7 @@ function SearchInput({ index, term, loading, inputRef, onTermChange, onFocus }) 
                 onFocus={onFocus}
                 placeholder="Buscar material..."
                 autoComplete="off"
-                className="w-full h-11 pl-10 pr-10 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
+                className="w-full h-12 pl-10 pr-10 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
             />
             {loading && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -218,7 +223,7 @@ function SearchDropdown({ results, term, loading, onSelect, onCreateNew }) {
                 </div>
                 <button
                     onClick={onCreateNew}
-                    className="w-full px-4 py-3 flex items-center gap-2.5 text-left active:bg-[color-mix(in_hsl,var(--chart-2)_10%,transparent)] transition-colors"
+                    className={`w-full px-4 py-3 flex items-center gap-2.5 text-left active:bg-[color-mix(in_hsl,var(--chart-2)_10%,transparent)] transition-colors ${FOCUS_RING}`}
                 >
                     <div className="w-8 h-8 rounded-[var(--radius-md)] bg-[color-mix(in_hsl,var(--chart-2)_12%,transparent)] flex items-center justify-center shrink-0">
                         <Plus className="w-4 h-4 text-[var(--chart-2)]" />
@@ -240,7 +245,7 @@ function SearchDropdown({ results, term, loading, onSelect, onCreateNew }) {
                 <button
                     key={mat.id}
                     onClick={() => onSelect(mat)}
-                    className={`w-full text-left px-4 py-3 active:bg-[color-mix(in_hsl,var(--chart-2)_10%,transparent)] transition-colors ${
+                    className={`w-full text-left px-4 py-3 active:bg-[color-mix(in_hsl,var(--chart-2)_10%,transparent)] transition-colors ${FOCUS_RING} ${
                         i !== results.length - 1 ? 'border-b border-[var(--border-subtle)]' : ''
                     }`}
                 >
@@ -256,7 +261,7 @@ function SearchDropdown({ results, term, loading, onSelect, onCreateNew }) {
             ))}
             <button
                 onClick={onCreateNew}
-                className="w-full px-4 py-3 flex items-center gap-2.5 text-left border-t border-[var(--border-subtle)] active:bg-[color-mix(in_hsl,var(--chart-2)_10%,transparent)] transition-colors"
+                className={`w-full px-4 py-3 flex items-center gap-2.5 text-left border-t border-[var(--border-subtle)] active:bg-[color-mix(in_hsl,var(--chart-2)_10%,transparent)] transition-colors ${FOCUS_RING}`}
             >
                 <Plus className="w-4 h-4 text-[var(--chart-2)]" />
                 <span className="text-sm text-[var(--chart-2)] font-medium">Crear nuevo material</span>

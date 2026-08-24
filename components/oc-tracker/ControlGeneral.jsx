@@ -66,37 +66,37 @@ export function ControlGeneral({ ordenes }) {
         <p className="text-sm text-muted-foreground mt-0.5">Vista general de todas las órdenes de compra y su consumo</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div className="bg-card border border-border rounded-[var(--radius)] p-5">
-          <div className="text-sm font-medium text-muted-foreground mb-2">Total OC</div>
-          <div className="text-3xl font-semibold gradient-stat tracking-tight">{formatCurrency(stats.total)}</div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="bg-card border border-border rounded-[var(--radius)] p-4 sm:p-5">
+          <div className="text-xs sm:text-sm font-medium text-muted-foreground mb-2">Total OC</div>
+          <div className="text-xl sm:text-3xl font-semibold gradient-stat tracking-tight truncate">{formatCurrency(stats.total)}</div>
         </div>
-        <div className="bg-card border border-border rounded-[var(--radius)] p-5">
-          <div className="text-sm font-medium text-muted-foreground mb-2">Total Facturado</div>
-          <div className="text-3xl font-semibold tracking-tight">{formatCurrency(stats.facturado)}</div>
+        <div className="bg-card border border-border rounded-[var(--radius)] p-4 sm:p-5">
+          <div className="text-xs sm:text-sm font-medium text-muted-foreground mb-2">Total Facturado</div>
+          <div className="text-xl sm:text-3xl font-semibold tracking-tight truncate">{formatCurrency(stats.facturado)}</div>
         </div>
-        <div className="bg-card border border-border rounded-[var(--radius)] p-5">
-          <div className="text-sm font-medium text-muted-foreground mb-2">Saldo Disponible</div>
-          <div className="text-3xl font-semibold tracking-tight">{formatCurrency(stats.saldo)}</div>
+        <div className="bg-card border border-border rounded-[var(--radius)] p-4 sm:p-5">
+          <div className="text-xs sm:text-sm font-medium text-muted-foreground mb-2">Saldo Disponible</div>
+          <div className="text-xl sm:text-3xl font-semibold tracking-tight truncate">{formatCurrency(stats.saldo)}</div>
         </div>
-        <div className="bg-card border border-border rounded-[var(--radius)] p-5">
-          <div className="text-sm font-medium text-muted-foreground mb-2">% Consumido</div>
-          <div className="text-3xl font-semibold tracking-tight">{stats.porcentaje.toFixed(1)}%</div>
+        <div className="bg-card border border-border rounded-[var(--radius)] p-4 sm:p-5">
+          <div className="text-xs sm:text-sm font-medium text-muted-foreground mb-2">% Consumido</div>
+          <div className="text-xl sm:text-3xl font-semibold tracking-tight truncate">{stats.porcentaje.toFixed(1)}%</div>
         </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar por número de OC..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-10 rounded-[var(--radius-sm)] bg-card border-border"
+            className="pl-9 h-12 sm:h-10 rounded-[var(--radius-sm)] bg-card border-border"
           />
         </div>
         <Select value={obraFilter} onValueChange={setObraFilter}>
-          <SelectTrigger className="w-full sm:w-[200px] h-10 rounded-[var(--radius-sm)] bg-card border-border">
+          <SelectTrigger className="w-full sm:w-[200px] h-12 sm:h-10 rounded-[var(--radius-sm)] bg-card border-border">
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="rounded-[var(--radius-sm)]">
@@ -109,7 +109,7 @@ export function ControlGeneral({ ordenes }) {
           </SelectContent>
         </Select>
         <Select value={semaforoFilter} onValueChange={setSemaforoFilter}>
-          <SelectTrigger className="w-full sm:w-[180px] h-10 rounded-[var(--radius-sm)] bg-card border-border">
+          <SelectTrigger className="w-full sm:w-[180px] h-12 sm:h-10 rounded-[var(--radius-sm)] bg-card border-border">
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="rounded-[var(--radius-sm)]">

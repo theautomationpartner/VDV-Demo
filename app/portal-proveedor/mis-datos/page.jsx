@@ -23,10 +23,14 @@ export default function MisDatosPage() {
     : userContext.filterProveedor;
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-dvh flex flex-col bg-background">
       {/* Header */}
       <div className="h-14 border-b border-border flex items-center px-4 bg-background shrink-0 sticky top-0 z-10">
-        <Link href="/portal-proveedor/dashboard" className="mr-3 p-1 -ml-1 rounded-md active:bg-accent/50">
+        <Link
+          href="/portal-proveedor/dashboard"
+          aria-label="Volver"
+          className="mr-3 -ml-1 flex min-h-12 min-w-12 items-center justify-center rounded-md active:bg-accent/50 md:min-h-0 md:min-w-0 md:p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
           <ArrowLeft className="w-5 h-5 text-muted-foreground" />
         </Link>
         <div className="flex items-center gap-2.5 min-w-0">

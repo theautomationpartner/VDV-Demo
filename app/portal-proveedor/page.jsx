@@ -50,7 +50,7 @@ export default function PortalProveedorGate() {
 
   if (wrongApp) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-5 text-center">
+      <div className="min-h-dvh bg-background text-foreground flex flex-col items-center justify-center p-5 text-center">
         <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
           <ShieldAlert className="w-8 h-8 text-destructive" />
         </div>
@@ -63,7 +63,7 @@ export default function PortalProveedorGate() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
+    <div className="min-h-dvh bg-background flex items-center justify-center">
       <Spinner className="size-8 text-primary" />
     </div>
   );
