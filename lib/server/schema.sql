@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS usuarios_autorizados (
   email             TEXT NOT NULL UNIQUE,
   nombre            TEXT,                   -- nombre para mostrar (sidebar, etc)
   monday_user_id    BIGINT,                 -- opcional, solo referencia/futuro uso
-  rol               TEXT NOT NULL DEFAULT 'usuario',  -- 'admin' | 'usuario' (administra la whitelist)
+  rol               TEXT NOT NULL DEFAULT 'usuario',  -- LEGADO: ya no se usa para permisos. El acceso a /admin/whitelist sale de asignaciones[].appRol ('super_admin' edita, 'admin' solo ve) - ver app/api/auth/whitelist/route.js
   estado            TEXT NOT NULL DEFAULT 'activo',   -- 'activo' | 'revocado'
   creado_en         TIMESTAMPTZ NOT NULL DEFAULT now(),
   ultimo_acceso     TIMESTAMPTZ,

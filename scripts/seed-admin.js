@@ -1,13 +1,22 @@
-// Da de alta el primer admin de la whitelist - hace falta uno para poder usar
-// despues el panel /api/auth/whitelist (el panel mismo exige rol='admin').
-// Uso: node scripts/seed-admin.js correo@cliente.com
+// Da de alta (o promueve) a alguien como Super Admin de una app - hace falta
+// al menos una cuenta asi para poder editar despues el panel
+// /api/auth/whitelist (el acceso a ese panel sale de asignaciones[].appRol:
+// 'super_admin' en cualquier app deja editar, 'admin' deja solo ver - ver
+// app/api/auth/whitelist/route.js). No es un rol propio de la whitelist, es
+// el mismo rol que ya usa esa app (Vale Express / Portal Proveedor).
+// Uso: node scripts/seed-admin.js correo@cliente.com [vale-express|portal-proveedor]
 require("./load-env");
 const { neon } = require("@neondatabase/serverless");
 
 async function main() {
   const email = process.argv[2];
+  const app = process.argv[3] || "vale-express";
   if (!email) {
-    console.error("Uso: node scripts/seed-admin.js correo@cliente.com");
+    console.error("Uso: node scripts/seed-admin.js correo@cliente.com [vale-express|portal-proveedor]");
+    process.exit(1);
+  }
+  if (app !== "vale-express" && app !== "portal-proveedor") {
+    console.error("La app tiene que ser 'vale-express' o 'portal-proveedor'.");
     process.exit(1);
   }
   const url = process.env.DATABASE_URL;
@@ -16,14 +25,23 @@ async function main() {
     process.exit(1);
   }
 
+  const normalizado = email.toLowerCase().trim();
   const sql = neon(url);
+
+  const existentes = await sql`select asignaciones from usuarios_autorizados where email = ${normalizado} limit 1`;
+  const asignacionesPrevias = existentes[0]?.asignaciones ?? [];
+  const asignaciones = [
+    ...asignacionesPrevias.filter((a) => a.app !== app),
+    { app, appRol: "super_admin", appConfig: {} },
+  ];
+
   const rows = await sql`
-    insert into usuarios_autorizados (email, rol)
-    values (${email.toLowerCase().trim()}, 'admin')
-    on conflict (email) do update set rol = 'admin', estado = 'activo'
-    returning id, email, rol, estado
+    insert into usuarios_autorizados (email, rol, asignaciones)
+    values (${normalizado}, 'usuario', ${JSON.stringify(asignaciones)})
+    on conflict (email) do update set estado = 'activo', asignaciones = ${JSON.stringify(asignaciones)}
+    returning id, email, estado, asignaciones
   `;
-  console.log("Admin dado de alta:", rows[0]);
+  console.log(`Super Admin de ${app} dado de alta:`, rows[0]);
 }
 
 main().catch((err) => {

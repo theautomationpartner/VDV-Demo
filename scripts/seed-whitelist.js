@@ -3,17 +3,20 @@
 require("./load-env");
 const { neon } = require("@neondatabase/serverless");
 
-// `rol` = rol en el panel de whitelist ('admin' puede administrar la lista).
+// `rol` = LEGADO, ya no controla nada (ver app/api/auth/whitelist/route.js) -
+// se deja en 'usuario' para todas.
 // `asignaciones` = a que app(s) pertenece y que rol tiene ADENTRO de cada una -
 // lo que antes vivia hardcodeado en lib/client/fixed-accounts.js, ahora en la
 // DB para que se pueda administrar sin tocar codigo (ver /admin/whitelist).
+// Ese mismo appRol ('super_admin'/'admin') es lo que determina el acceso a
+// /admin/whitelist: super_admin en cualquier app edita, admin solo ve.
 const ACCOUNTS = [
-  { email: "superadmin.valeexpress@demo.vdv.cl", nombre: "Super Admin", rol: "admin", asignaciones: [{ app: "vale-express", appRol: "super_admin", appConfig: {} }] },
+  { email: "superadmin.valeexpress@demo.vdv.cl", nombre: "Super Admin", rol: "usuario", asignaciones: [{ app: "vale-express", appRol: "super_admin", appConfig: {} }] },
   { email: "admin.valeexpress@demo.vdv.cl", nombre: "Administrador", rol: "usuario", asignaciones: [{ app: "vale-express", appRol: "admin", appConfig: {} }] },
   { email: "bodega.valeexpress@demo.vdv.cl", nombre: "Bodeguero", rol: "usuario", asignaciones: [{ app: "vale-express", appRol: "bodeguero", appConfig: {} }] },
   { email: "jefeobra.valeexpress@demo.vdv.cl", nombre: "Jefe de Obra", rol: "usuario", asignaciones: [{ app: "vale-express", appRol: "jefe_obra", appConfig: {} }] },
   { email: "apr.valeexpress@demo.vdv.cl", nombre: "APR", rol: "usuario", asignaciones: [{ app: "vale-express", appRol: "apr", appConfig: {} }] },
-  { email: "superadmin.portalproveedor@demo.vdv.cl", nombre: "Super Admin", rol: "admin", asignaciones: [{ app: "portal-proveedor", appRol: "super_admin", appConfig: {} }] },
+  { email: "superadmin.portalproveedor@demo.vdv.cl", nombre: "Super Admin", rol: "usuario", asignaciones: [{ app: "portal-proveedor", appRol: "super_admin", appConfig: {} }] },
   { email: "admin.portalproveedor@demo.vdv.cl", nombre: "Administrador", rol: "usuario", asignaciones: [{ app: "portal-proveedor", appRol: "admin", appConfig: {} }] },
   { email: "subcontratista.portalproveedor@demo.vdv.cl", nombre: "Subcontratista", rol: "usuario", asignaciones: [{ app: "portal-proveedor", appRol: "subcontratista", appConfig: {} }] },
 ];

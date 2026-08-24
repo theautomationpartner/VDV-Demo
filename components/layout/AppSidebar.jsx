@@ -7,7 +7,7 @@ import { ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut, UserCog } from "lu
 import { NAV_SECTIONS } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useUserRole, ROLES } from "@/hooks/vale-express/useUserRole";
-import { getGlobalEmail, getGlobalApps, getGlobalWhitelistRol } from "@/lib/client/fixed-accounts";
+import { getGlobalEmail, getGlobalApps } from "@/lib/client/fixed-accounts";
 
 const COLLAPSE_KEY = "sidebar_collapsed";
 const MOBILE_QUERY = "(max-width: 768px)";
@@ -135,15 +135,14 @@ function useHomeApps(pathname) {
   return homeApps;
 }
 
-/** rol='admin' en la whitelist global -> puede administrar /admin/whitelist. */
-function useIsWhitelistAdmin(pathname) {
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    setIsAdmin(getGlobalWhitelistRol() === "admin");
-  }, [pathname]);
-
-  return isAdmin;
+/**
+ * /admin/whitelist no tiene rol propio - el acceso sale de los mismos roles
+ * de cada app (los que ya calcula useSidebarRoles): 'admin' o 'super_admin'
+ * en CUALQUIERA de las 2 (Vale Express o Portal Proveedor) alcanza para
+ * entrar. El servidor decide ahi adentro si puede editar o solo ver.
+ */
+function canSeeWhitelist(roles) {
+  return ["vale-express", "portal-proveedor"].some((app) => roles[app] === "admin" || roles[app] === "super_admin");
 }
 
 /**
@@ -211,7 +210,7 @@ export function AppSidebar() {
   const pathname = usePathname();
   const roles = useSidebarRoles(pathname);
   const homeApps = useHomeApps(pathname);
-  const isWhitelistAdmin = useIsWhitelistAdmin(pathname);
+  const isWhitelistAdmin = canSeeWhitelist(roles);
   const { collapsed, mobileOpen, toggleCollapsed, expand, toggleMobile, closeMobile } = useSidebarCollapse();
   const currentUser = useCurrentUser(pathname, roles["vale-express"]);
 
@@ -502,7 +501,7 @@ export function AppSidebar() {
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)]">
                     <UserCog className="size-4" />
                   </span>
-                  <span className={cn("flex-1 truncate text-left", collapsed && "hidden")}>Whitelist</span>
+                  <span className={cn("flex-1 truncate text-left", collapsed && "hidden")}>Usuarios y Roles</span>
                 </Link>
 
                 {collapsed && (
@@ -510,7 +509,7 @@ export function AppSidebar() {
                     role="tooltip"
                     className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md border border-[var(--sidebar-border)] bg-[var(--sidebar)] px-2.5 py-1.5 text-xs font-medium text-[var(--sidebar-foreground)] opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-within/item:translate-x-0 group-focus-within/item:opacity-100"
                   >
-                    Whitelist
+                    Usuarios y Roles
                   </span>
                 )}
               </div>
