@@ -75,6 +75,13 @@ export async function GET(request) {
       return {
         ...u,
         asignaciones: asignacionesVisibles,
+        // Distincion clave: "algo" alcanza para el boton Editar y para tocar
+        // SOLO las asignaciones de las apps que este admin controla (el PATCH
+        // ya hace merge preservando las demas, ver mas abajo). "Completo"
+        // hace falta para nombre/estado/borrar, que afectan TODAS las apps
+        // de la persona a la vez - de lo contrario un super_admin de una sola
+        // app podria revocar/borrar acceso a una app que no administra.
+        puedeEditarAlgo: (u.asignaciones ?? []).some((a) => editables.has(a.app)),
         puedeAdministrarCompleto: puedeAdministrarCompleto(u.asignaciones, editables),
       };
     })

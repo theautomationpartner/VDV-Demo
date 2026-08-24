@@ -245,14 +245,35 @@ function UsuarioCard({ u, onEdit, onDelete, onToggleEstado, togglingId, mostrarA
             </Badge>
           )}
           {mostrarAcciones &&
-            (u.puedeAdministrarCompleto ? (
+            (u.puedeEditarAlgo ? (
               <>
-                <Button variant="ghost" size="sm" onClick={() => onEdit(u)} aria-label={`Editar ${u.email}`}>
+                {/* min-h/w-12 asegura el touch target minimo de 48px en mobile
+                    sin agrandar el boton "sm" en escritorio (md:min-h/w-0 lo
+                    vuelve a dejar en su tamaño compacto original ahi). Editar
+                    alcanza con administrar UNA de las apps de esta persona -
+                    el dialogo solo va a mostrar/permitir tocar esas. Borrar
+                    en cambio saca a la persona de TODAS sus apps a la vez,
+                    asi que exige administrarlas completo. */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onEdit(u)}
+                  aria-label={`Editar ${u.email}`}
+                  className="min-h-12 min-w-12 md:min-h-0 md:min-w-0"
+                >
                   <Pencil className="w-3.5 h-3.5" />
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => onDelete(u)} aria-label={`Eliminar ${u.email}`}>
-                  <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                </Button>
+                {u.puedeAdministrarCompleto && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDelete(u)}
+                    aria-label={`Eliminar ${u.email}`}
+                    className="min-h-12 min-w-12 md:min-h-0 md:min-w-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                  </Button>
+                )}
               </>
             ) : (
               <span className="text-[11px] text-muted-foreground pr-1">Solo lectura</span>
@@ -403,18 +424,30 @@ export default function WhitelistAdminPage() {
   };
 
   const openEdit = (u) => {
-    const asignaciones = (u.asignaciones ?? []).map((a) => ({
-      app: a.app,
-      appRol: a.appRol,
-      obras: (a.appConfig?.obras ?? []).join(", "),
-      restrictObras: a.appConfig?.restrictObras === true,
-      proveedorName: a.appConfig?.proveedorName ?? "",
-    }));
+    // Solo se cargan al form las asignaciones de apps que ESTE admin
+    // administra (editableApps) - las de otras apps (ej. Vale Express para
+    // alguien que solo es super_admin de Portal Proveedor) ni se muestran ni
+    // se mandan en el PATCH; el servidor las preserva intactas por su cuenta
+    // (merge con "ajenas" en app/api/auth/whitelist/route.js). Sin este
+    // filtro, el PATCH rechazaba el guardado completo apenas el form incluia
+    // una app que este admin no controla.
+    const asignaciones = (u.asignaciones ?? [])
+      .filter((a) => editableApps.includes(a.app))
+      .map((a) => ({
+        app: a.app,
+        appRol: a.appRol,
+        obras: (a.appConfig?.obras ?? []).join(", "),
+        restrictObras: a.appConfig?.restrictObras === true,
+        proveedorName: a.appConfig?.proveedorName ?? "",
+      }));
+    const tieneAppsOcultas = (u.asignaciones ?? []).length > asignaciones.length;
     setForm({
       id: u.id,
       email: u.email,
       nombre: u.nombre ?? "",
       asignaciones: asignaciones.length ? asignaciones : editableApps.length ? [nuevaAsignacion(editableApps[0])] : [],
+      tieneAppsOcultas,
+      puedeAdministrarCompleto: u.puedeAdministrarCompleto,
     });
     setDialogOpen(true);
   };
@@ -452,11 +485,17 @@ export default function WhitelistAdminPage() {
             : { proveedorName: a.proveedorName.trim() || null },
       }));
 
-      const payload = {
-        email: form.email.trim(),
-        nombre: form.nombre.trim() || null,
-        asignaciones,
-      };
+      const payload = { email: form.email.trim(), asignaciones };
+      // El nombre es un dato de la cuenta entera (afecta TODAS sus apps), asi
+      // que el backend solo lo acepta si administras el 100% de las apps de
+      // esta persona (puedeAdministrarCompleto) - si solo administras una de
+      // varias, no se manda (undefined), asi el backend no lo evalua y el
+      // guardado de la asignacion puntual no se cae por esto. Al crear un
+      // usuario nuevo (!form.id) siempre se manda: no hay "otras apps" que
+      // pisar todavia.
+      if (!form.id || form.puedeAdministrarCompleto) {
+        payload.nombre = form.nombre.trim() || null;
+      }
 
       const res = await fetch("/api/auth/whitelist", {
         method: form.id ? "PATCH" : "POST",
@@ -517,7 +556,7 @@ export default function WhitelistAdminPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3">
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-3">
         <Spinner className="size-8" />
         <p className="text-sm text-muted-foreground">Cargando usuarios...</p>
       </div>
@@ -526,7 +565,7 @@ export default function WhitelistAdminPage() {
 
   if (!allowed) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-8 text-center">
+      <div className="flex min-h-dvh flex-col items-center justify-center p-8 text-center">
         <div className="mb-4 flex size-14 items-center justify-center rounded-full bg-destructive/10">
           <ShieldAlert className="w-7 h-7 text-destructive" />
         </div>
@@ -558,7 +597,7 @@ export default function WhitelistAdminPage() {
           </div>
         </div>
         {editableApps.length > 0 && (
-          <Button onClick={openNew} className="gap-1.5 shrink-0">
+          <Button onClick={openNew} className="gap-1.5 shrink-0 min-h-12 md:min-h-0">
             <Plus className="w-4 h-4" />
             Agregar
           </Button>
@@ -597,7 +636,7 @@ export default function WhitelistAdminPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por email o nombre..."
-          className="pl-9"
+          className="pl-9 h-12 md:h-8"
         />
       </div>
 
@@ -655,12 +694,27 @@ export default function WhitelistAdminPage() {
 
               <div className="space-y-1.5">
                 <Label>Nombre</Label>
-                <Input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Nombre y apellido" />
+                <Input
+                  value={form.nombre}
+                  onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                  placeholder="Nombre y apellido"
+                  disabled={Boolean(form.id) && !form.puedeAdministrarCompleto}
+                />
+                {form.id && !form.puedeAdministrarCompleto && (
+                  <p className="text-xs text-muted-foreground">
+                    Esta persona tiene acceso a otra app que no administrás - el nombre solo lo puede cambiar quien administre todas sus apps.
+                  </p>
+                )}
               </div>
 
               <p className="text-xs text-muted-foreground">
                 El acceso a esta pantalla sale de los roles de la derecha, por app: Super Admin de una app puede editar los usuarios de esa app, Administrador solo puede verlos.
               </p>
+              {form.tieneAppsOcultas && (
+                <p className="text-xs text-muted-foreground">
+                  Esta persona tiene acceso a otra app que no administrás - esa parte no se muestra ni se toca acá.
+                </p>
+              )}
             </div>
 
             {/* Divisor vertical entre secciones (horizontal en mobile) */}
