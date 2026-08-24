@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Spinner } from '@/components/ui/spinner';
-import { Warehouse, FileText, PackagePlus, LogOut, User, AlertTriangle, ClipboardList, Package } from 'lucide-react';
+import { Warehouse, FileText, PackagePlus, LogOut, User, Shield, AlertTriangle, ClipboardList, Package } from 'lucide-react';
 import { useUserRole, canAccessIngreso, canAccessSolicitud, canAccessAdmin, canAccessStock, ROLES } from '@/hooks/vale-express/useUserRole';
 
 export default function DashboardPage() {
