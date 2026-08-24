@@ -3,24 +3,16 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Spinner } from '@/components/ui/spinner';
-import { Warehouse, FileText, PackagePlus, LogOut, User, Shield, AlertTriangle, ClipboardList, Package } from 'lucide-react';
-import { useUserRole, canAccessIngreso, canAccessSolicitud, canAccessAdmin, canAccessStock, getAllRoles, saveAllRoles, ROLES, getRoleFromData } from '@/hooks/vale-express/useUserRole';
+import { Warehouse, FileText, PackagePlus, LogOut, User, AlertTriangle, ClipboardList, Package } from 'lucide-react';
+import { useUserRole, canAccessIngreso, canAccessSolicitud, canAccessAdmin, canAccessStock, ROLES } from '@/hooks/vale-express/useUserRole';
 
 export default function DashboardPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [session, setSession] = useState(null);
-    const [bootstrapping, setBootstrapping] = useState(false);
 
     const userId = session?.userId;
-    const { role, loading: roleLoading, allRoles, reload: reloadRole } = useUserRole(userId);
-
-    // Check if no super_admin exists (for migration)
-    const noSuperAdminExists = !Object.values(allRoles).some(data => {
-        const r = getRoleFromData(data);
-        return r === 'super_admin';
-    });
-    const showUpgrade = role === 'admin' && noSuperAdminExists;
+    const { role, loading: roleLoading } = useUserRole(userId);
 
     useEffect(() => {
         const stored = localStorage.getItem('ve_session');
@@ -45,28 +37,8 @@ export default function DashboardPage() {
         router.push('/vale-express');
     };
 
-    // Bootstrap: if no roles exist at all, allow this user to become admin
-    const handleBootstrapAdmin = async () => {
-        if (!session) return;
-        setBootstrapping(true);
-        try {
-            // MERGE with any existing roles, don't overwrite
-            const { roles: existingRoles } = await getAllRoles();
-            const mergedRoles = { ...existingRoles, [String(session.userId)]: { role: 'super_admin', obras: [] } };
-            const success = await saveAllRoles(mergedRoles);
-            if (success) {
-                await reloadRole();
-            }
-        } catch (err) {
-            console.error('Bootstrap failed:', err);
-        } finally {
-            setBootstrapping(false);
-        }
-    };
-
     const isLoading = loading || roleLoading;
-    const noRolesExist = !isLoading && Object.keys(allRoles).length === 0;
-    const hasNoRole = !isLoading && !noRolesExist && !role;
+    const hasNoRole = !isLoading && !role;
 
     if (isLoading) {
         return (
@@ -131,38 +103,6 @@ export default function DashboardPage() {
                     </div>
                 )}
 
-                {/* Bootstrap: no roles exist at all */}
-                {noRolesExist && (
-                    <div className="mb-6 p-5 bg-[color-mix(in_hsl,var(--chart-4)_6%,transparent)] border border-[color-mix(in_hsl,var(--chart-4)_20%,transparent)] rounded-[var(--radius-lg)]">
-                        <div className="flex items-start gap-3 mb-4">
-                            <Shield className="w-6 h-6 text-[var(--chart-4)] shrink-0 mt-0.5" />
-                            <div>
-                                <h3 className="text-sm font-semibold text-foreground mb-1">Configuración Inicial</h3>
-                                <p className="text-sm text-[var(--fg-muted)] leading-relaxed">
-                                    No hay roles configurados en el sistema. Como primer usuario, puedes convertirte en Administrador para gestionar los accesos del equipo.
-                                </p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={handleBootstrapAdmin}
-                            disabled={bootstrapping}
-                            className="w-full h-12 flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--chart-4)] text-white text-sm font-medium disabled:opacity-40 active:opacity-90 transition-all"
-                        >
-                            {bootstrapping ? (
-                                <>
-                                    <Spinner className="size-4" />
-                                    Configurando...
-                                </>
-                            ) : (
-                                <>
-                                    <Shield className="w-4 h-4" />
-                                    Activar como Super Administrador
-                                </>
-                            )}
-                        </button>
-                    </div>
-                )}
-
                 {/* No role assigned */}
                 {hasNoRole && (
                     <div className="mb-6 p-5 bg-[color-mix(in_hsl,var(--muted)_30%,transparent)] border border-[var(--border-subtle)] rounded-[var(--radius-lg)]">
@@ -178,52 +118,8 @@ export default function DashboardPage() {
                     </div>
                 )}
 
-                {/* Upgrade to Super Admin (migration) */}
-                {showUpgrade && (
-                    <div className="mb-6 p-5 bg-[color-mix(in_hsl,var(--chart-4)_6%,transparent)] border border-[color-mix(in_hsl,var(--chart-4)_20%,transparent)] rounded-[var(--radius-lg)]">
-                        <div className="flex items-start gap-3 mb-4">
-                            <Shield className="w-6 h-6 text-[var(--chart-4)] shrink-0 mt-0.5" />
-                            <div>
-                                <h3 className="text-sm font-semibold text-foreground mb-1">Actualizar a Super Admin</h3>
-                                <p className="text-sm text-[var(--fg-muted)] leading-relaxed">
-                                    El sistema ahora requiere un Super Administrador para gestionar roles y obras. Actualiza tu cuenta para mantener el control total.
-                                </p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={async () => {
-                                setBootstrapping(true);
-                                try {
-                                    const { roles: existing } = await getAllRoles();
-                                    const updated = { ...existing, [String(session.userId)]: { role: 'super_admin', obras: [], restrictObras: false } };
-                                    await saveAllRoles(updated);
-                                    await reloadRole();
-                                } catch (err) {
-                                    console.error('Upgrade failed:', err);
-                                } finally {
-                                    setBootstrapping(false);
-                                }
-                            }}
-                            disabled={bootstrapping}
-                            className="w-full h-12 flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--chart-4)] text-white text-sm font-medium disabled:opacity-40 active:opacity-90 transition-all"
-                        >
-                            {bootstrapping ? (
-                                <>
-                                    <Spinner className="size-4" />
-                                    Actualizando...
-                                </>
-                            ) : (
-                                <>
-                                    <Shield className="w-4 h-4" />
-                                    Activar Super Administrador
-                                </>
-                            )}
-                        </button>
-                    </div>
-                )}
-
                 {/* Actions - show for all authenticated users, each button gated by its own permission */}
-                {(!isLoading && !noRolesExist) && (
+                {!isLoading && (
                     <div className="space-y-3">
                         <h2 className="text-xs uppercase tracking-wider font-semibold text-[var(--fg-subtle)] mb-3">
                             Operaciones
