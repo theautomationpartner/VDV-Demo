@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { OrdenesDeCompraMaxxaBoard, FacturasIaBoard, fetchAllItems } from "@/lib/board-sdk";
+import { FACTURAS_GRUPO_DUPLICADAS_ID } from "@/lib/board-schemas";
 
 const ordenesBoard = new OrdenesDeCompraMaxxaBoard();
 const facturasBoard = new FacturasIaBoard();
@@ -69,7 +70,13 @@ export function useOCData() {
       ]);
 
       setOrdenes(ordenesItems.filter((oc) => oc.group?.id !== GRUPO_OC_DUPLICADAS));
-      setFacturas(facturasItems);
+      // Antes traia TODAS las facturas sin excluir "Duplicadas" - inflaba
+      // Total Facturado/Saldo Disponible/% Consumido, mientras que Total OC
+      // si excluia correctamente su propio grupo de duplicadas. Igual que
+      // GRUPO_OC_DUPLICADAS arriba: se excluye SOLO el grupo de duplicadas,
+      // el resto de los grupos (Pendientes, Revision manual, Enviada a pago,
+      // En revision) cuentan.
+      setFacturas(facturasItems.filter((f) => f.group?.id !== FACTURAS_GRUPO_DUPLICADAS_ID));
     } catch (err) {
       console.error("Error loading OC data:", err);
       setError(err.message);

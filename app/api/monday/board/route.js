@@ -38,6 +38,16 @@ const AUTH_LAYERS_ENABLED = process.env.AUTH_LAYERS_ENABLED === "true";
  */
 function coerceColumnValue(cv) {
   const { text, column } = cv;
+  // Columna tipo "file" (ej. docOc en OrdenesDeCompraMaxxaBoard): el .text
+  // plano es solo el/los nombre(s) de archivo, sin URL para descargar - antes
+  // se perdia el link de descarga que si tenia la app original (que leia
+  // docOc.files directo del SDK). Devuelve { files: [{name, url}] } en vez de
+  // texto para que la UI pueda armar el link; no afecta ninguna otra columna,
+  // solo las de tipo "file".
+  if (column?.type === "file") {
+    const files = (cv.files ?? []).map((f) => ({ name: f.name, url: f.url }));
+    return files.length ? { files } : null;
+  }
   if (text == null || text === "") return null;
   if (column?.type === "numbers") {
     const n = Number(text);
@@ -101,7 +111,13 @@ async function handleItems(boardKey, schema, params) {
       `query ($cursor: String!, $limit: Int!) {
         next_items_page(cursor: $cursor, limit: $limit) {
           cursor
-          items { id name group { id title } column_values { id text value column { type } } }
+          items {
+            id name group { id title }
+            column_values {
+              id text value column { type }
+              ... on FileValue { files { name url } }
+            }
+          }
         }
       }`,
       { cursor, limit }
@@ -118,7 +134,13 @@ async function handleItems(boardKey, schema, params) {
       boards(ids: [$boardId]) {
         items_page(limit: $limit, query_params: $queryParams) {
           cursor
-          items { id name group { id title } column_values { id text value column { type } } }
+          items {
+            id name group { id title }
+            column_values {
+              id text value column { type }
+              ... on FileValue { files { name url } }
+            }
+          }
         }
       }
     }`,

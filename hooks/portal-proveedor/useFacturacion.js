@@ -6,10 +6,15 @@ import { FacturasIaBoard, fetchAllItems } from '@/lib/board-sdk';
 let _factCache = { map: null, stats: null, time: 0, promise: null };
 const CACHE_TTL = 5 * 60 * 1000;
 
-// Solo incluir facturas de estos grupos (excluir "Duplicados")
+// Lista blanca fiel al Portal Proveedor original (code-text/Portal Proveedor.txt) -
+// a proposito distinta del criterio de OC Tracker (que solo excluye el grupo
+// de duplicadas, ver FACTURAS_GRUPO_DUPLICADAS_ID en board-schemas.js). Son
+// dos apps originales separadas con logica propia para el mismo tablero;
+// unificarlas en una sola constante compartida fue un error de esta sesion,
+// revertido aca.
 const FACTURAS_ALLOWED_GROUPS = [
-  'topics',                // "Pendientes"
-  'group_mm21cxe2',        // "Completadas"
+  'topics',           // "Pendientes"
+  'group_mm21cxe2',   // "Completadas"
 ];
 
 /**
