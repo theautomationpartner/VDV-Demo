@@ -2,15 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { FacturasIaBoard, fetchAllItems } from '@/lib/board-sdk';
+import { FACTURAS_GRUPOS_VALIDOS } from '@/lib/board-schemas';
 
 let _factCache = { map: null, stats: null, time: 0, promise: null };
 const CACHE_TTL = 5 * 60 * 1000;
-
-// Solo incluir facturas de estos grupos (excluir "Duplicados")
-const FACTURAS_ALLOWED_GROUPS = [
-  'topics',                // "Pendientes"
-  'group_mm21cxe2',        // "Completadas"
-];
 
 /**
  * Fetches all invoices from FACTURAS IA and builds a map:
@@ -36,7 +31,7 @@ async function buildFacturacionMap() {
       // Filter out duplicates - only keep items from allowed groups
       const validItems = allItems.filter((item) => {
         const groupId = item.group?.id || '';
-        return FACTURAS_ALLOWED_GROUPS.includes(groupId);
+        return FACTURAS_GRUPOS_VALIDOS.includes(groupId);
       });
 
       // Build map: OC number -> facturacion data
