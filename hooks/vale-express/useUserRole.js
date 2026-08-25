@@ -180,7 +180,13 @@ export function canEditVales(role) {
 export function canAccessAdmin(role) {
     if (!role) return false;
     const r = typeof role === 'string' ? role : role?.role;
-    return r === 'super_admin' || r === 'admin' || r === 'viewer';
+    // El original (code-text/Vale Express.txt) nunca le daba entrada al panel
+    // de administracion de roles al rol "viewer" ("Visualizador (Prueba):
+    // solo puede ver, no puede crear ni editar nada") - la migracion lo habia
+    // agregado por error, exponiendole la lista completa de usuarios/roles/
+    // obras asignadas a una cuenta que deberia ser de solo lectura sobre los
+    // datos operativos, no sobre la configuracion de acceso del sistema.
+    return r === 'super_admin' || r === 'admin';
 }
 
 /**
