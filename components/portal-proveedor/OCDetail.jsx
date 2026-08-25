@@ -156,26 +156,8 @@ export default function OCDetail({ items, obraName, facturacionMap, factLoading 
                       value={oc.responsable}
                     />
                   )}
-                  {oc.docOc?.files?.length > 0 && (
-                    <DetailRow
-                      icon={<FileStack className="w-3.5 h-3.5" />}
-                      label="Documento OC"
-                      value={
-                        <span className="flex flex-col gap-0.5">
-                          {oc.docOc.files.map((file, idx) => (
-                            <a
-                              key={`${file.url}-${idx}`}
-                              href={file.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="underline text-primary hover:text-primary/80"
-                            >
-                              {file.name}
-                            </a>
-                          ))}
-                        </span>
-                      }
-                    />
+                  {oc.docOc && (
+                    <DetailRow icon={<FileStack className="w-3.5 h-3.5" />} label="Documento OC" value={oc.docOc} />
                   )}
                   {oc.comentarios && (
                     <DetailRow icon={<AlertCircle className="w-3.5 h-3.5" />} label="Comentarios" value={oc.comentarios} />
