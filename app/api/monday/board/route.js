@@ -51,7 +51,16 @@ function coerceColumnValue(cv) {
 }
 
 function mapItemColumns(item, columnIdToFriendly) {
-  const mapped = { id: item.id, name: item.name, group: item.group ?? null };
+  // created_at/updated_at son campos nativos del item en monday (no columnas).
+  // La app original los pedia y mapeaba a createdAt/updatedAt - se usan p.ej.
+  // en el campo "Creado" de vales-pendientes; sin esto quedaba siempre en "-".
+  const mapped = {
+    id: item.id,
+    name: item.name,
+    group: item.group ?? null,
+    createdAt: item.created_at ?? null,
+    updatedAt: item.updated_at ?? null,
+  };
   for (const cv of item.column_values ?? []) {
     const friendlyKey = columnIdToFriendly[cv.id];
     if (!friendlyKey) continue;
@@ -132,7 +141,7 @@ async function handleItems(boardKey, schema, params) {
       `query ($cursor: String!, $limit: Int!) {
         next_items_page(cursor: $cursor, limit: $limit) {
           cursor
-          items { id name group { id title } ${cvFields} }
+          items { id name created_at updated_at group { id title } ${cvFields} }
         }
       }`,
       { cursor, limit }
@@ -149,7 +158,7 @@ async function handleItems(boardKey, schema, params) {
       boards(ids: [$boardId]) {
         items_page(limit: $limit, query_params: $queryParams) {
           cursor
-          items { id name group { id title } ${cvFields} }
+          items { id name created_at updated_at group { id title } ${cvFields} }
         }
       }
     }`,
