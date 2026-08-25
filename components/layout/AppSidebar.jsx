@@ -3,14 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut, UserCog } from "lucide-react";
+import { ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut, UserCog, MoreHorizontal } from "lucide-react";
 import { NAV_SECTIONS } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useUserRole, ROLES } from "@/hooks/vale-express/useUserRole";
 import { getGlobalEmail, getGlobalApps } from "@/lib/client/fixed-accounts";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 const COLLAPSE_KEY = "sidebar_collapsed";
-const MOBILE_QUERY = "(max-width: 768px)";
+
+// Foco visible consistente (teclado) en todos los controles interactivos del
+// sidebar/nav movil - mismo anillo en los dos, para cumplir WCAG 2.1 AA de
+// navegacion por teclado sin depender del estado hover-only.
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sidebar-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sidebar)]";
 
 // Portal Proveedor tiene su propio vocabulario de roles (no pasa por
 // hooks/vale-express/useUserRole.js), asi que no comparte el mapa ROLES de
@@ -146,13 +151,13 @@ function canSeeWhitelist(roles) {
 }
 
 /**
- * Estado colapsado del sidebar. Persiste en localStorage como el resto de
- * las sesiones por-app (readSession de arriba), y arranca colapsado si la
- * primera carga ya es en viewport movil (no hay preferencia guardada aun).
+ * Estado colapsado del rail de escritorio. Persiste en localStorage como el
+ * resto de las sesiones por-app (readSession de arriba). En movil no aplica
+ * (ahi no hay rail, ver bottom nav mas abajo), asi que no depende de
+ * viewport para el valor inicial.
  */
 function useSidebarCollapse() {
   const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     let stored = null;
@@ -161,11 +166,7 @@ function useSidebarCollapse() {
     } catch {
       stored = null;
     }
-    if (stored !== null) {
-      setCollapsed(stored === "true");
-    } else if (window.matchMedia(MOBILE_QUERY).matches) {
-      setCollapsed(true);
-    }
+    if (stored !== null) setCollapsed(stored === "true");
   }, []);
 
   const persistCollapsed = (value) => {
@@ -176,7 +177,6 @@ function useSidebarCollapse() {
     }
   };
 
-  // Rail angosto/ancho en escritorio - persiste entre recargas.
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
       const next = !prev;
@@ -193,17 +193,7 @@ function useSidebarCollapse() {
     persistCollapsed(false);
   };
 
-  // Drawer superpuesto en movil - abre/cierra, no persiste (siempre arranca cerrado).
-  const toggleMobile = () => setMobileOpen((prev) => !prev);
-
-  return {
-    collapsed,
-    mobileOpen,
-    toggleCollapsed,
-    expand,
-    toggleMobile,
-    closeMobile: () => setMobileOpen(false),
-  };
+  return { collapsed, toggleCollapsed, expand };
 }
 
 export function AppSidebar() {
@@ -211,8 +201,9 @@ export function AppSidebar() {
   const roles = useSidebarRoles(pathname);
   const homeApps = useHomeApps(pathname);
   const isWhitelistAdmin = canSeeWhitelist(roles);
-  const { collapsed, mobileOpen, toggleCollapsed, expand, toggleMobile, closeMobile } = useSidebarCollapse();
+  const { collapsed, toggleCollapsed, expand } = useSidebarCollapse();
   const currentUser = useCurrentUser(pathname, roles["vale-express"]);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   // OC Tracker no tiene dueño (cualquier cuenta lo puede ver); Vale Express y
   // Portal Proveedor solo se muestran si estan entre las apps asignadas a la
@@ -222,11 +213,11 @@ export function AppSidebar() {
     (section) => section.key === "oc-tracker" || homeApps === null || homeApps.includes(section.key)
   );
 
-  const activeSection =
-    visibleSections.find((section) => pathname.startsWith(section.basePath)) ?? null;
+  const activeSection = visibleSections.find((section) => pathname.startsWith(section.basePath)) ?? null;
 
-  // Acordeon de un solo nivel abierto a la vez. La seccion activa (segun la
-  // ruta actual) arranca expandida; navegar a otra seccion la vuelve a abrir.
+  // Acordeon de un solo nivel abierto a la vez, solo para el rail de
+  // escritorio. La seccion activa (segun la ruta actual) arranca expandida;
+  // navegar a otra seccion la vuelve a abrir.
   const [expandedKey, setExpandedKey] = useState(activeSection?.key ?? null);
 
   useEffect(() => {
@@ -234,8 +225,7 @@ export function AppSidebar() {
   }, [activeSection?.key]);
 
   useEffect(() => {
-    closeMobile();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setMoreOpen(false);
   }, [pathname]);
 
   // Con el rail colapsado, un click en la seccion la despliega en un solo
@@ -272,277 +262,460 @@ export function AppSidebar() {
 
   return (
     <>
-      {!mobileOpen && (
-        <button
-          type="button"
-          onClick={toggleMobile}
-          aria-label="Abrir menú lateral"
-          className="fixed left-4 top-4 z-30 flex size-9 items-center justify-center rounded-lg border border-[var(--sidebar-border)] bg-[var(--sidebar)] text-[var(--sidebar-foreground)] shadow-md md:hidden"
-        >
-          <PanelLeftOpen className="size-4" />
-        </button>
-      )}
-
-      {mobileOpen && (
-        <div
-          data-app="shell"
-          className="fixed inset-0 z-30 bg-black/50 md:hidden"
-          onClick={closeMobile}
-          aria-hidden="true"
-        />
-      )}
-
-      <aside data-app="shell" className="h-full shrink-0 max-md:w-0">
-        <div
-          data-collapsed={collapsed}
-          className={cn(
-            "flex h-full flex-col overflow-hidden border-r border-[var(--sidebar-border)] bg-[var(--sidebar)] text-[var(--sidebar-foreground)] transition-[width] duration-300 ease-in-out",
-            collapsed ? "w-[76px]" : "w-64",
-            "max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:!w-64 max-md:shadow-2xl max-md:transition-transform max-md:duration-300",
-            "max-md:" + (mobileOpen ? "translate-x-0" : "-translate-x-full")
-          )}
-        >
-          <div
-            className={cn(
-              "flex items-center gap-2.5 px-4 py-5",
-              collapsed && "flex-col gap-3 px-0"
-            )}
-          >
-            <div className={cn("flex min-w-0 items-center gap-2.5", collapsed ? "shrink-0" : "flex-1 overflow-hidden")}>
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)] text-[11px] font-bold leading-none tracking-tight">
-                VDV
-              </span>
-              <div className={cn("overflow-hidden", collapsed && "hidden")}>
-                <div className="whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.15em] text-[color-mix(in_hsl,var(--sidebar-foreground)_45%,transparent)]">
-                  Vergara del Valle
-                </div>
+      {/* ---------- Escritorio (md+): rail lateral colapsable, sin cambios de comportamiento ---------- */}
+      <aside
+        data-app="shell"
+        data-collapsed={collapsed}
+        className={cn(
+          "hidden h-full shrink-0 flex-col overflow-hidden border-r border-[var(--sidebar-border)] bg-[var(--sidebar)] text-[var(--sidebar-foreground)] transition-[width] duration-300 ease-in-out md:flex",
+          collapsed ? "w-[76px]" : "w-64"
+        )}
+      >
+        <div className={cn("flex items-center gap-2.5 px-4 py-5", collapsed && "flex-col gap-3 px-0")}>
+          <div className={cn("flex min-w-0 items-center gap-2.5", collapsed ? "shrink-0" : "flex-1 overflow-hidden")}>
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)] text-[11px] font-bold leading-none tracking-tight">
+              VDV
+            </span>
+            <div className={cn("overflow-hidden", collapsed && "hidden")}>
+              <div className="whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.15em] text-[color-mix(in_hsl,var(--sidebar-foreground)_45%,transparent)]">
+                Vergara del Valle
               </div>
             </div>
-            <button
-              type="button"
-              onClick={toggleCollapsed}
-              aria-expanded={!collapsed}
-              aria-label={collapsed ? "Expandir menú lateral" : "Colapsar menú lateral"}
-              className="flex size-7 shrink-0 items-center justify-center rounded-lg text-[color-mix(in_hsl,var(--sidebar-foreground)_50%,transparent)] transition-colors hover:bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)] hover:text-[var(--sidebar-foreground)] max-md:hidden"
-            >
-              {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
-            </button>
-            <button
-              type="button"
-              onClick={toggleMobile}
-              aria-expanded={mobileOpen}
-              aria-label="Cerrar menú lateral"
-              className="hidden size-7 shrink-0 items-center justify-center rounded-lg text-[color-mix(in_hsl,var(--sidebar-foreground)_50%,transparent)] transition-colors hover:bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)] hover:text-[var(--sidebar-foreground)] max-md:flex"
-            >
-              <PanelLeftClose className="size-4" />
-            </button>
           </div>
-
-          <div
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? "Expandir menú lateral" : "Colapsar menú lateral"}
             className={cn(
-              "overflow-hidden whitespace-nowrap px-4 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[color-mix(in_hsl,var(--sidebar-foreground)_40%,transparent)] transition-[opacity,max-height] duration-200",
-              collapsed ? "max-h-0 opacity-0" : "max-h-4 opacity-100"
+              "flex size-7 shrink-0 items-center justify-center rounded-lg text-[color-mix(in_hsl,var(--sidebar-foreground)_50%,transparent)] transition-colors hover:bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)] hover:text-[var(--sidebar-foreground)]",
+              FOCUS_RING
             )}
           >
-            Aplicaciones
-          </div>
+            {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+          </button>
+        </div>
 
-          <nav aria-label="Aplicaciones" className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
-            <ul className="flex flex-col gap-1 px-2">
-              {visibleSections.map((section) => {
-                const isSectionActive = activeSection?.key === section.key;
-                const isExpanded = !collapsed && expandedKey === section.key;
-                const SectionIcon = section.icon;
-                const submenuId = `submenu-${section.key}`;
-                const visibleItems = section.items.filter((item) => isItemVisible(item, roles[section.key]));
+        <div
+          className={cn(
+            "overflow-hidden whitespace-nowrap px-4 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[color-mix(in_hsl,var(--sidebar-foreground)_40%,transparent)] transition-[opacity,max-height] duration-200",
+            collapsed ? "max-h-0 opacity-0" : "max-h-4 opacity-100"
+          )}
+        >
+          Aplicaciones
+        </div>
 
-                return (
-                  <li key={section.key} className="group/item relative" style={{ "--accent": section.accent }}>
-                    <button
-                      type="button"
-                      aria-expanded={isExpanded}
-                      aria-controls={submenuId}
-                      onClick={() => toggleSection(section.key)}
+        <nav aria-label="Aplicaciones" className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <ul className="flex flex-col gap-1 px-2">
+            {visibleSections.map((section) => {
+              const isSectionActive = activeSection?.key === section.key;
+              const isExpanded = !collapsed && expandedKey === section.key;
+              const SectionIcon = section.icon;
+              const submenuId = `submenu-${section.key}`;
+              const visibleItems = section.items.filter((item) => isItemVisible(item, roles[section.key]));
+
+              return (
+                <li key={section.key} className="group/item relative" style={{ "--accent": section.accent }}>
+                  <button
+                    type="button"
+                    aria-expanded={isExpanded}
+                    aria-controls={submenuId}
+                    onClick={() => toggleSection(section.key)}
+                    className={cn(
+                      "group flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium transition-colors",
+                      FOCUS_RING,
+                      collapsed && "justify-center px-0",
+                      isSectionActive
+                        ? "bg-[hsl(var(--accent))] text-black/85"
+                        : "text-[color-mix(in_hsl,var(--sidebar-foreground)_85%,transparent)] hover:bg-[hsl(var(--accent)/.16)] hover:text-[var(--sidebar-foreground)]"
+                    )}
+                  >
+                    <span
                       className={cn(
-                        "group flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium transition-colors",
-                        collapsed && "justify-center px-0",
-                        isSectionActive
-                          ? "bg-[hsl(var(--accent))] text-black/85"
-                          : "text-[color-mix(in_hsl,var(--sidebar-foreground)_85%,transparent)] hover:bg-[hsl(var(--accent)/.16)] hover:text-[var(--sidebar-foreground)]"
+                        "flex size-8 shrink-0 items-center justify-center rounded-lg",
+                        isSectionActive ? "bg-black/15" : "bg-[hsl(var(--accent)/.16)]"
                       )}
                     >
-                      <span
-                        className={cn(
-                          "flex size-8 shrink-0 items-center justify-center rounded-lg",
-                          isSectionActive ? "bg-black/15" : "bg-[hsl(var(--accent)/.16)]"
-                        )}
-                      >
-                        <SectionIcon
-                          className={cn("size-4", isSectionActive ? "text-black/80" : "text-[hsl(var(--accent))]")}
-                        />
-                      </span>
-                      <span
-                        className={cn(
-                          "flex-1 truncate text-left transition-opacity duration-200",
-                          collapsed && "hidden"
-                        )}
-                      >
-                        {section.label}
-                      </span>
-                      <ChevronRight
-                        className={cn(
-                          "size-3.5 shrink-0 transition-transform duration-200",
-                          isSectionActive ? "text-black/70" : "text-[color-mix(in_hsl,var(--sidebar-foreground)_40%,transparent)]",
-                          isExpanded && "rotate-90",
-                          collapsed && "hidden"
-                        )}
-                      />
-                    </button>
+                      <SectionIcon className={cn("size-4", isSectionActive ? "text-black/80" : "text-[hsl(var(--accent))]")} />
+                    </span>
+                    <span className={cn("flex-1 truncate text-left transition-opacity duration-200", collapsed && "hidden")}>
+                      {section.label}
+                    </span>
+                    <ChevronRight
+                      className={cn(
+                        "size-3.5 shrink-0 transition-transform duration-200",
+                        isSectionActive ? "text-black/70" : "text-[color-mix(in_hsl,var(--sidebar-foreground)_40%,transparent)]",
+                        isExpanded && "rotate-90",
+                        collapsed && "hidden"
+                      )}
+                    />
+                  </button>
 
-                    {/* Tooltip flotante: solo cuando el sidebar esta colapsado, en hover/focus del item */}
-                    {collapsed && (
-                      <span
-                        role="tooltip"
-                        className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md border border-[var(--sidebar-border)] bg-[var(--sidebar)] px-2.5 py-1.5 text-xs font-medium text-[var(--sidebar-foreground)] opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-within/item:translate-x-0 group-focus-within/item:opacity-100"
-                      >
-                        {section.label}
-                      </span>
-                    )}
-
-                    {/* Submenu anidado: grid-rows 0fr->1fr da una animacion de alto fluida
-                        sin medir pixeles a mano; el fondo/borde usan --accent de la seccion.
-                        Colapsado, se mantiene siempre en 0fr (el tooltip reemplaza el detalle). */}
-                    <div
-                      id={submenuId}
-                      className="grid transition-[grid-template-rows] duration-200 ease-out"
-                      style={{ gridTemplateRows: isExpanded ? "1fr" : "0fr" }}
+                  {/* Tooltip flotante: solo cuando el sidebar esta colapsado, en hover/focus del item */}
+                  {collapsed && (
+                    <span
+                      role="tooltip"
+                      className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md border border-[var(--sidebar-border)] bg-[var(--sidebar)] px-2.5 py-1.5 text-xs font-medium text-[var(--sidebar-foreground)] opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-within/item:translate-x-0 group-focus-within/item:opacity-100"
                     >
-                      <div className="overflow-hidden">
-                        <ul
-                          className={cn(
-                            "mt-1 mb-1 ml-[18px] flex flex-col gap-0.5 border-l-2 border-[hsl(var(--accent)/.35)] bg-[hsl(var(--accent)/.1)] py-1.5 pr-1.5 pl-2.5 transition-opacity duration-200",
-                            isExpanded ? "opacity-100" : "opacity-0"
-                          )}
-                        >
-                          {visibleItems.map((item) => {
-                            const isItemActive = pathname === item.href;
-                            const ItemIcon = item.icon;
-                            return (
-                              <li key={item.href}>
-                                <Link
-                                  href={item.href}
-                                  className={cn(
-                                    "flex items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] leading-tight transition-colors",
-                                    isItemActive
-                                      ? "font-semibold text-[hsl(var(--accent))]"
-                                      : "text-[color-mix(in_hsl,var(--sidebar-foreground)_65%,transparent)] hover:bg-[color-mix(in_hsl,var(--sidebar-foreground)_6%,transparent)] hover:text-[var(--sidebar-foreground)]"
-                                  )}
-                                >
-                                  <ItemIcon className="size-3 shrink-0" />
-                                  <span className="truncate">{item.label}</span>
-                                </Link>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
-
-          <div className="border-t border-[var(--sidebar-border)] p-2">
-            {(currentUser.name || currentUser.email) && (
-              <div className="group/item relative mb-1">
-                <div
-                  className={cn(
-                    "flex items-center gap-2.5 rounded-xl px-2.5 py-2",
-                    collapsed && "justify-center px-0"
+                      {section.label}
+                    </span>
                   )}
-                >
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_hsl,var(--sidebar-primary)_18%,transparent)] text-[11px] font-bold leading-none text-[var(--sidebar-primary)]">
-                    {currentUser.initials}
-                  </span>
-                  <div className={cn("min-w-0 flex-1", collapsed && "hidden")}>
-                    <div className="truncate text-[13px] font-semibold leading-tight text-[var(--sidebar-foreground)]">
-                      {currentUser.name ?? currentUser.email}
+
+                  {/* Submenu anidado: grid-rows 0fr->1fr da una animacion de alto fluida
+                      sin medir pixeles a mano; el fondo/borde usan --accent de la seccion.
+                      Colapsado, se mantiene siempre en 0fr (el tooltip reemplaza el detalle). */}
+                  <div
+                    id={submenuId}
+                    className="grid transition-[grid-template-rows] duration-200 ease-out"
+                    style={{ gridTemplateRows: isExpanded ? "1fr" : "0fr" }}
+                  >
+                    <div className="overflow-hidden">
+                      <ul
+                        className={cn(
+                          "mt-1 mb-1 ml-[18px] flex flex-col gap-0.5 border-l-2 border-[hsl(var(--accent)/.35)] bg-[hsl(var(--accent)/.1)] py-1.5 pr-1.5 pl-2.5 transition-opacity duration-200",
+                          isExpanded ? "opacity-100" : "opacity-0"
+                        )}
+                      >
+                        {visibleItems.map((item) => {
+                          const isItemActive = pathname === item.href;
+                          const ItemIcon = item.icon;
+                          return (
+                            <li key={item.href}>
+                              <Link
+                                href={item.href}
+                                className={cn(
+                                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] leading-tight transition-colors",
+                                  FOCUS_RING,
+                                  isItemActive
+                                    ? "font-semibold text-[hsl(var(--accent))]"
+                                    : "text-[color-mix(in_hsl,var(--sidebar-foreground)_65%,transparent)] hover:bg-[color-mix(in_hsl,var(--sidebar-foreground)_6%,transparent)] hover:text-[var(--sidebar-foreground)]"
+                                )}
+                              >
+                                <ItemIcon className="size-3 shrink-0" />
+                                <span className="truncate">{item.label}</span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
                     </div>
-                    {currentUser.roleLabel && (
-                      <div className="truncate text-[11px] leading-tight text-[color-mix(in_hsl,var(--sidebar-foreground)_55%,transparent)]">
-                        {currentUser.roleLabel}
-                      </div>
-                    )}
                   </div>
-                </div>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
 
-                {collapsed && (
-                  <span
-                    role="tooltip"
-                    className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md border border-[var(--sidebar-border)] bg-[var(--sidebar)] px-2.5 py-1.5 text-xs font-medium text-[var(--sidebar-foreground)] opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-within/item:translate-x-0 group-focus-within/item:opacity-100"
-                  >
-                    {currentUser.name ?? currentUser.email}
-                    {currentUser.roleLabel ? ` · ${currentUser.roleLabel}` : ""}
-                  </span>
-                )}
-              </div>
-            )}
-
-            {isWhitelistAdmin && (
-              <div className="group/item relative">
-                <Link
-                  href="/admin/whitelist"
-                  className={cn(
-                    "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium text-[color-mix(in_hsl,var(--sidebar-foreground)_85%,transparent)] transition-colors hover:bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)]",
-                    collapsed && "justify-center px-0"
-                  )}
-                >
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)]">
-                    <UserCog className="size-4" />
-                  </span>
-                  <span className={cn("flex-1 truncate text-left", collapsed && "hidden")}>Usuarios y Roles</span>
-                </Link>
-
-                {collapsed && (
-                  <span
-                    role="tooltip"
-                    className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md border border-[var(--sidebar-border)] bg-[var(--sidebar)] px-2.5 py-1.5 text-xs font-medium text-[var(--sidebar-foreground)] opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-within/item:translate-x-0 group-focus-within/item:opacity-100"
-                  >
-                    Usuarios y Roles
-                  </span>
-                )}
-              </div>
-            )}
-
-            <div className="group/item relative">
-              <button
-                type="button"
-                onClick={handleLogout}
-                aria-label="Cerrar sesión"
-                className={cn(
-                  "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium text-[color-mix(in_hsl,var(--sidebar-foreground)_85%,transparent)] transition-colors hover:bg-destructive/15 hover:text-destructive",
-                  collapsed && "justify-center px-0"
-                )}
-              >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)]">
-                  <LogOut className="size-4" />
+        <div className="border-t border-[var(--sidebar-border)] p-2">
+          {(currentUser.name || currentUser.email) && (
+            <div className="group/item relative mb-1">
+              <div className={cn("flex items-center gap-2.5 rounded-xl px-2.5 py-2", collapsed && "justify-center px-0")}>
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_hsl,var(--sidebar-primary)_18%,transparent)] text-[11px] font-bold leading-none text-[var(--sidebar-primary)]">
+                  {currentUser.initials}
                 </span>
-                <span className={cn("flex-1 truncate text-left", collapsed && "hidden")}>Cerrar sesión</span>
-              </button>
+                <div className={cn("min-w-0 flex-1", collapsed && "hidden")}>
+                  <div className="truncate text-[13px] font-semibold leading-tight text-[var(--sidebar-foreground)]">
+                    {currentUser.name ?? currentUser.email}
+                  </div>
+                  {currentUser.roleLabel && (
+                    <div className="truncate text-[11px] leading-tight text-[color-mix(in_hsl,var(--sidebar-foreground)_55%,transparent)]">
+                      {currentUser.roleLabel}
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {collapsed && (
                 <span
                   role="tooltip"
                   className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md border border-[var(--sidebar-border)] bg-[var(--sidebar)] px-2.5 py-1.5 text-xs font-medium text-[var(--sidebar-foreground)] opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-within/item:translate-x-0 group-focus-within/item:opacity-100"
                 >
-                  Cerrar sesión
+                  {currentUser.name ?? currentUser.email}
+                  {currentUser.roleLabel ? ` · ${currentUser.roleLabel}` : ""}
                 </span>
               )}
             </div>
+          )}
+
+          {isWhitelistAdmin && (
+            <div className="group/item relative">
+              <Link
+                href="/admin/whitelist"
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium text-[color-mix(in_hsl,var(--sidebar-foreground)_85%,transparent)] transition-colors hover:bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)]",
+                  FOCUS_RING,
+                  collapsed && "justify-center px-0"
+                )}
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)]">
+                  <UserCog className="size-4" />
+                </span>
+                <span className={cn("flex-1 truncate text-left", collapsed && "hidden")}>Usuarios y Roles</span>
+              </Link>
+
+              {collapsed && (
+                <span
+                  role="tooltip"
+                  className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md border border-[var(--sidebar-border)] bg-[var(--sidebar)] px-2.5 py-1.5 text-xs font-medium text-[var(--sidebar-foreground)] opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-within/item:translate-x-0 group-focus-within/item:opacity-100"
+                >
+                  Usuarios y Roles
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="group/item relative">
+            <button
+              type="button"
+              onClick={handleLogout}
+              aria-label="Cerrar sesión"
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium text-[color-mix(in_hsl,var(--sidebar-foreground)_85%,transparent)] transition-colors hover:bg-destructive/15 hover:text-destructive",
+                FOCUS_RING,
+                collapsed && "justify-center px-0"
+              )}
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)]">
+                <LogOut className="size-4" />
+              </span>
+              <span className={cn("flex-1 truncate text-left", collapsed && "hidden")}>Cerrar sesión</span>
+            </button>
+
+            {collapsed && (
+              <span
+                role="tooltip"
+                className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md border border-[var(--sidebar-border)] bg-[var(--sidebar)] px-2.5 py-1.5 text-xs font-medium text-[var(--sidebar-foreground)] opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-within/item:translate-x-0 group-focus-within/item:opacity-100"
+              >
+                Cerrar sesión
+              </span>
+            )}
           </div>
         </div>
       </aside>
+
+      {/* ---------- Mobile (<md): bottom nav en la thumb zone + sub-nav de la seccion activa + sheet "Más" ---------- */}
+      <MobileNav
+        pathname={pathname}
+        visibleSections={visibleSections}
+        activeSection={activeSection}
+        roles={roles}
+        isWhitelistAdmin={isWhitelistAdmin}
+        currentUser={currentUser}
+        moreOpen={moreOpen}
+        setMoreOpen={setMoreOpen}
+        onLogout={handleLogout}
+      />
+    </>
+  );
+}
+
+/**
+ * Bottom navigation - patron mobile nativo en vez del drawer/hamburguesa que
+ * habia antes: las acciones que mas se usan (cambiar de app) quedan siempre
+ * en el tercio inferior de la pantalla, alcanzables con el pulgar sin
+ * reacomodar la mano. Un tap en CUALQUIER seccion con mas de una sub-opcion
+ * abre primero un bottom sheet con sus sub-secciones (sea o no la seccion ya
+ * activa) - asi se elige la sub-seccion sin tener que cargar una pagina
+ * primero. Mismo patron visual que el sheet "Más" (filas verticales con
+ * icono + label, min-h-12). Solo si la seccion tiene una unica sub-opcion
+ * visible se navega directo, porque ahi no hay nada que elegir.
+ */
+function MobileNav({
+  pathname,
+  visibleSections,
+  activeSection,
+  roles,
+  isWhitelistAdmin,
+  currentUser,
+  moreOpen,
+  setMoreOpen,
+  onLogout,
+}) {
+  const [openSectionKey, setOpenSectionKey] = useState(null);
+  const openSection = visibleSections.find((section) => section.key === openSectionKey) ?? null;
+  const openSectionItems = openSection
+    ? openSection.items.filter((item) => isItemVisible(item, roles[openSection.key]))
+    : [];
+  const isMoreActive = pathname.startsWith("/admin");
+
+  useEffect(() => {
+    setOpenSectionKey(null);
+  }, [pathname]);
+
+  return (
+    <>
+      {/* Bottom nav - barra fija, siempre en el tercio inferior, safe-area aware */}
+      <nav
+        aria-label="Navegación principal"
+        className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch border-t border-[var(--sidebar-border)] bg-[var(--sidebar)] pb-[env(safe-area-inset-bottom)] md:hidden"
+      >
+        {visibleSections.map((section) => {
+          const isSectionActive = activeSection?.key === section.key;
+          const SectionIcon = section.icon;
+          const sectionVisibleItems = section.items.filter((item) => isItemVisible(item, roles[section.key]));
+          const firstVisibleHref = sectionVisibleItems[0]?.href ?? section.basePath;
+          const itemStyle = { "--accent": section.accent };
+          const itemClassName = cn(
+            "flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 transition-all active:scale-95",
+            FOCUS_RING,
+            isSectionActive ? "text-[hsl(var(--accent))]" : "text-[color-mix(in_hsl,var(--sidebar-foreground)_55%,transparent)]"
+          );
+          const label = (
+            <>
+              <SectionIcon className="size-5 shrink-0" />
+              <span className="max-w-full truncate px-1 text-[10px] font-medium leading-none">{section.label}</span>
+            </>
+          );
+
+          // Cualquier seccion (activa o no) con mas de una sub-opcion abre su
+          // sheet al tocarla, en vez de navegar directo - asi se ve y elige
+          // la sub-seccion sin cargar una pagina antes. Si tiene una sola
+          // sub-opcion visible no hay nada que elegir, se navega directo.
+          if (sectionVisibleItems.length > 1) {
+            return (
+              <button
+                key={section.key}
+                type="button"
+                onClick={() => setOpenSectionKey(section.key)}
+                aria-haspopup="dialog"
+                aria-expanded={openSectionKey === section.key}
+                aria-current={isSectionActive ? "page" : undefined}
+                style={itemStyle}
+                className={itemClassName}
+              >
+                {label}
+              </button>
+            );
+          }
+
+          return (
+            <Link key={section.key} href={firstVisibleHref} aria-current={isSectionActive ? "page" : undefined} style={itemStyle} className={itemClassName}>
+              {label}
+            </Link>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={() => setMoreOpen(true)}
+          aria-label="Más opciones"
+          aria-haspopup="dialog"
+          aria-expanded={moreOpen}
+          className={cn(
+            "flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 transition-all active:scale-95",
+            FOCUS_RING,
+            isMoreActive ? "text-[hsl(var(--sidebar-primary))]" : "text-[color-mix(in_hsl,var(--sidebar-foreground)_55%,transparent)]"
+          )}
+        >
+          <MoreHorizontal className="size-5 shrink-0" />
+          <span className="text-[10px] font-medium leading-none">Más</span>
+        </button>
+      </nav>
+
+      {/* Sheet de sub-secciones de la seccion tocada (activa o no) - mismo
+          estilo de filas que el sheet "Más" de abajo (icono en caja +
+          label, min-h-12). */}
+      {openSection && (
+        <Sheet open={Boolean(openSectionKey)} onOpenChange={(open) => setOpenSectionKey(open ? openSection.key : null)}>
+          <SheetContent side="bottom" className="rounded-t-2xl border-[var(--sidebar-border)] bg-[var(--sidebar)] pb-[env(safe-area-inset-bottom)] md:hidden">
+            <SheetHeader>
+              <SheetTitle className="text-[var(--sidebar-foreground)]">{openSection.label}</SheetTitle>
+            </SheetHeader>
+
+            <div className="flex flex-col gap-1 px-4 pb-4">
+              {openSectionItems.map((item) => {
+                const isItemActive = pathname === item.href;
+                const ItemIcon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={isItemActive ? "page" : undefined}
+                    style={{ "--accent": openSection.accent }}
+                    className={cn(
+                      "flex min-h-12 items-center gap-3 rounded-xl px-2 text-sm font-medium transition-colors active:scale-[0.98]",
+                      FOCUS_RING,
+                      isItemActive
+                        ? "text-[hsl(var(--accent))]"
+                        : "text-[var(--sidebar-foreground)] hover:bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)]"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "flex size-9 shrink-0 items-center justify-center rounded-lg",
+                        isItemActive ? "bg-[hsl(var(--accent)/.16)]" : "bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)]"
+                      )}
+                    >
+                      <ItemIcon className="size-4" />
+                    </span>
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
+
+      {/* Sheet inferior: usuario, Usuarios y Roles, cerrar sesion */}
+      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+        <SheetContent side="bottom" className="rounded-t-2xl border-[var(--sidebar-border)] bg-[var(--sidebar)] pb-[env(safe-area-inset-bottom)] md:hidden">
+          <SheetHeader>
+            <SheetTitle className="text-[var(--sidebar-foreground)]">Más opciones</SheetTitle>
+          </SheetHeader>
+
+          <div className="flex flex-col gap-1 px-4 pb-4">
+            {(currentUser.name || currentUser.email) && (
+              <div className="flex min-h-12 items-center gap-3 rounded-xl px-2 py-2">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_hsl,var(--sidebar-primary)_18%,transparent)] text-xs font-bold text-[var(--sidebar-primary)]">
+                  {currentUser.initials}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-[var(--sidebar-foreground)]">
+                    {currentUser.name ?? currentUser.email}
+                  </div>
+                  {currentUser.roleLabel && (
+                    <div className="truncate text-xs text-[color-mix(in_hsl,var(--sidebar-foreground)_55%,transparent)]">
+                      {currentUser.roleLabel}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {isWhitelistAdmin && (
+              <Link
+                href="/admin/whitelist"
+                className={cn(
+                  "flex min-h-12 items-center gap-3 rounded-xl px-2 text-sm font-medium text-[var(--sidebar-foreground)] transition-colors active:scale-[0.98]",
+                  FOCUS_RING,
+                  "hover:bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)]"
+                )}
+              >
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)]">
+                  <UserCog className="size-4" />
+                </span>
+                Usuarios y Roles
+              </Link>
+            )}
+
+            <button
+              type="button"
+              onClick={onLogout}
+              className={cn(
+                "flex min-h-12 items-center gap-3 rounded-xl px-2 text-left text-sm font-medium text-[var(--sidebar-foreground)] transition-colors active:scale-[0.98]",
+                FOCUS_RING,
+                "hover:bg-destructive/15 hover:text-destructive"
+              )}
+            >
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)]">
+                <LogOut className="size-4" />
+              </span>
+              Cerrar sesión
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

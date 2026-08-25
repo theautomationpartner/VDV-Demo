@@ -104,8 +104,10 @@ export default function OCDetail({ items, obraName, facturacionMap, factLoading 
           return (
             <Card key={oc.id} className="border-border overflow-hidden">
               <button
+                type="button"
                 onClick={() => setExpandedId(isExpanded ? null : oc.id)}
-                className="w-full p-3 text-left hover:bg-accent/30 transition-colors"
+                aria-expanded={isExpanded}
+                className="w-full p-3 text-left hover:bg-accent/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-md bg-orange-500/10 border border-orange-500/20 flex items-center justify-center shrink-0">

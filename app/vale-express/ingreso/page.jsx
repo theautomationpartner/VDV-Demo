@@ -14,6 +14,11 @@ import { getAllRoles, canAccessIngreso, getRoleFromData, getObrasFromData, isObr
 const ingresosBoard = new IngresosBoard();
 const proveedoresBoard = new ProveedoresBoard();
 
+// Foco visible (teclado) para los botones nativos de esta pantalla - ninguno usa
+// el componente Button de shadcn/ui (que ya trae su propio focus-visible), asi
+// que cada <button> a mano necesita este anillo para cumplir WCAG 2.1 AA.
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
 const emptyLine = () => ({
     id: crypto.randomUUID(),
     materialId: null,
@@ -260,7 +265,7 @@ export default function IngresoPage() {
 
     if (submitted) {
         return (
-            <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-5">
+            <div className="min-h-dvh bg-background text-foreground flex items-center justify-center p-5">
                 <Toaster richColors position="top-center" />
                 <div className="w-full max-w-md text-center">
                     <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-[color-mix(in_hsl,var(--chart-2)_12%,transparent)] flex items-center justify-center">
@@ -302,14 +307,14 @@ export default function IngresoPage() {
                     <div className="space-y-3">
                         <button
                             onClick={handleReset}
-                            className="w-full h-12 flex items-center justify-center gap-2 rounded-[var(--radius-lg)] bg-[var(--surface-2)] border border-[var(--border-subtle)] text-sm font-medium text-foreground active:bg-[var(--surface-3)] transition-colors"
+                            className={`w-full h-12 flex items-center justify-center gap-2 rounded-[var(--radius-lg)] bg-[var(--surface-2)] border border-[var(--border-subtle)] text-sm font-medium text-foreground active:bg-[var(--surface-3)] transition-colors ${FOCUS_RING}`}
                         >
                             <RotateCcw className="w-4 h-4" />
                             Registrar Nuevo Ingreso
                         </button>
                         <button
                             onClick={() => router.push('/vale-express/dashboard')}
-                            className="w-full h-12 flex items-center justify-center gap-2 rounded-[var(--radius-lg)] bg-[var(--primary)] text-[var(--primary-foreground)] text-sm font-medium active:opacity-90 transition-all"
+                            className={`w-full h-12 flex items-center justify-center gap-2 rounded-[var(--radius-lg)] bg-[var(--primary)] text-[var(--primary-foreground)] text-sm font-medium active:opacity-90 transition-all ${FOCUS_RING}`}
                         >
                             Volver al Panel
                         </button>
@@ -320,14 +325,14 @@ export default function IngresoPage() {
     }
 
     return (
-        <div className="min-h-screen bg-background text-foreground">
+        <div className="min-h-dvh bg-background text-foreground">
             <Toaster richColors position="top-center" />
 
             <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-[var(--border-subtle)]">
                 <div className="px-4 py-3 flex items-center gap-3">
                     <button
                         onClick={() => router.push('/vale-express/dashboard')}
-                        className="flex items-center justify-center w-9 h-9 rounded-[var(--radius-md)] text-[var(--fg-muted)] active:text-foreground active:bg-[var(--surface-2)] transition-colors shrink-0"
+                        className={`flex items-center justify-center min-h-12 min-w-12 sm:h-9 sm:w-9 rounded-[var(--radius-md)] text-[var(--fg-muted)] active:text-foreground active:bg-[var(--surface-2)] transition-colors shrink-0 ${FOCUS_RING}`}
                         aria-label="Volver"
                     >
                         <ArrowLeft className="w-[18px] h-[18px]" />
@@ -348,7 +353,8 @@ export default function IngresoPage() {
                         <h3 className="text-sm font-semibold text-destructive">Error al registrar ingreso</h3>
                         <button
                             onClick={() => setErrorDetails(null)}
-                            className="text-destructive/70 hover:text-destructive"
+                            aria-label="Cerrar detalle de error"
+                            className={`flex items-center justify-center min-h-12 min-w-12 -m-2 sm:min-h-0 sm:min-w-0 sm:m-0 text-destructive/70 hover:text-destructive rounded-[var(--radius-md)] ${FOCUS_RING}`}
                         >
                             <X className="w-4 h-4" />
                         </button>
@@ -395,7 +401,7 @@ export default function IngresoPage() {
                                 value={guiaDespacho}
                                 onChange={(e) => setGuiaDespacho(e.target.value)}
                                 placeholder="Ingrese número de guía"
-                                className="w-full h-11 px-3 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
+                                className="w-full h-12 px-3 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
                             />
                         </div>
                         <div>
@@ -408,7 +414,7 @@ export default function IngresoPage() {
                                 value={ordenCompra}
                                 onChange={(e) => setOrdenCompra(e.target.value)}
                                 placeholder="Número de OC (opcional)"
-                                className="w-full h-11 px-3 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
+                                className="w-full h-12 px-3 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
                             />
                         </div>
                         <div>
@@ -442,7 +448,7 @@ export default function IngresoPage() {
                             />
                             <button
                                 onClick={handleRemovePhoto}
-                                className="absolute top-4 right-4 w-10 h-10 rounded-full bg-[var(--surface-1)] border-2 border-[var(--border-subtle)] flex items-center justify-center active:bg-[var(--surface-2)] transition-colors shadow-lg"
+                                className={`absolute top-4 right-4 min-h-12 min-w-12 sm:h-10 sm:w-10 rounded-full bg-[var(--surface-1)] border-2 border-[var(--border-subtle)] flex items-center justify-center active:bg-[var(--surface-2)] transition-colors shadow-lg ${FOCUS_RING}`}
                                 aria-label="Eliminar foto"
                             >
                                 <X className="w-5 h-5 text-foreground" />
@@ -483,7 +489,7 @@ export default function IngresoPage() {
                         {lines.length < 10 && (
                             <button
                                 onClick={addLine}
-                                className="flex items-center gap-1 text-xs font-medium text-[var(--chart-2)] active:opacity-70 transition-opacity"
+                                className={`flex items-center gap-1 min-h-12 sm:min-h-0 px-1 text-xs font-medium text-[var(--chart-2)] active:opacity-70 transition-opacity rounded-[var(--radius-sm)] ${FOCUS_RING}`}
                             >
                                 <Plus className="w-3.5 h-3.5" />
                                 Agregar
@@ -507,7 +513,7 @@ export default function IngresoPage() {
                     {lines.length < 10 && (
                         <button
                             onClick={addLine}
-                            className="w-full py-3.5 border border-dashed border-[var(--border-default)] rounded-[var(--radius-lg)] text-sm text-[var(--fg-subtle)] active:text-foreground active:border-[var(--chart-2)] transition-colors"
+                            className={`w-full min-h-12 py-3.5 border border-dashed border-[var(--border-default)] rounded-[var(--radius-lg)] text-sm text-[var(--fg-subtle)] active:text-foreground active:border-[var(--chart-2)] transition-colors ${FOCUS_RING}`}
                         >
                             + Agregar material ({lines.length}/10)
                         </button>
@@ -538,7 +544,7 @@ export default function IngresoPage() {
                     <button
                         onClick={handleSubmit}
                         disabled={!canSubmit || submitting}
-                        className="flex items-center justify-center gap-2 h-11 px-6 rounded-[var(--radius-md)] bg-[var(--chart-2)] text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed active:opacity-90 transition-all shrink-0"
+                        className={`flex items-center justify-center gap-2 h-12 px-6 rounded-[var(--radius-md)] bg-[var(--chart-2)] text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed active:opacity-90 transition-all shrink-0 ${FOCUS_RING}`}
                     >
                         {submitting ? (
                             <>
@@ -570,7 +576,7 @@ function FormSelect({ id, label, required, value, onChange, placeholder, options
                     aria-label={label}
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
-                    className="w-full h-11 px-3 pr-9 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors appearance-none cursor-pointer"
+                    className="w-full h-12 px-3 pr-9 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors appearance-none cursor-pointer"
                 >
                     <option value="">{placeholder}</option>
                     {options.map(o => <option key={o} value={o}>{o}</option>)}

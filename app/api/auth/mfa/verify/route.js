@@ -1,7 +1,7 @@
 import { verificarPreAuthToken, crearSesion, datosApp } from "@/lib/server/session";
-import { verificarCodigoMfa, verificarCodigoRecuperacion } from "@/lib/server/totp";
+import { verificarCodigoMfa, verificarCodigoRecuperacion, invalidarMfaConfirmado } from "@/lib/server/totp";
 import { marcarUltimoAcceso, auditarEvento } from "@/lib/server/whitelist";
-import { verificarLimite, RateLimitError } from "@/lib/server/rate-limit";
+import { verificarLimite, RateLimitError, obtenerIp } from "@/lib/server/rate-limit";
 
 /**
  * Login normal (ya tiene 2FA configurado): valida el codigo de 6 digitos, o un
@@ -16,7 +16,7 @@ export async function POST(request) {
   }
 
   const { code, recoveryCode, remember } = body ?? {};
-  const ip = request.headers.get("x-forwarded-for");
+  const ip = obtenerIp(request);
 
   try {
     // 5 intentos fallidos cada 15 min por cuenta - se cuenta por usuario_id,
@@ -35,10 +35,14 @@ export async function POST(request) {
 
     if (recoveryCode) {
       // "Perdi el celular": un codigo de recuperacion NO abre sesion directo -
-      // fuerza a reconfigurar el 2FA (QR nuevo) antes de dejar pasar. El secreto
-      // viejo queda invalidado apenas arranca ese setup (ver iniciarSetupMfa),
-      // asi que el celular perdido deja de servir de inmediato, no recien cuando
-      // se confirma el nuevo.
+      // fuerza a reconfigurar el 2FA (QR nuevo) antes de dejar pasar. El codigo
+      // de recuperacion valido ES la prueba de posesion que habilita ese nuevo
+      // setup: invalidarMfaConfirmado() marca la cuenta como "sin 2FA
+      // confirmado" para que /api/auth/mfa/setup acepte generar un secreto
+      // nuevo (ese endpoint rechaza el pedido mientras la cuenta siga marcada
+      // como confirmada - ver su comentario). El celular perdido deja de
+      // servir de inmediato, no recien cuando se confirma el nuevo secreto.
+      await invalidarMfaConfirmado(usuario.id);
       await auditarEvento(usuario.id, usuario.email, "recovery_code_usado", ip);
       return Response.json({ status: "needs_setup", preAuthToken: body.preAuthToken });
     }

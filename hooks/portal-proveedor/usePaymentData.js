@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { PagosVdvBoard } from '@/lib/board-sdk';
+import { PagosVdvBoard, fetchAllItems } from '@/lib/board-sdk';
 import { getAllVariants } from '@/hooks/portal-proveedor/providerAliases';
 
 let _cache = { items: null, time: 0, key: null, promise: null };
@@ -19,39 +19,11 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchWithRetry(queryFn, retries = 3) {
-  for (let attempt = 0; attempt < retries; attempt++) {
-    try {
-      return await queryFn();
-    } catch (err) {
-      const isComplexity = err?.message?.includes('COMPLEXITY_BUDGET_EXHAUSTED') ||
-        err?.code === 'COMPLEXITY_BUDGET_EXHAUSTED';
-      if (isComplexity && attempt < retries - 1) {
-        const waitSec = err?.extensions?.retry_in_seconds || 15;
-        console.warn(`Complexity budget exhausted, waiting ${waitSec}s before retry...`);
-        await delay(waitSec * 1000);
-      } else {
-        throw err;
-      }
-    }
-  }
-}
-
+// Paginacion + reintento ante COMPLEXITY_BUDGET_EXHAUSTED: ver fetchAllItems en
+// lib/board-sdk.js (unico lugar donde vive esta logica - antes reimplementada
+// aca y en oc-tracker/useOCData.js y vale-express/useObraStock.js).
 async function fetchAllPagesForVariant(board, cols, variantName) {
-  let items = [];
-  let cursor = undefined;
-  let hasMore = true;
-  while (hasMore) {
-    const r = await fetchWithRetry(() => {
-      let query = board.items().withColumns(cols);
-      query = query.where({ proveedores: { contains: variantName } });
-      return query.withPagination({ limit: 500, cursor }).execute();
-    });
-    if (r.items) items = items.concat(r.items);
-    cursor = r.cursor;
-    hasMore = !!cursor;
-  }
-  return items;
+  return fetchAllItems(board.items().withColumns(cols).where({ proveedores: { contains: variantName } }));
 }
 
 async function fetchItems(userContext) {
@@ -109,18 +81,7 @@ async function fetchItems(userContext) {
 
         _cache.items = all;
       } else {
-        let all = [];
-        let cursor = undefined;
-        let hasMore = true;
-        while (hasMore) {
-          const r = await fetchWithRetry(() =>
-            board.items().withColumns(cols).withPagination({ limit: 500, cursor }).execute()
-          );
-          if (r.items) all = all.concat(r.items);
-          cursor = r.cursor;
-          hasMore = !!cursor;
-        }
-        _cache.items = all;
+        _cache.items = await fetchAllItems(board.items().withColumns(cols));
       }
 
       _cache.time = Date.now();

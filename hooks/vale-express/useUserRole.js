@@ -81,9 +81,7 @@ export function isObrasRestricted(data) {
 export async function getAllRoles() {
     try {
         const { value, version } = await storage().k(ROLES_KEY).get();
-        console.log('[ROLES] Raw from storage:', { value, version, type: typeof value });
         const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-        console.log('[ROLES] Parsed roles:', parsed);
         return { roles: parsed || {}, version };
     } catch (err) {
         console.error('[ROLES] Error loading roles:', err);
@@ -94,9 +92,7 @@ export async function getAllRoles() {
 export async function saveAllRoles(roles) {
     try {
         const { version } = await storage().k(ROLES_KEY).get();
-        console.log('[ROLES] Saving roles with version:', version, 'Data:', JSON.stringify(roles));
         await storage().k(ROLES_KEY).v(version).set(roles);
-        console.log('[ROLES] Saved successfully');
         return true;
     } catch (err) {
         console.error('[ROLES] Error saving roles:', err);
@@ -124,7 +120,6 @@ export function useUserRole(userId) {
             const userRole = getRoleFromData(userData);
             const userObras = getObrasFromData(userData);
             const restricted = isObrasRestricted(userData);
-            console.log('[ROLES] User', userId, '->  role:', userRole, 'obras:', userObras, 'restricted:', restricted);
             setRole(userRole);
             setObras(userObras);
             setRestrictObras(restricted);

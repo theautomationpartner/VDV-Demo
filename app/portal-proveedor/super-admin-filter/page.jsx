@@ -164,7 +164,7 @@ export default function SuperAdminFilterPage() {
   if (!userContext) return null;
 
   return (
-    <div className="min-h-screen bg-background px-4 py-6 md:py-8">
+    <div className="min-h-dvh bg-background px-4 py-6 md:py-8">
       <div className="w-full max-w-lg mx-auto space-y-5">
         {/* Header */}
         <div className="text-center space-y-2">
@@ -182,16 +182,20 @@ export default function SuperAdminFilterPage() {
         {/* Tab switcher */}
         <div className="flex rounded-lg bg-muted/50 p-1 gap-1">
           <button
+            type="button"
             onClick={() => setActiveTab('filter')}
-            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
+            aria-pressed={activeTab === 'filter'}
+            className={`flex-1 min-h-12 md:min-h-9 py-2 px-3 rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
               activeTab === 'filter' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
             }`}
           >
             Ver Datos
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('users')}
-            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
+            aria-pressed={activeTab === 'users'}
+            className={`flex-1 min-h-12 md:min-h-9 py-2 px-3 rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
               activeTab === 'users' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
             }`}
           >
@@ -340,8 +344,10 @@ export default function SuperAdminFilterPage() {
                         {user.role === 'admin' ? 'Admin' : 'Subcontr.'}
                       </Badge>
                       <button
+                        type="button"
                         onClick={() => handleDeleteUser(user.id)}
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+                        aria-label={`Eliminar ${user.name}`}
+                        className="flex min-h-12 min-w-12 items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0 md:min-h-0 md:min-w-0 md:p-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -543,7 +549,12 @@ export default function SuperAdminFilterPage() {
                     {formObras.map((obra) => (
                       <Badge key={obra} variant="secondary" className="text-[10px] gap-1 pr-1">
                         {obra}
-                        <button onClick={() => setFormObras((prev) => prev.filter((o) => o !== obra))} className="ml-0.5 rounded-full hover:bg-destructive/20 p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setFormObras((prev) => prev.filter((o) => o !== obra))}
+                          aria-label={`Quitar ${obra}`}
+                          className="ml-0.5 rounded-full hover:bg-destructive/20 p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                        >
                           <X className="w-2.5 h-2.5" />
                         </button>
                       </Badge>

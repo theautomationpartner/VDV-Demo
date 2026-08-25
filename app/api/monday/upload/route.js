@@ -1,4 +1,5 @@
 import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
+import { verificarAccesoUpload, accesoBoardErrorToResponse, BoardAccessError } from "@/lib/server/board-access-policy";
 
 const MONDAY_FILE_API_URL = "https://api.monday.com/v2/file";
 const DEMO_MODE = process.env.DEMO_MODE === "true";
@@ -10,9 +11,10 @@ const AUTH_LAYERS_ENABLED = process.env.AUTH_LAYERS_ENABLED === "true";
  * Body esperado (multipart/form-data): itemId, columnId, file.
  */
 export async function POST(request) {
+  let sesion = null;
   if (!DEMO_MODE && AUTH_LAYERS_ENABLED) {
     try {
-      verificarAcceso(request);
+      sesion = verificarAcceso(request);
     } catch (err) {
       if (err instanceof AccesoError) return accesoErrorToResponse(err);
       throw err;
@@ -34,6 +36,7 @@ export async function POST(request) {
   }
 
   const incoming = await request.formData();
+  const boardKey = incoming.get("boardKey");
   const itemId = incoming.get("itemId");
   const columnId = incoming.get("columnId");
   const file = incoming.get("file");
@@ -43,6 +46,15 @@ export async function POST(request) {
       { errors: [{ message: "Faltan campos: itemId, columnId y file son requeridos" }] },
       { status: 400 }
     );
+  }
+
+  if (AUTH_LAYERS_ENABLED) {
+    try {
+      verificarAccesoUpload(sesion, boardKey);
+    } catch (err) {
+      if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
+      throw err;
+    }
   }
 
   const query = `mutation ($file: File!) {

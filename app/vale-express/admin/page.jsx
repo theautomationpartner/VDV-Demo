@@ -11,6 +11,11 @@ import { getAllRoles, saveAllRoles, ROLES, ALL_OBRAS, canAccessAdmin, canManageR
 
 const valesBoard = new ValesBoard();
 
+// Foco visible (teclado) para los botones nativos de esta pantalla - ninguno usa
+// el componente Button de shadcn/ui (que ya trae su propio focus-visible), asi
+// que cada <button> a mano necesita este anillo para cumplir WCAG 2.1 AA.
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
 export default function AdminPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
@@ -46,7 +51,6 @@ export default function AdminPage() {
                 if (!u.email) return true;
                 return !u.email.includes('@agent.mon');
             });
-            console.log('[ADMIN] Filtered agents. Real users:', realUsers.length, 'of', allUsers.length);
             setSubscribers(realUsers.sort((a, b) => a.name.localeCompare(b.name)));
             setRoles(currentRoles);
         } catch (err) {
@@ -162,19 +166,19 @@ export default function AdminPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
+            <div className="min-h-dvh bg-background flex items-center justify-center">
                 <Spinner className="size-8 text-accent" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-background text-foreground">
+        <div className="min-h-dvh bg-background text-foreground">
             <Toaster richColors position="top-center" />
 
             <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-[var(--border-subtle)]">
                 <div className="px-4 py-3 flex items-center gap-3">
-                    <button onClick={() => router.push('/vale-express/dashboard')} className="flex items-center justify-center w-9 h-9 rounded-[var(--radius-md)] text-[var(--fg-muted)] active:text-foreground active:bg-[var(--surface-2)] transition-colors shrink-0" aria-label="Volver">
+                    <button onClick={() => router.push('/vale-express/dashboard')} className={`flex items-center justify-center min-h-12 min-w-12 sm:h-9 sm:w-9 rounded-[var(--radius-md)] text-[var(--fg-muted)] active:text-foreground active:bg-[var(--surface-2)] transition-colors shrink-0 ${FOCUS_RING}`} aria-label="Volver">
                         <ArrowLeft className="w-[18px] h-[18px]" />
                     </button>
                     <div className="w-9 h-9 rounded-[var(--radius-md)] bg-[color-mix(in_hsl,var(--chart-4)_12%,transparent)] flex items-center justify-center shrink-0">
@@ -245,11 +249,11 @@ export default function AdminPage() {
                         </span>
                     </div>
                     <div className="flex gap-3">
-                        <button onClick={handleDiscardChanges} className="flex-1 h-12 flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-2)] border border-[var(--border-subtle)] text-sm font-medium text-foreground active:bg-[var(--surface-3)] transition-colors">
+                        <button onClick={handleDiscardChanges} className={`flex-1 h-12 flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-2)] border border-[var(--border-subtle)] text-sm font-medium text-foreground active:bg-[var(--surface-3)] transition-colors ${FOCUS_RING}`}>
                             <X className="w-4 h-4" />
                             Descartar
                         </button>
-                        <button onClick={handleSave} disabled={saving} className="flex-1 h-12 flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--primary)] text-[var(--primary-foreground)] text-sm font-medium disabled:opacity-40 active:opacity-90 transition-all">
+                        <button onClick={handleSave} disabled={saving} className={`flex-1 h-12 flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--primary)] text-[var(--primary-foreground)] text-sm font-medium disabled:opacity-40 active:opacity-90 transition-all ${FOCUS_RING}`}>
                             {saving ? <><Spinner className="size-4" />Guardando...</> : <><Check className="w-4 h-4" />Guardar Cambios</>}
                         </button>
                     </div>
@@ -308,7 +312,7 @@ function UserCard({ user, data, hasChange, isCurrentUser, isExpanded, onToggleEx
                 {showObrasSection && (
                     <button
                         onClick={onToggleExpand}
-                        className="mt-2.5 ml-[52px] flex items-center gap-2 text-[11px] text-[var(--fg-muted)] active:text-foreground transition-colors w-full"
+                        className={`mt-2.5 ml-[52px] flex items-center gap-2 min-h-12 sm:min-h-0 text-[11px] text-[var(--fg-muted)] active:text-foreground transition-colors w-full rounded-[var(--radius-sm)] ${FOCUS_RING}`}
                     >
                         {data.restrictObras ? (
                             <Lock className="w-3.5 h-3.5 text-[var(--chart-4)]" />
@@ -351,7 +355,7 @@ function ObrasSelectorPanel({ data, onToggleRestrict, onObraToggle, onSelectAll 
                 </span>
                 <button
                     onClick={data.restrictObras ? onSelectAll : onToggleRestrict}
-                    className={`text-[10px] font-semibold px-3 py-1.5 rounded-[var(--radius-md)] transition-colors ${
+                    className={`text-[10px] font-semibold px-3 min-h-12 sm:min-h-0 sm:py-1.5 rounded-[var(--radius-md)] transition-colors ${FOCUS_RING} ${
                         data.restrictObras
                             ? 'bg-[color-mix(in_hsl,var(--chart-2)_12%,transparent)] text-[var(--chart-2)] active:bg-[color-mix(in_hsl,var(--chart-2)_20%,transparent)]'
                             : 'bg-[color-mix(in_hsl,var(--chart-4)_12%,transparent)] text-[var(--chart-4)] active:bg-[color-mix(in_hsl,var(--chart-4)_20%,transparent)]'
@@ -379,7 +383,7 @@ function ObrasSelectorPanel({ data, onToggleRestrict, onObraToggle, onSelectAll 
                                 <button
                                     key={obra}
                                     onClick={() => onObraToggle(obra)}
-                                    className={`px-2.5 py-2 text-[11px] text-left rounded-[var(--radius-sm)] border transition-colors truncate ${
+                                    className={`px-2.5 py-2 min-h-12 sm:min-h-0 text-[11px] text-left rounded-[var(--radius-sm)] border transition-colors truncate ${FOCUS_RING} ${
                                         isSelected
                                             ? 'bg-[color-mix(in_hsl,var(--accent)_12%,transparent)] border-[color-mix(in_hsl,var(--accent)_35%,transparent)] text-foreground font-medium'
                                             : 'bg-[var(--surface-1)] border-[var(--border-subtle)] text-[var(--fg-muted)]'

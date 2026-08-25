@@ -103,7 +103,7 @@ export default function DashboardPage() {
   if (!userContext) return null;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh bg-background">
       <div className="border-b border-border bg-card">
         <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-4 md:py-5 flex items-center gap-3 min-w-0">
           <h1 className="text-base md:text-lg font-semibold text-foreground truncate">Resumen de Pagos</h1>

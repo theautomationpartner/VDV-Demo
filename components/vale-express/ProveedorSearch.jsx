@@ -4,6 +4,11 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, X, Truck } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 
+// Foco visible (teclado) para los botones nativos de este buscador - ninguno usa
+// el componente Button de shadcn/ui (que ya trae su propio focus-visible), asi
+// que cada <button> a mano necesita este anillo para cumplir WCAG 2.1 AA.
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
 export function ProveedorSearch({ proveedores, loading, value, onChange }) {
     const [term, setTerm] = useState('');
     const [showDropdown, setShowDropdown] = useState(false);
@@ -49,7 +54,7 @@ export function ProveedorSearch({ proveedores, loading, value, onChange }) {
 
     if (loading) {
         return (
-            <div className="h-11 flex items-center gap-2 px-3 rounded-[var(--radius-md)] bg-[var(--surface-2)] border border-[var(--border-subtle)]">
+            <div className="h-12 flex items-center gap-2 px-3 rounded-[var(--radius-md)] bg-[var(--surface-2)] border border-[var(--border-subtle)]">
                 <Spinner className="size-4" />
                 <span className="text-sm text-[var(--fg-subtle)]">Cargando proveedores...</span>
             </div>
@@ -67,7 +72,7 @@ export function ProveedorSearch({ proveedores, loading, value, onChange }) {
                 <button
                     type="button"
                     onClick={handleClear}
-                    className="flex items-center justify-center w-8 h-8 rounded-full text-[var(--fg-subtle)] active:text-destructive active:bg-[var(--surface-2)] transition-colors shrink-0"
+                    className={`flex items-center justify-center min-h-12 min-w-12 sm:h-8 sm:w-8 rounded-full text-[var(--fg-subtle)] active:text-destructive active:bg-[var(--surface-2)] transition-colors shrink-0 ${FOCUS_RING}`}
                     aria-label="Cambiar proveedor"
                 >
                     <X className="w-4 h-4" />
@@ -93,7 +98,7 @@ export function ProveedorSearch({ proveedores, loading, value, onChange }) {
                     placeholder="Buscar proveedor..."
                     autoComplete="off"
                     aria-label="Buscar proveedor"
-                    className="w-full h-11 pl-10 pr-4 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
+                    className="w-full h-12 pl-10 pr-4 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
                 />
             </div>
 
@@ -115,7 +120,7 @@ export function ProveedorSearch({ proveedores, loading, value, onChange }) {
                                     key={prov.id}
                                     type="button"
                                     onClick={() => handleSelect(prov)}
-                                    className={`w-full text-left px-4 py-3 active:bg-[color-mix(in_hsl,var(--chart-2)_10%,transparent)] transition-colors flex items-center gap-3 ${
+                                    className={`w-full text-left px-4 py-3 active:bg-[color-mix(in_hsl,var(--chart-2)_10%,transparent)] transition-colors flex items-center gap-3 ${FOCUS_RING} ${
                                         i !== filtered.length - 1 ? 'border-b border-[var(--border-subtle)]' : ''
                                     }`}
                                 >

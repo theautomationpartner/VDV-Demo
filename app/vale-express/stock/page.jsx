@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ValesBoard, IngresosBoard, BaseDeDatosMaterialesBoard, executeGraphQL } from '@/lib/board-sdk';
+import { ValesBoard, IngresosBoard, BaseDeDatosMaterialesBoard, fetchAllItemsWithRelations } from '@/lib/board-sdk';
 import { Spinner } from '@/components/ui/spinner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -15,57 +15,10 @@ const valesBoard = new ValesBoard();
 const ingresosBoard = new IngresosBoard();
 const materialesBoard = new BaseDeDatosMaterialesBoard();
 
-async function fetchNextPage(cursor, columnIds) {
-    const colFragment = columnIds.length > 0
-        ? `column_values(ids: [${columnIds.map(c => `"${c}"`).join(',')}]) {
-                id text value
-                column { title type }
-                ... on BoardRelationValue {
-                    linked_items { id name board { id name } }
-                }
-            }`
-        : '';
-    const query = `
-        query NextPage($cursor: String!) {
-            next_items_page(limit: 500, cursor: $cursor) {
-                cursor
-                items { id name created_at updated_at group { id title } ${colFragment} }
-            }
-        }
-    `;
-    const resp = await executeGraphQL(query, { cursor });
-    return resp?.next_items_page ?? { cursor: null, items: [] };
-}
-
-function mapRawItem(item, colIdToSdkProp) {
-    const mapped = { id: item.id, name: item.name };
-    if (item.column_values) {
-        for (const cv of item.column_values) {
-            const sdkProp = colIdToSdkProp[cv.id] || cv.id;
-            const colType = cv.column?.type;
-            if (cv.linked_items && cv.linked_items.length > 0) {
-                mapped[sdkProp] = { linkedItems: cv.linked_items.map(li => ({ id: li.id, name: li.name, sourceBoardId: li.board?.id })) };
-            } else if (colType === 'numeric' || colType === 'numbers') {
-                mapped[sdkProp] = cv.text ? parseFloat(cv.text) : null;
-            } else {
-                mapped[sdkProp] = cv.text || null;
-            }
-        }
-    }
-    return mapped;
-}
-
-async function fetchAllPages(builder, columnIds = [], colIdToSdkProp = {}) {
-    const firstResult = await builder.withPagination({ limit: 500 }).execute();
-    let allItems = [...(firstResult.items || [])];
-    let cursor = firstResult.cursor;
-    while (cursor) {
-        const nextResult = await fetchNextPage(cursor, columnIds);
-        allItems = allItems.concat((nextResult.items || []).map(item => mapRawItem(item, colIdToSdkProp)));
-        cursor = nextResult.cursor;
-    }
-    return allItems;
-}
+// Foco visible (teclado) para los botones nativos de esta pantalla - ninguno usa
+// el componente Button de shadcn/ui (que ya trae su propio focus-visible), asi
+// que cada <button> a mano necesita este anillo para cumplir WCAG 2.1 AA.
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 const INGRESOS_COL_MAP = {
     'board_relation_mm1rk1d6': 'material',
@@ -133,12 +86,18 @@ export default function StockPage() {
         setError(null);
         setActiveFilter('all');
         try {
+            // A diferencia de useObraStock.js, esta pantalla SI necesita todas las
+            // obras (no solo selectedObra): el dialog "Stock en todas las obras"
+            // (handleMaterialClick, mas abajo) lee rawDataRef.current completo para
+            // mostrar el cruce por obra de un material. Por eso NO se filtra por
+            // obra server-side aca - haria desaparecer los datos de las demas obras
+            // que el dialog necesita.
             const [ingresosItems, valesItems] = await Promise.all([
-                fetchAllPages(
+                fetchAllItemsWithRelations(
                     ingresosBoard.items().withColumns(['material', 'cantidadIngresada', 'estado', 'obrabodega']),
                     Object.keys(INGRESOS_COL_MAP), INGRESOS_COL_MAP
                 ),
-                fetchAllPages(
+                fetchAllItemsWithRelations(
                     valesBoard.items().withColumns(['baseDeDatosMateriales', 'cantidad', 'estado', 'obra']),
                     Object.keys(VALES_COL_MAP), VALES_COL_MAP
                 )
@@ -167,7 +126,7 @@ export default function StockPage() {
                 stockMap[matId].vales += qty;
             }
 
-            const materialsItems = await fetchAllPages(
+            const materialsItems = await fetchAllItemsWithRelations(
                 materialesBoard.items().withColumns(['precioLista', 'unidad', 'stockCritico']),
                 Object.keys(MATERIALES_COL_MAP), MATERIALES_COL_MAP
             );
@@ -293,17 +252,17 @@ export default function StockPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
+            <div className="min-h-dvh bg-background flex items-center justify-center">
                 <Spinner className="size-8 text-accent" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-background text-foreground flex flex-col">
+        <div className="min-h-dvh bg-background text-foreground flex flex-col">
             <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-[var(--border-subtle)]">
                 <div className="px-4 py-3 flex items-center gap-3">
-                    <button onClick={() => router.push('/vale-express/dashboard')} className="flex items-center justify-center w-9 h-9 rounded-[var(--radius-md)] text-[var(--fg-muted)] active:text-foreground active:bg-[var(--surface-2)] transition-colors shrink-0" aria-label="Volver">
+                    <button onClick={() => router.push('/vale-express/dashboard')} className={`flex items-center justify-center min-h-12 min-w-12 sm:h-9 sm:w-9 rounded-[var(--radius-md)] text-[var(--fg-muted)] active:text-foreground active:bg-[var(--surface-2)] transition-colors shrink-0 ${FOCUS_RING}`} aria-label="Volver">
                         <ArrowLeft className="w-[18px] h-[18px]" />
                     </button>
                     <div className="w-9 h-9 rounded-[var(--radius-md)] bg-[color-mix(in_hsl,var(--chart-2)_12%,transparent)] flex items-center justify-center shrink-0">
@@ -321,7 +280,7 @@ export default function StockPage() {
                 <div className="mb-4">
                     <label htmlFor="stock-obra-select" className="block text-xs font-medium text-[var(--fg-muted)] mb-1.5">Obra</label>
                     <div className="relative">
-                        <select id="stock-obra-select" value={selectedObra} onChange={e => setSelectedObra(e.target.value)} className="w-full h-11 px-3 pr-9 rounded-[var(--radius-md)] bg-[var(--surface-1)] border border-[var(--border-subtle)] text-sm text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-[color-mix(in_hsl,var(--accent)_40%,transparent)]">
+                        <select id="stock-obra-select" value={selectedObra} onChange={e => setSelectedObra(e.target.value)} className="w-full h-12 px-3 pr-9 rounded-[var(--radius-md)] bg-[var(--surface-1)] border border-[var(--border-subtle)] text-sm text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-[color-mix(in_hsl,var(--accent)_40%,transparent)]">
                             <option value="">Seleccionar obra...</option>
                             {allowedObras.map(o => <option key={o} value={o}>{o}</option>)}
                         </select>
@@ -377,7 +336,7 @@ export default function StockPage() {
                                 placeholder="Buscar material..."
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
-                                className="w-full h-10 pl-10 pr-4 rounded-[var(--radius-md)] bg-[var(--surface-1)] border border-[var(--border-subtle)] text-sm text-foreground placeholder:text-[var(--fg-subtle)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_hsl,var(--accent)_40%,transparent)]"
+                                className="w-full h-12 pl-10 pr-4 rounded-[var(--radius-md)] bg-[var(--surface-1)] border border-[var(--border-subtle)] text-sm text-foreground placeholder:text-[var(--fg-subtle)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_hsl,var(--accent)_40%,transparent)]"
                             />
                         </div>
 
@@ -391,7 +350,7 @@ export default function StockPage() {
                                 }`}>
                                     {activeFilter === 'negative' ? 'Stock negativo' : 'Stock bajo'}
                                 </span>
-                                <button onClick={() => setActiveFilter('all')} className="text-xs text-[var(--fg-subtle)] underline">
+                                <button onClick={() => setActiveFilter('all')} className={`inline-flex items-center min-h-12 sm:min-h-0 px-1 text-xs text-[var(--fg-subtle)] underline rounded-[var(--radius-sm)] ${FOCUS_RING}`}>
                                     Ver todos
                                 </button>
                             </div>
@@ -542,7 +501,7 @@ function KpiDashboard({ kpis, activeFilter, onFilterChange }) {
                                 ? `bg-[color-mix(in_hsl,var(--${card.color})_10%,transparent)] border-[color-mix(in_hsl,var(--${card.color})_35%,transparent)] ring-1 ring-[color-mix(in_hsl,var(--${card.color})_20%,transparent)]`
                                 : 'bg-[var(--surface-1)] border-[var(--border-subtle)]'
                             }
-                            ${isClickable ? 'cursor-pointer active:scale-[0.97]' : ''}
+                            ${isClickable ? `cursor-pointer active:scale-[0.97] ${FOCUS_RING}` : ''}
                         `}
                     >
                         {/* Pulse dot for negative alerts */}
@@ -595,6 +554,7 @@ function StockRow({ item, onClick }) {
                 hover:bg-[var(--surface-1)] active:bg-[var(--surface-2)]
                 transition-colors text-left cursor-pointer
                 ${isNegative ? 'border-l-2 border-l-destructive' : isLow ? 'border-l-2 border-l-[var(--chart-4)]' : ''}
+                ${FOCUS_RING}
             `}
         >
             <div className="min-w-0">
