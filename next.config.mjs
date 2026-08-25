@@ -1,18 +1,26 @@
-// CSP: style-src necesita 'unsafe-inline' porque varias paginas usan style={{...}}
-// de React (compila a un atributo style="" inline, no a JS) - Next no inyecta
-// nonces automaticamente para eso. script-src se queda en 'self' porque no hay
-// ningun <script> inline propio ni onclick="" en el codigo (React usa
-// delegacion de eventos, no atributos inline). Los estilos de tema
-// (styles/theme-*.css) importan Google Fonts vía @import url(...), de ahi el
-// permiso a fonts.googleapis.com/fonts.gstatic.com. img-src permite https:
-// porque las fotos de usuario vienen de la URL que devuelve la API de
-// monday.com (host variable, no documentado).
+// CSP: script-src NECESITA 'unsafe-inline' - Next.js App Router inyecta sus
+// propios <script> inline sin nonce para el payload de RSC/hidratacion
+// (self.__next_f.push(...)) en TODAS las paginas, esten o no marcadas
+// dinamicas. Sin 'unsafe-inline' el navegador bloquea esos scripts y la app
+// nunca hidrata - queda la pantalla cargada pero sin reaccionar a nada
+// (asi se detecto: "no carga nada, se queda esperando" en produccion).
+// La alternativa correcta es CSP con nonce por request (ver
+// node_modules/next/dist/docs/.../content-security-policy.md), pero eso
+// obliga a renderizado dinamico en TODAS las paginas (hoy son casi todas
+// estaticas) - cambio de arquitectura más grande, no algo para resolver a las
+// apuradas mientras la app esta rota. style-src tambien necesita
+// 'unsafe-inline' por los style={{...}} de React (compilan a atributo style=""
+// inline). Los estilos de tema (styles/theme-*.css) importan Google Fonts via
+// @import url(...), de ahi el permiso a fonts.googleapis.com/fonts.gstatic.com.
+// img-src permite https: porque las fotos de usuario vienen de la URL que
+// devuelve la API de monday.com (host variable, no documentado).
 const CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: https:",
+  "object-src 'none'",
   "connect-src 'self'",
   "frame-ancestors 'none'",
   "base-uri 'self'",
