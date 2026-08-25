@@ -11,6 +11,9 @@ const CACHE_TTL = 5 * 60 * 1000;
 
 function getCacheKey(ctx) {
   if (!ctx) return '';
+  if (ctx.role === 'super_admin' && ctx.filterMode === 'specific' && ctx.filterProveedorId) {
+    return `superadmin-id:${ctx.filterProveedorId}`;
+  }
   if (ctx.role === 'super_admin' && ctx.filterMode === 'specific' && ctx.filterProveedor) {
     return `superadmin:${ctx.filterProveedor}`;
   }
@@ -36,14 +39,24 @@ async function fetchBoard(board, columns, userContext, cache) {
   cache.key = key;
   cache.promise = (async () => {
     try {
-      // Super Admin with specific filter
+      // Super Admin con filtro especifico - camino rapido por id real del
+      // proveedor (ver usePaymentData.js para el mismo patron comentado).
+      const isSuperAdminFilteredById = userContext?.role === 'super_admin' &&
+        userContext?.filterMode === 'specific' &&
+        userContext?.filterProveedorId;
+
       const isSuperAdminFiltered = userContext?.role === 'super_admin' &&
         userContext?.filterMode === 'specific' &&
-        userContext?.filterProveedor;
+        userContext?.filterProveedor &&
+        !userContext?.filterProveedorId;
 
       const isSubcontratista = userContext?.role === 'subcontratista' && userContext?.proveedorName;
 
-      if (isSuperAdminFiltered) {
+      if (isSuperAdminFilteredById) {
+        cache.items = await fetchAllItems(
+          board.items().withColumns(columns).where({ proveedores: { linkedItemId: userContext.filterProveedorId } })
+        );
+      } else if (isSuperAdminFiltered) {
         const variants = getAllVariants(userContext.filterProveedor);
         const seenIds = new Set();
         let all = [];
