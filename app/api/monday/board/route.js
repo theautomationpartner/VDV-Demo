@@ -105,6 +105,16 @@ async function handleItems(boardKey, schema, params) {
     const columnId = resolveColumnId(boardKey, key);
     if (typeof cond === "object" && Array.isArray(cond.neq)) {
       rules.push({ column_id: columnId, compare_value: cond.neq, operator: "not_any_of" });
+    } else if (typeof cond === "object" && typeof cond.eq === "string") {
+      // Igualdad sobre columnas status/color (ej. estado='SOLICITADA',
+      // obra='PL 46-50' en vales-pendientes). ANTES no habia handler para `eq`,
+      // asi que el filtro se ignoraba en silencio y la pantalla mostraba vales
+      // de CUALQUIER obra/estado (bug: al filtrar por PL 46-50 salian vales de
+      // M388). Para columnas status, `any_of` con el texto del label no filtra
+      // (espera indices); `contains_text` con el label si funciona - verificado
+      // en vivo contra la API. Los unicos usos de `eq` en la app son estado y
+      // obra (ambas status), sin riesgo de substring entre labels reales.
+      rules.push({ column_id: columnId, compare_value: [cond.eq], operator: "contains_text" });
     } else if (typeof cond === "object" && typeof cond.contains === "string") {
       rules.push({ column_id: columnId, compare_value: [cond.contains], operator: "contains_text" });
     } else if (typeof cond === "object" && cond.linkedItemId != null) {
