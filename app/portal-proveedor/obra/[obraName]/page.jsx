@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { usePaymentData } from '@/hooks/portal-proveedor/usePaymentData';
+import { usePaymentData, PAGOS_GRUPO_PAGADO_ID } from '@/hooks/portal-proveedor/usePaymentData';
 import PaymentCard from '@/components/portal-proveedor/PaymentCard';
 
 export default function ObraDetailPage() {
@@ -43,8 +43,8 @@ export default function ObraDetailPage() {
       );
     }
 
-    const paid = filtered.filter((i) => i.group?.id === 'group_title');
-    const pending = filtered.filter((i) => i.group?.id !== 'group_title');
+    const paid = filtered.filter((i) => i.group?.id === PAGOS_GRUPO_PAGADO_ID);
+    const pending = filtered.filter((i) => i.group?.id !== PAGOS_GRUPO_PAGADO_ID);
     const total = filtered.reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
     const listoMonto = paid.reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
     return { pagados: paid, enProceso: pending, stats: { total, count: filtered.length, listo: listoMonto } };
@@ -58,12 +58,17 @@ export default function ObraDetailPage() {
       bV = (b.name || '').toLowerCase();
       return direction === 'asc' ? aV.localeCompare(bV) : bV.localeCompare(aV);
     }
+    // folioPago/numeroFact pueden ser alfanumericos (ej. "F-2024-001") -
+    // parseFloat los mandaba a NaN->0 y los mezclaba todos al principio.
+    // localeCompare con numeric:true ordena bien tanto "123" como "F-045".
     if (field === 'folioPago') {
-      aV = parseFloat(a.folioPago) || 0;
-      bV = parseFloat(b.folioPago) || 0;
+      return direction === 'asc'
+        ? String(a.folioPago ?? '').localeCompare(String(b.folioPago ?? ''), undefined, { numeric: true })
+        : String(b.folioPago ?? '').localeCompare(String(a.folioPago ?? ''), undefined, { numeric: true });
     } else if (field === 'numeroFact') {
-      aV = parseFloat(a.numeroFact) || 0;
-      bV = parseFloat(b.numeroFact) || 0;
+      return direction === 'asc'
+        ? String(a.numeroFact ?? '').localeCompare(String(b.numeroFact ?? ''), undefined, { numeric: true })
+        : String(b.numeroFact ?? '').localeCompare(String(a.numeroFact ?? ''), undefined, { numeric: true });
     } else if (field === 'monto') {
       aV = parseFloat(a.monto) || 0;
       bV = parseFloat(b.monto) || 0;

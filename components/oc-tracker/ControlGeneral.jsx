@@ -50,7 +50,7 @@ export function ControlGeneral({ ordenes }) {
 
   const stats = useMemo(() => {
     const total = filteredOrdenes.reduce((sum, oc) => sum + (oc.monto || 0), 0);
-    const facturado = filteredOrdenes.reduce((sum, oc) => sum + oc.totalFacturado, 0);
+    const facturado = filteredOrdenes.reduce((sum, oc) => sum + (oc.totalFacturado || 0), 0);
     const saldo = total - facturado;
     const porcentaje = total > 0 ? (facturado / total) * 100 : 0;
 

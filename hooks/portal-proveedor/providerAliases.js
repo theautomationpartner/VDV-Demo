@@ -14,10 +14,24 @@ export const PROVIDER_ALIASES = {
   ],
 };
 
-// Build reverse lookup: variant name -> canonical name
+// Build reverse lookup: variant name -> canonical name. Si la misma variante
+// aparece en dos grupos canonicos distintos (typo/copy-paste al agregar una
+// consolidacion), _reverseLookup.set() la pisaba en silencio con el ultimo
+// grupo procesado - fusionando los datos de dos proveedores distintos bajo un
+// mismo nombre sin ningun aviso. Ahora se valida al cargar el modulo y explota
+// temprano (build/arranque) en vez de fallar en silencio en produccion.
 const _reverseLookup = new Map();
 Object.entries(PROVIDER_ALIASES).forEach(([canonical, variants]) => {
-  variants.forEach((v) => _reverseLookup.set(v.toUpperCase(), canonical));
+  variants.forEach((v) => {
+    const key = v.toUpperCase();
+    const existing = _reverseLookup.get(key);
+    if (existing && existing !== canonical) {
+      throw new Error(
+        `providerAliases.js: la variante "${v}" esta en dos grupos distintos ("${existing}" y "${canonical}") - revisar PROVIDER_ALIASES antes de que esto fusione datos de dos proveedores.`
+      );
+    }
+    _reverseLookup.set(key, canonical);
+  });
 });
 
 /**

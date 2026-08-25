@@ -7,6 +7,12 @@ import { getAllVariants } from '@/hooks/portal-proveedor/providerAliases';
 let _cache = { items: null, time: 0, key: null, promise: null };
 const CACHE_TTL = 5 * 60 * 1000;
 
+// Grupo "Pagado" en PagosVdvBoard - unica fuente de esta constante (antes
+// hardcodeada por separado en dashboard/page.jsx, pagados/page.jsx,
+// por-pagar/page.jsx y obra/[obraName]/page.jsx). Si el tablero se reorganiza
+// y el grupo se recrea con otro id, solo hay que actualizarla aca.
+export const PAGOS_GRUPO_PAGADO_ID = 'group_title';
+
 function getCacheKey(ctx) {
   if (!ctx) return '';
   if (ctx.role === 'super_admin' && ctx.filterMode === 'specific' && ctx.filterProveedor) {
