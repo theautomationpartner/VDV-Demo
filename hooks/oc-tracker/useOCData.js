@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { OrdenesDeCompraMaxxaBoard, FacturasIaBoard, fetchAllItems } from "@/lib/board-sdk";
-import { FACTURAS_GRUPOS_VALIDOS } from "@/lib/board-schemas";
+import { FACTURAS_GRUPO_DUPLICADAS_ID } from "@/lib/board-schemas";
 
 const ordenesBoard = new OrdenesDeCompraMaxxaBoard();
 const facturasBoard = new FacturasIaBoard();
@@ -70,12 +70,13 @@ export function useOCData() {
       ]);
 
       setOrdenes(ordenesItems.filter((oc) => oc.group?.id !== GRUPO_OC_DUPLICADAS));
-      // Antes traia TODAS las facturas sin excluir "Duplicados" (a diferencia
-      // de useFacturacion.js, que si lo hacia) - inflaba Total Facturado/
-      // Saldo Disponible/% Consumido con facturas que no deberian contar,
-      // mientras que Total OC si excluia correctamente su propio grupo de
-      // duplicadas. Eso era lo que no calzaba contra la app original.
-      setFacturas(facturasItems.filter((f) => FACTURAS_GRUPOS_VALIDOS.includes(f.group?.id)));
+      // Antes traia TODAS las facturas sin excluir "Duplicadas" - inflaba
+      // Total Facturado/Saldo Disponible/% Consumido, mientras que Total OC
+      // si excluia correctamente su propio grupo de duplicadas. Igual que
+      // GRUPO_OC_DUPLICADAS arriba: se excluye SOLO el grupo de duplicadas,
+      // el resto de los grupos (Pendientes, Revision manual, Enviada a pago,
+      // En revision) cuentan.
+      setFacturas(facturasItems.filter((f) => f.group?.id !== FACTURAS_GRUPO_DUPLICADAS_ID));
     } catch (err) {
       console.error("Error loading OC data:", err);
       setError(err.message);
