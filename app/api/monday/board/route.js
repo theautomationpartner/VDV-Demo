@@ -2,6 +2,11 @@ import { getBoardSchema, resolveColumnId } from "@/lib/board-schemas";
 import { mondayFetch, getBoardIdOrThrow } from "@/lib/server/monday-client";
 import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
 import {
+  verificarAccesoMutacion,
+  accesoBoardErrorToResponse,
+  BoardAccessError,
+} from "@/lib/server/board-access-policy";
+import {
   demoHandleItems,
   demoHandleItemUpdate,
   demoHandleItemCreate,
@@ -186,9 +191,10 @@ async function handleUsersList(params) {
 }
 
 export async function POST(request) {
+  let sesion = null;
   if (!DEMO_MODE && AUTH_LAYERS_ENABLED) {
     try {
-      verificarAcceso(request);
+      sesion = verificarAcceso(request);
     } catch (err) {
       if (err instanceof AccesoError) return accesoErrorToResponse(err);
       throw err;
@@ -221,8 +227,20 @@ export async function POST(request) {
     const schema = getBoardSchema(boardKey);
 
     if (op === "items") return Response.json({ result: await handleItems(boardKey, schema, params) });
-    if (op === "itemUpdate") return Response.json({ result: await handleItemUpdate(boardKey, schema, params) });
-    if (op === "itemCreate") return Response.json({ result: await handleItemCreate(boardKey, schema, params) });
+
+    if (op === "itemUpdate" || op === "itemCreate") {
+      if (AUTH_LAYERS_ENABLED) {
+        try {
+          verificarAccesoMutacion(sesion, boardKey, { op, values: params.values });
+        } catch (err) {
+          if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
+          throw err;
+        }
+      }
+      if (op === "itemUpdate") return Response.json({ result: await handleItemUpdate(boardKey, schema, params) });
+      return Response.json({ result: await handleItemCreate(boardKey, schema, params) });
+    }
+
     if (op === "usersList") return Response.json({ result: await handleUsersList(params) });
 
     return Response.json({ error: `Operacion desconocida: "${op}"` }, { status: 400 });

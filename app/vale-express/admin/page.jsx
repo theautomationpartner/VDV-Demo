@@ -51,7 +51,6 @@ export default function AdminPage() {
                 if (!u.email) return true;
                 return !u.email.includes('@agent.mon');
             });
-            console.log('[ADMIN] Filtered agents. Real users:', realUsers.length, 'of', allUsers.length);
             setSubscribers(realUsers.sort((a, b) => a.name.localeCompare(b.name)));
             setRoles(currentRoles);
         } catch (err) {

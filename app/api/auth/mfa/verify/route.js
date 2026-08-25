@@ -1,7 +1,7 @@
 import { verificarPreAuthToken, crearSesion, datosApp } from "@/lib/server/session";
 import { verificarCodigoMfa, verificarCodigoRecuperacion } from "@/lib/server/totp";
 import { marcarUltimoAcceso, auditarEvento } from "@/lib/server/whitelist";
-import { verificarLimite, RateLimitError } from "@/lib/server/rate-limit";
+import { verificarLimite, RateLimitError, obtenerIp } from "@/lib/server/rate-limit";
 
 /**
  * Login normal (ya tiene 2FA configurado): valida el codigo de 6 digitos, o un
@@ -16,7 +16,7 @@ export async function POST(request) {
   }
 
   const { code, recoveryCode, remember } = body ?? {};
-  const ip = request.headers.get("x-forwarded-for");
+  const ip = obtenerIp(request);
 
   try {
     // 5 intentos fallidos cada 15 min por cuenta - se cuenta por usuario_id,

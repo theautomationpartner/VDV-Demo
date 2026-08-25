@@ -1,7 +1,7 @@
 import { verificarPreAuthToken, crearSesion, datosApp } from "@/lib/server/session";
 import { confirmarSetupMfa } from "@/lib/server/totp";
 import { marcarUltimoAcceso, auditarEvento } from "@/lib/server/whitelist";
-import { verificarLimite, RateLimitError } from "@/lib/server/rate-limit";
+import { verificarLimite, RateLimitError, obtenerIp } from "@/lib/server/rate-limit";
 
 /**
  * Confirma el primer codigo del setup de 2FA. Si es valido: se crea la sesion de
@@ -18,7 +18,7 @@ export async function POST(request) {
   const { code, remember } = body ?? {};
   if (!code) return Response.json({ error: "Falta 'code'" }, { status: 400 });
 
-  const ip = request.headers.get("x-forwarded-for");
+  const ip = obtenerIp(request);
 
   try {
     // Mismo limite que /mfa/verify: 5 intentos fallidos cada 15 min por cuenta.

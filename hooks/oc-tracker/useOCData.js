@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { OrdenesDeCompraMaxxaBoard, FacturasIaBoard } from "@/lib/board-sdk";
+import { OrdenesDeCompraMaxxaBoard, FacturasIaBoard, fetchAllItems } from "@/lib/board-sdk";
 
 const ordenesBoard = new OrdenesDeCompraMaxxaBoard();
 const facturasBoard = new FacturasIaBoard();
@@ -13,18 +13,6 @@ const facturasBoard = new FacturasIaBoard();
 // sin el grupo "oc duplicadas" (que solo son OCs re-emitidas, no montos
 // reales adicionales).
 const GRUPO_OC_DUPLICADAS = "group_mm3c59ax";
-
-async function fetchAllPages(builder) {
-  let result = await builder.execute();
-  let items = result.items ?? [];
-  let cursor = result.cursor;
-  while (cursor) {
-    result = await builder.withPagination({ cursor }).execute();
-    items = items.concat(result.items ?? []);
-    cursor = result.cursor;
-  }
-  return items;
-}
 
 export function useOCData() {
   const [ordenes, setOrdenes] = useState([]);
@@ -43,7 +31,7 @@ export function useOCData() {
       setError(null);
 
       const [ordenesItems, facturasItems] = await Promise.all([
-        fetchAllPages(
+        fetchAllItems(
           ordenesBoard
             .items()
             .withColumns([
@@ -60,7 +48,7 @@ export function useOCData() {
             ])
             .withPagination({ limit: 500 })
         ),
-        fetchAllPages(
+        fetchAllItems(
           facturasBoard
             .items()
             .withColumns([
@@ -95,9 +83,20 @@ export function useOCData() {
     fetchData();
   }, []);
 
+  const facturasPorOc = useMemo(() => {
+    const map = new Map();
+    for (const f of facturas) {
+      if (!f.oc) continue;
+      const key = String(f.oc).trim();
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(f);
+    }
+    return map;
+  }, [facturas]);
+
   const enrichedOrdenes = useMemo(() => {
     return ordenes.map((oc) => {
-      const facturasVinculadas = facturas.filter((f) => f.oc && oc.numeroOc && String(f.oc).trim() === String(oc.numeroOc).trim());
+      const facturasVinculadas = oc.numeroOc ? facturasPorOc.get(String(oc.numeroOc).trim()) ?? [] : [];
 
       const totalFacturado = facturasVinculadas.reduce((sum, f) => sum + (f.montoConIva || 0), 0);
 
@@ -123,7 +122,7 @@ export function useOCData() {
         semaforo,
       };
     });
-  }, [ordenes, facturas]);
+  }, [ordenes, facturasPorOc]);
 
   const facturasSinOC = useMemo(() => {
     return facturas.filter((f) => !f.oc || String(f.oc).trim() === "");

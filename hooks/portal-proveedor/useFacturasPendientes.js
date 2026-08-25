@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { PagosVdvBoard } from '@/lib/board-sdk';
+import { PagosVdvBoard, fetchAllItems } from '@/lib/board-sdk';
 
 let _cache = { stats: null, time: 0, promise: null };
 const CACHE_TTL = 5 * 60 * 1000;
@@ -11,27 +11,6 @@ const ALLOWED_GROUPS = [
   'topics',       // "PROVEEDORES"
   'new_group',    // "SUBCONTRATOS"
 ];
-
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function fetchWithRetry(queryFn, retries = 3) {
-  for (let attempt = 0; attempt < retries; attempt++) {
-    try {
-      return await queryFn();
-    } catch (err) {
-      const isComplexity = err?.message?.includes('COMPLEXITY_BUDGET_EXHAUSTED') ||
-        err?.code === 'COMPLEXITY_BUDGET_EXHAUSTED';
-      if (isComplexity && attempt < retries - 1) {
-        const waitSec = err?.extensions?.retry_in_seconds || 15;
-        await delay(waitSec * 1000);
-      } else {
-        throw err;
-      }
-    }
-  }
-}
 
 /**
  * Fetches payment items from PAGOS VDV (grupos PROVEEDORES y SUBCONTRATOS)
@@ -44,21 +23,7 @@ async function buildFacturaStats() {
   _cache.promise = (async () => {
     try {
       const board = new PagosVdvBoard();
-      let allItems = [];
-      let cursor = undefined;
-      let hasMore = true;
-
-      while (hasMore) {
-        const r = await fetchWithRetry(() =>
-          board.items()
-            .withColumns(['estado'])
-            .withPagination({ limit: 500, cursor })
-            .execute()
-        );
-        if (r.items) allItems = allItems.concat(r.items);
-        cursor = r.cursor;
-        hasMore = !!cursor;
-      }
+      const allItems = await fetchAllItems(board.items().withColumns(['estado']));
 
       // Filter by allowed groups
       const validItems = allItems.filter((item) => {

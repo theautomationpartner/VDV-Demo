@@ -1,4 +1,5 @@
 import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
+import { verificarAccesoMoveGroup, accesoBoardErrorToResponse, BoardAccessError } from "@/lib/server/board-access-policy";
 import { demoMoveItemToGroup } from "@/lib/server/demo-data";
 
 const MONDAY_API_URL = "https://api.monday.com/v2";
@@ -10,9 +11,10 @@ const AUTH_LAYERS_ENABLED = process.env.AUTH_LAYERS_ENABLED === "true";
  * El token nunca se expone al cliente: el navegador solo le pega a esta ruta.
  */
 export async function POST(request) {
+  let sesion = null;
   if (!DEMO_MODE && AUTH_LAYERS_ENABLED) {
     try {
-      verificarAcceso(request);
+      sesion = verificarAcceso(request);
     } catch (err) {
       if (err instanceof AccesoError) return accesoErrorToResponse(err);
       throw err;
@@ -50,9 +52,18 @@ export async function POST(request) {
     );
   }
 
-  const { query, variables } = body ?? {};
+  const { query, variables, boardKey } = body ?? {};
   if (!query || typeof query !== "string") {
     return Response.json({ errors: [{ message: "Falta 'query' (string GraphQL)" }] }, { status: 400 });
+  }
+
+  if (AUTH_LAYERS_ENABLED && query.includes("move_item_to_group")) {
+    try {
+      verificarAccesoMoveGroup(sesion, boardKey);
+    } catch (err) {
+      if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
+      throw err;
+    }
   }
 
   const mondayRes = await fetch(MONDAY_API_URL, {

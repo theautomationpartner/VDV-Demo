@@ -1,7 +1,7 @@
 import { verificarEmailEnWhitelist, NoAutorizado, marcarUltimoAcceso, auditarEvento } from "@/lib/server/whitelist";
 import { tieneMfaConfigurado } from "@/lib/server/totp";
 import { emitirPreAuthToken, crearSesion, datosApp } from "@/lib/server/session";
-import { verificarLimite, RateLimitError } from "@/lib/server/rate-limit";
+import { verificarLimite, RateLimitError, obtenerIp } from "@/lib/server/rate-limit";
 
 const AUTH_LAYERS_ENABLED = process.env.AUTH_LAYERS_ENABLED === "true";
 
@@ -27,7 +27,7 @@ export async function POST(request) {
   const email = String(body?.email ?? "").trim();
   if (!email) return Response.json({ error: "Falta 'email'" }, { status: 400 });
 
-  const ip = request.headers.get("x-forwarded-for");
+  const ip = obtenerIp(request);
 
   try {
     // Corta el tanteo de emails contra la whitelist antes de gastar el intento

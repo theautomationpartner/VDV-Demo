@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ValesBoard, IngresosBoard, BaseDeDatosMaterialesBoard, executeGraphQL } from '@/lib/board-sdk';
+import { ValesBoard, IngresosBoard, BaseDeDatosMaterialesBoard, fetchAllItemsWithRelations } from '@/lib/board-sdk';
 import { Spinner } from '@/components/ui/spinner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -19,58 +19,6 @@ const materialesBoard = new BaseDeDatosMaterialesBoard();
 // el componente Button de shadcn/ui (que ya trae su propio focus-visible), asi
 // que cada <button> a mano necesita este anillo para cumplir WCAG 2.1 AA.
 const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
-
-async function fetchNextPage(cursor, columnIds) {
-    const colFragment = columnIds.length > 0
-        ? `column_values(ids: [${columnIds.map(c => `"${c}"`).join(',')}]) {
-                id text value
-                column { title type }
-                ... on BoardRelationValue {
-                    linked_items { id name board { id name } }
-                }
-            }`
-        : '';
-    const query = `
-        query NextPage($cursor: String!) {
-            next_items_page(limit: 500, cursor: $cursor) {
-                cursor
-                items { id name created_at updated_at group { id title } ${colFragment} }
-            }
-        }
-    `;
-    const resp = await executeGraphQL(query, { cursor });
-    return resp?.next_items_page ?? { cursor: null, items: [] };
-}
-
-function mapRawItem(item, colIdToSdkProp) {
-    const mapped = { id: item.id, name: item.name };
-    if (item.column_values) {
-        for (const cv of item.column_values) {
-            const sdkProp = colIdToSdkProp[cv.id] || cv.id;
-            const colType = cv.column?.type;
-            if (cv.linked_items && cv.linked_items.length > 0) {
-                mapped[sdkProp] = { linkedItems: cv.linked_items.map(li => ({ id: li.id, name: li.name, sourceBoardId: li.board?.id })) };
-            } else if (colType === 'numeric' || colType === 'numbers') {
-                mapped[sdkProp] = cv.text ? parseFloat(cv.text) : null;
-            } else {
-                mapped[sdkProp] = cv.text || null;
-            }
-        }
-    }
-    return mapped;
-}
-
-async function fetchAllPages(builder, columnIds = [], colIdToSdkProp = {}) {
-    const firstResult = await builder.withPagination({ limit: 500 }).execute();
-    let allItems = [...(firstResult.items || [])];
-    let cursor = firstResult.cursor;
-    while (cursor) {
-        const nextResult = await fetchNextPage(cursor, columnIds);
-        allItems = allItems.concat((nextResult.items || []).map(item => mapRawItem(item, colIdToSdkProp)));
-        cursor = nextResult.cursor;
-    }
-    return allItems;
-}
 
 const INGRESOS_COL_MAP = {
     'board_relation_mm1rk1d6': 'material',
@@ -138,12 +86,18 @@ export default function StockPage() {
         setError(null);
         setActiveFilter('all');
         try {
+            // A diferencia de useObraStock.js, esta pantalla SI necesita todas las
+            // obras (no solo selectedObra): el dialog "Stock en todas las obras"
+            // (handleMaterialClick, mas abajo) lee rawDataRef.current completo para
+            // mostrar el cruce por obra de un material. Por eso NO se filtra por
+            // obra server-side aca - haria desaparecer los datos de las demas obras
+            // que el dialog necesita.
             const [ingresosItems, valesItems] = await Promise.all([
-                fetchAllPages(
+                fetchAllItemsWithRelations(
                     ingresosBoard.items().withColumns(['material', 'cantidadIngresada', 'estado', 'obrabodega']),
                     Object.keys(INGRESOS_COL_MAP), INGRESOS_COL_MAP
                 ),
-                fetchAllPages(
+                fetchAllItemsWithRelations(
                     valesBoard.items().withColumns(['baseDeDatosMateriales', 'cantidad', 'estado', 'obra']),
                     Object.keys(VALES_COL_MAP), VALES_COL_MAP
                 )
@@ -172,7 +126,7 @@ export default function StockPage() {
                 stockMap[matId].vales += qty;
             }
 
-            const materialsItems = await fetchAllPages(
+            const materialsItems = await fetchAllItemsWithRelations(
                 materialesBoard.items().withColumns(['precioLista', 'unidad', 'stockCritico']),
                 Object.keys(MATERIALES_COL_MAP), MATERIALES_COL_MAP
             );

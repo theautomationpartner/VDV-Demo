@@ -1,31 +1,10 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { FacturasIaBoard } from '@/lib/board-sdk';
+import { FacturasIaBoard, fetchAllItems } from '@/lib/board-sdk';
 
 let _factCache = { map: null, stats: null, time: 0, promise: null };
 const CACHE_TTL = 5 * 60 * 1000;
-
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function fetchWithRetry(queryFn, retries = 3) {
-  for (let attempt = 0; attempt < retries; attempt++) {
-    try {
-      return await queryFn();
-    } catch (err) {
-      const isComplexity = err?.message?.includes('COMPLEXITY_BUDGET_EXHAUSTED') ||
-        err?.code === 'COMPLEXITY_BUDGET_EXHAUSTED';
-      if (isComplexity && attempt < retries - 1) {
-        const waitSec = err?.extensions?.retry_in_seconds || 15;
-        await delay(waitSec * 1000);
-      } else {
-        throw err;
-      }
-    }
-  }
-}
 
 // Solo incluir facturas de estos grupos (excluir "Duplicados")
 const FACTURAS_ALLOWED_GROUPS = [
@@ -50,21 +29,9 @@ async function buildFacturacionMap() {
   _factCache.promise = (async () => {
     try {
       const board = new FacturasIaBoard();
-      let allItems = [];
-      let cursor = undefined;
-      let hasMore = true;
-
-      while (hasMore) {
-        const r = await fetchWithRetry(() =>
-          board.items()
-            .withColumns(['oc', 'numeroFactura', 'montoConIva', 'obra', 'estado'])
-            .withPagination({ limit: 500, cursor })
-            .execute()
-        );
-        if (r.items) allItems = allItems.concat(r.items);
-        cursor = r.cursor;
-        hasMore = !!cursor;
-      }
+      const allItems = await fetchAllItems(
+        board.items().withColumns(['oc', 'numeroFactura', 'montoConIva', 'obra', 'estado'])
+      );
 
       // Filter out duplicates - only keep items from allowed groups
       const validItems = allItems.filter((item) => {
