@@ -86,6 +86,12 @@ async function handleItems(boardKey, schema, params) {
       rules.push({ column_id: columnId, compare_value: cond.neq, operator: "not_any_of" });
     } else if (typeof cond === "object" && typeof cond.contains === "string") {
       rules.push({ column_id: columnId, compare_value: [cond.contains], operator: "contains_text" });
+    } else if (typeof cond === "object" && cond.linkedItemId != null) {
+      // Filtro por columna board_relation (ej. "proveedores") usando el id real
+      // del item vinculado en vez de comparar el texto renderizado - inmune a
+      // que el mismo proveedor aparezca con distinto nombre/typo en el board.
+      // "any_of" es el operador que monday espera para connect_boards.
+      rules.push({ column_id: columnId, compare_value: [String(cond.linkedItemId)], operator: "any_of" });
     }
   }
 

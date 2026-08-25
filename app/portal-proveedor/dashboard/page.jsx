@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { usePaymentData } from '@/hooks/portal-proveedor/usePaymentData';
+import { usePaymentData, PAGOS_GRUPO_PAGADO_ID } from '@/hooks/portal-proveedor/usePaymentData';
 import { useContracts, useEstadosDePago, useOrdenesCompra } from '@/hooks/portal-proveedor/useSubcontractData';
 import { useFacturacion } from '@/hooks/portal-proveedor/useFacturacion';
 
@@ -91,7 +91,7 @@ export default function DashboardPage() {
     items.forEach((item) => {
       const obra = item.obra || 'Sin obra';
       const m = parseFloat(item.monto) || 0;
-      const isListo = item.group?.id === 'group_title';
+      const isListo = item.group?.id === PAGOS_GRUPO_PAGADO_ID;
       pagos++; monto += m;
       if (isListo) { listo += m; cListo++; } else { cProceso++; }
       if (obraMap.has(obra)) { const e = obraMap.get(obra); e.totalMonto += m; e.cantidadPagos++; }

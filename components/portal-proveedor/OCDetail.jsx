@@ -34,9 +34,13 @@ export default function OCDetail({ items, obraName, facturacionMap, factLoading 
 
   const sorted = useMemo(() => {
     return [...items].sort((a, b) => {
-      const numA = parseInt(a.numeroOc) || 0;
-      const numB = parseInt(b.numeroOc) || 0;
-      return numB - numA;
+      // numeroOc alfanumerico (ej. "OC-045") da NaN en parseInt - antes ambos
+      // caian a 0 y quedaban mezclados sin orden real entre si. localeCompare
+      // con numeric:true como fallback mantiene un orden estable en ese caso.
+      const numA = parseInt(a.numeroOc, 10);
+      const numB = parseInt(b.numeroOc, 10);
+      if (!Number.isNaN(numA) && !Number.isNaN(numB)) return numB - numA;
+      return String(b.numeroOc ?? "").localeCompare(String(a.numeroOc ?? ""), undefined, { numeric: true });
     });
   }, [items]);
 

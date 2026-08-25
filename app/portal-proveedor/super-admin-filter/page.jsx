@@ -13,8 +13,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PagosVdvBoard, FlujoContratacionSubcontratoBoard } from '@/lib/board-sdk';
-import { deduplicateProviders } from '@/hooks/portal-proveedor/providerAliases';
+import { PagosVdvBoard, FlujoContratacionSubcontratoBoard, ProveedoresBoard, fetchAllItems } from '@/lib/board-sdk';
 import { useUserManagement } from '@/hooks/portal-proveedor/useUserManagement';
 
 const OBRAS_LIST = [
@@ -30,6 +29,7 @@ export default function SuperAdminFilterPage() {
   const router = useRouter();
   const [userContext, setUserContext] = useState(null);
   const [selectedFilter, setSelectedFilter] = useState('all');
+  const [selectedProveedorId, setSelectedProveedorId] = useState('');
   const [selectedProveedor, setSelectedProveedor] = useState('');
   const [proveedores, setProveedores] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -64,27 +64,23 @@ export default function SuperAdminFilterPage() {
   }, [router]);
 
   useEffect(() => {
+    // Fuente real de subcontratistas: ProveedoresBoard (MONDAY_BOARD_PROVEEDORES),
+    // no los nombres sueltos que aparecen en las columnas "proveedores"
+    // (board_relation) de Pagos/Contratos - esas son solo el texto renderizado
+    // del item vinculado, y hoy pueden repetirse con distinto nombre si hay
+    // entradas duplicadas en el tablero real. Traer la lista de aca da el id
+    // real de cada empresa, que es lo que despues se usa para filtrar sin
+    // depender del texto (ver handleContinue).
     const fetchProveedores = async () => {
       setLoading(true);
       try {
-        // Fetch provider names from board relations in connected boards
-        const pagosBoard = new PagosVdvBoard();
-        const contratosBoard = new FlujoContratacionSubcontratoBoard();
-
-        const [pagosResult, contratosResult] = await Promise.all([
-          pagosBoard.items().withColumns(['proveedores']).withPagination({ limit: 500 }).execute(),
-          contratosBoard.items().withColumns(['proveedores']).withPagination({ limit: 500 }).execute(),
-        ]);
-
-        const allNames = new Set();
-        [...(pagosResult.items || []), ...(contratosResult.items || [])].forEach((item) => {
-          if (item.proveedores) {
-            item.proveedores.split(',').map((n) => n.trim()).filter(Boolean).forEach((n) => allNames.add(n));
-          }
-        });
-
-        const uniqueRaw = Array.from(allNames);
-        setProveedores(deduplicateProviders(uniqueRaw));
+        const proveedoresBoard = new ProveedoresBoard();
+        const items = await fetchAllItems(proveedoresBoard.items());
+        const list = items
+          .filter((it) => it.name)
+          .map((it) => ({ id: it.id, name: it.name }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setProveedores(list);
       } catch (error) {
         console.error('Error al cargar proveedores:', error);
       } finally {
@@ -109,11 +105,16 @@ export default function SuperAdminFilterPage() {
   };
 
   const handleContinue = () => {
-    if (selectedFilter === 'specific' && !selectedProveedor) return;
+    if (selectedFilter === 'specific' && !selectedProveedorId) return;
     const updatedContext = {
       ...userContext,
       filterMode: selectedFilter,
       filterProveedor: selectedFilter === 'specific' ? selectedProveedor : null,
+      // El id real de ProveedoresBoard es lo que usan usePaymentData.js/
+      // useSubcontractData.js para filtrar por linkedItemId (ver handleItems
+      // en app/api/monday/board/route.js) - filterProveedor (nombre) queda
+      // solo para mostrar en pantalla.
+      filterProveedorId: selectedFilter === 'specific' ? selectedProveedorId : null,
     };
     localStorage.setItem('pp_session', JSON.stringify(updatedContext));
     router.push('/portal-proveedor/dashboard');
@@ -216,7 +217,7 @@ export default function SuperAdminFilterPage() {
               className={`p-4 cursor-pointer transition-all border-2 active:scale-[0.98] ${
                 selectedFilter === 'all' ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/30'
               }`}
-              onClick={() => { setSelectedFilter('all'); setSelectedProveedor(''); }}
+              onClick={() => { setSelectedFilter('all'); setSelectedProveedor(''); setSelectedProveedorId(''); }}
             >
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
@@ -281,9 +282,19 @@ export default function SuperAdminFilterPage() {
                           <CommandEmpty>No se encontró.</CommandEmpty>
                           <CommandGroup>
                             {proveedores.map((prov) => (
-                              <CommandItem key={prov} value={prov} onSelect={(val) => { setSelectedProveedor(val === selectedProveedor ? '' : val); setComboOpen(false); }} className="cursor-pointer">
-                                <Check className={`mr-2 h-4 w-4 ${selectedProveedor === prov ? 'opacity-100' : 'opacity-0'}`} />
-                                {prov}
+                              <CommandItem
+                                key={prov.id}
+                                value={prov.name}
+                                onSelect={() => {
+                                  const same = selectedProveedorId === prov.id;
+                                  setSelectedProveedor(same ? '' : prov.name);
+                                  setSelectedProveedorId(same ? '' : prov.id);
+                                  setComboOpen(false);
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <Check className={`mr-2 h-4 w-4 ${selectedProveedorId === prov.id ? 'opacity-100' : 'opacity-0'}`} />
+                                {prov.name}
                               </CommandItem>
                             ))}
                           </CommandGroup>
@@ -295,7 +306,7 @@ export default function SuperAdminFilterPage() {
               </Card>
             )}
 
-            <Button size="lg" onClick={handleContinue} disabled={selectedFilter === 'specific' && !selectedProveedor} className="w-full h-12 text-base">
+            <Button size="lg" onClick={handleContinue} disabled={selectedFilter === 'specific' && !selectedProveedorId} className="w-full h-12 text-base">
               Continuar al Dashboard
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
@@ -474,9 +485,9 @@ export default function SuperAdminFilterPage() {
                         <CommandEmpty>No se encontró.</CommandEmpty>
                         <CommandGroup>
                           {proveedores.map((prov) => (
-                            <CommandItem key={prov} value={prov} onSelect={(val) => { setFormProveedor(val); setFormProvComboOpen(false); }} className="cursor-pointer">
-                              <Check className={`mr-2 h-4 w-4 ${formProveedor === prov ? 'opacity-100' : 'opacity-0'}`} />
-                              {prov}
+                            <CommandItem key={prov.id} value={prov.name} onSelect={() => { setFormProveedor(prov.name); setFormProvComboOpen(false); }} className="cursor-pointer">
+                              <Check className={`mr-2 h-4 w-4 ${formProveedor === prov.name ? 'opacity-100' : 'opacity-0'}`} />
+                              {prov.name}
                             </CommandItem>
                           ))}
                         </CommandGroup>

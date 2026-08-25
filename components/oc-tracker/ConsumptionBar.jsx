@@ -4,16 +4,19 @@ export function ConsumptionBar({ percentage, className }) {
   const capped = Math.min(percentage, 150);
   const width = Math.min(capped, 100);
 
+  // Umbrales explícitos e independientes del orden de evaluación (antes ">100"
+  // y ">=100" dependían de evaluarse en ese orden exacto para que ">=100"
+  // terminara significando "=100" en la práctica).
   const getBarColor = () => {
-    if (percentage > 100) return "bg-[var(--primary)]"; // morado
-    if (percentage >= 100) return "bg-[var(--destructive)]"; // rojo
+    if (percentage > 100) return "bg-[var(--primary)]"; // sobreconsumo: morado
+    if (percentage === 100) return "bg-[var(--destructive)]"; // exactamente 100%: rojo
     if (percentage >= 80) return "bg-[var(--chart-2)]"; // amarillo
     return "bg-[var(--chart-4)]"; // verde
   };
 
   const getTrackGlow = () => {
     if (percentage > 100) return "shadow-[0_0_8px_color-mix(in_hsl,var(--primary)_40%,transparent)]";
-    if (percentage >= 100) return "shadow-[0_0_8px_color-mix(in_hsl,var(--destructive)_40%,transparent)]";
+    if (percentage === 100) return "shadow-[0_0_8px_color-mix(in_hsl,var(--destructive)_40%,transparent)]";
     return "";
   };
 

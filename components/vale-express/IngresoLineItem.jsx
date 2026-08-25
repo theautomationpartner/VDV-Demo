@@ -56,7 +56,13 @@ export function IngresoLineItem({ index, item, onUpdate, onRemove, canRemove }) 
 
     const handleQuantityChange = (e) => {
         const val = e.target.value;
-        onUpdate({ ...item, cantidad: val === '' ? '' : Number(val) });
+        // Antes se aceptaba cualquier numero (incluido negativo) y recien al
+        // enviar el formulario se filtraba silenciosamente (cantidad > 0),
+        // asi que una linea con cantidad negativa desaparecia sin avisar por
+        // que. Ahora se recorta a 0 en el momento, visible de inmediato.
+        if (val === '') { onUpdate({ ...item, cantidad: '' }); return; }
+        const num = Number(val);
+        onUpdate({ ...item, cantidad: Number.isFinite(num) ? Math.max(0, num) : '' });
     };
 
     const handleMaterialCreated = (newMaterial) => {

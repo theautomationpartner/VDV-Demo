@@ -7,8 +7,17 @@ import { getAllVariants } from '@/hooks/portal-proveedor/providerAliases';
 let _cache = { items: null, time: 0, key: null, promise: null };
 const CACHE_TTL = 5 * 60 * 1000;
 
+// Grupo "Pagado" en PagosVdvBoard - unica fuente de esta constante (antes
+// hardcodeada por separado en dashboard/page.jsx, pagados/page.jsx,
+// por-pagar/page.jsx y obra/[obraName]/page.jsx). Si el tablero se reorganiza
+// y el grupo se recrea con otro id, solo hay que actualizarla aca.
+export const PAGOS_GRUPO_PAGADO_ID = 'group_title';
+
 function getCacheKey(ctx) {
   if (!ctx) return '';
+  if (ctx.role === 'super_admin' && ctx.filterMode === 'specific' && ctx.filterProveedorId) {
+    return `superadmin-id:${ctx.filterProveedorId}`;
+  }
   if (ctx.role === 'super_admin' && ctx.filterMode === 'specific' && ctx.filterProveedor) {
     return `superadmin:${ctx.filterProveedor}`;
   }
@@ -38,14 +47,28 @@ async function fetchItems(userContext) {
       const board = new PagosVdvBoard();
       const cols = ['obra', 'monto', 'proveedores', 'estado', 'numeroFact', 'folioPago', 'fechaLmite'];
 
-      // Super Admin with specific filter
+      // Super Admin con filtro especifico - camino rapido: filtra por el id
+      // real del proveedor en ProveedoresBoard (una sola query, sin variantes
+      // ni delay). Ver handleContinue en super-admin-filter/page.jsx, que es
+      // el unico lugar que hoy produce filterProveedorId.
+      const isSuperAdminFilteredById = userContext?.role === 'super_admin' &&
+        userContext?.filterMode === 'specific' &&
+        userContext?.filterProveedorId;
+
+      // Fallback legacy por nombre/alias - sesiones viejas que solo tienen
+      // filterProveedor (sin id) guardado en localStorage.
       const isSuperAdminFiltered = userContext?.role === 'super_admin' &&
         userContext?.filterMode === 'specific' &&
-        userContext?.filterProveedor;
+        userContext?.filterProveedor &&
+        !userContext?.filterProveedorId;
 
       const isSubcontratista = userContext?.role === 'subcontratista' && userContext?.proveedorName;
 
-      if (isSuperAdminFiltered) {
+      if (isSuperAdminFilteredById) {
+        _cache.items = await fetchAllItems(
+          board.items().withColumns(cols).where({ proveedores: { linkedItemId: userContext.filterProveedorId } })
+        );
+      } else if (isSuperAdminFiltered) {
         const variants = getAllVariants(userContext.filterProveedor);
         const seenIds = new Set();
         let all = [];
