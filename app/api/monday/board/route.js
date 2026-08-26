@@ -45,6 +45,16 @@ function coerceColumnValue(cv) {
     return Number.isNaN(n) ? text : n;
   }
   if (column?.type === "date") {
+    // monday manda la fecha como "YYYY-MM-DD" (a veces con hora detras).
+    // new Date("2026-08-05") la interpreta como medianoche UTC, y al formatearla
+    // en un navegador al oeste de Greenwich cae el dia anterior: en Chile se veia
+    // el 04-08. Se ancla al mediodia UTC, que cae en el mismo dia calendario para
+    // cualquier huso entre UTC-11 y UTC+11.
+    const soloFecha = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+    if (soloFecha) {
+      const [, anio, mes, dia] = soloFecha;
+      return new Date(Date.UTC(Number(anio), Number(mes) - 1, Number(dia), 12));
+    }
     const d = new Date(text);
     return Number.isNaN(d.getTime()) ? text : d;
   }
