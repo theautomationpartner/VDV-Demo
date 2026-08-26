@@ -3,7 +3,7 @@
 import { Fragment, useState, useMemo } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, X, Hash, Building2, DollarSign, Receipt, Coins, CalendarDays, FileText, CreditCard } from "lucide-react";
+import { ChevronDown, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, X, Hash, Building2, DollarSign, Receipt, Coins, CalendarDays, CreditCard, ExternalLink, Mail, Tag, Wallet, UserRound } from "lucide-react";
 import { SemaforoIndicator } from "./SemaforoIndicator";
 import { ConsumptionBar } from "./ConsumptionBar";
 import { cn } from "@/lib/utils";
@@ -35,44 +35,174 @@ const statusStyles = {
   DUPLICADO: "bg-muted text-muted-foreground border-border",
 };
 
-function OCDetailPanel({ oc, onClose }) {
-  const formatCurrency = (value) => `$${(value || 0).toLocaleString("es-CL")}`;
+const fmtMoneda = (value) => `$${(value || 0).toLocaleString("es-CL")}`;
 
-  const proveedorName = oc.proveedores || "-";
-  const moneda = oc.moneda || "CLP";
-  const condicion = oc.condicionDeCompra || "-";
-  const rut = oc.rut1 || "-";
-  const validezStr = oc.validezDocumento || "-";
+// Las columnas de fecha vuelven como Date (el SDK las revive), pero en modo demo
+// pueden llegar como string ISO. Se acepta cualquiera de las dos.
+function fmtFecha(valor) {
+  if (!valor) return null;
+  const d = valor instanceof Date ? valor : new Date(valor);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+// El "text" de una columna de archivo en monday ya es la URL protegida del PDF,
+// asi que alcanza con usarla de href. Abre pidiendo la sesion de monday, que es
+// lo correcto: respeta los permisos del tablero.
+function BotonPdf({ url, children }) {
+  if (!url) return null;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chart-3)]"
+    >
+      <ExternalLink className="h-3.5 w-3.5" />
+      {children}
+    </a>
+  );
+}
+
+// Una factura de la lista: cabecera siempre visible, el resto de los campos del
+// tablero al desplegar. Antes esta pantalla solo mostraba el total facturado de
+// la OC, sin forma de saber de que facturas salia.
+//
+// Los campos van ordenados por que tan seguido vienen cargados en el tablero
+// real (proveedor 99%, vencimiento 95%, centro de costo 73%, encargado 58%,
+// correo 11%). Los vacios no se dibujan: un panel lleno de guiones parece roto.
+function FacturaCard({ factura }) {
+  const [abierta, setAbierta] = useState(false);
+
+  const detalle = [
+    { icon: Building2, label: "Proveedor", value: factura.proveedores },
+    { icon: Tag, label: "Estado", value: factura.estado },
+    { icon: CalendarDays, label: "Vence", value: fmtFecha(factura.fechaVencimiento) },
+    { icon: Wallet, label: "Centro de costo", value: factura.centroDeCosto },
+    { icon: CreditCard, label: "Tipo de pago", value: factura.tipoDePago },
+    { icon: UserRound, label: "Encargado", value: factura.encargado },
+    { icon: Mail, label: "Correo", value: factura.correoElectrnico },
+  ].filter((d) => d.value);
+
+  const hayDetalle = detalle.length > 0 || Boolean(factura.archivo);
+
+  return (
+    <div className="rounded-[var(--radius-md)] border border-border bg-card">
+      <button
+        type="button"
+        onClick={() => hayDetalle && setAbierta((v) => !v)}
+        aria-expanded={hayDetalle ? abierta : undefined}
+        disabled={!hayDetalle}
+        className={cn(
+          "flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-left",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chart-3)]",
+          hayDetalle && "cursor-pointer hover:bg-muted/40"
+        )}
+      >
+        {hayDetalle ? (
+          abierta ? (
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+          )
+        ) : (
+          <span className="h-4 w-4 shrink-0" />
+        )}
+        <span className="text-sm font-medium">N&ordm; {factura.numeroFactura || "S/N"}</span>
+        <span className="truncate text-xs text-muted-foreground">{fmtFecha(factura.fechaFactura) || "-"}</span>
+        {factura.proveedores && (
+          <span className="hidden truncate text-xs text-muted-foreground sm:inline">{factura.proveedores}</span>
+        )}
+        <span className="ml-auto shrink-0 font-mono text-sm font-semibold tabular-nums">{fmtMoneda(factura.montoConIva)}</span>
+      </button>
+
+      {abierta && (
+        <div className="border-t border-border px-3 py-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            {detalle.map((d) => (
+              <div key={d.label} className="space-y-0.5">
+                <div className="flex items-center gap-1.5">
+                  <d.icon className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-[11px] uppercase tracking-wide text-muted-foreground">{d.label}</span>
+                </div>
+                <div className="truncate text-sm" title={d.value}>
+                  {d.value}
+                </div>
+              </div>
+            ))}
+          </div>
+          {factura.archivo && (
+            <div className="mt-3">
+              <BotonPdf url={factura.archivo}>Ver factura</BotonPdf>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OCDetailPanel({ oc, onClose }) {
+  const facturas = oc.facturasVinculadas ?? [];
 
   const details = [
     { icon: Hash, label: "Nº OC", value: oc.numeroOc || "-", highlight: true },
-    { icon: Building2, label: "PROVEEDOR", value: proveedorName, highlight: true },
-    { icon: DollarSign, label: "MONTO OC", value: formatCurrency(oc.monto), highlight: true },
-    { icon: Receipt, label: "FACTURADO", value: `${formatCurrency(oc.totalFacturado)} (${oc.porcentajeConsumido.toFixed(0)}%)`, highlight: false },
-    { icon: Coins, label: "MONEDA", value: moneda, highlight: false },
-    { icon: CalendarDays, label: "VALIDEZ", value: validezStr, highlight: false },
-    { icon: CreditCard, label: "CONDICIÓN", value: condicion, highlight: false },
-    { icon: FileText, label: "RUT", value: rut, highlight: false },
+    { icon: Building2, label: "PROVEEDOR", value: oc.proveedores || "-", highlight: true },
+    { icon: DollarSign, label: "MONTO OC", value: fmtMoneda(oc.monto), highlight: true },
+    { icon: Receipt, label: "FACTURADO", value: `${fmtMoneda(oc.totalFacturado)} (${oc.porcentajeConsumido.toFixed(0)}%)`, highlight: false },
+    { icon: Coins, label: "MONEDA", value: oc.moneda || "CLP", highlight: false },
+    { icon: CalendarDays, label: "VALIDEZ", value: oc.validezDocumento || "-", highlight: false },
+    { icon: CreditCard, label: "CONDICIÓN", value: oc.condicionDeCompra || "-", highlight: false },
+    { icon: UserRound, label: "RESPONSABLE", value: oc.responsable || "-", highlight: false },
   ];
 
   return (
     <div className="bg-card border border-border rounded-[var(--radius-md)] p-5 my-2 mx-10 space-y-1">
-      <div className="flex items-center justify-between mb-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Detalle OC {oc.numeroOc}</span>
-        <button onClick={onClose} className="p-1 rounded-[var(--radius-lg)] hover:bg-muted transition-colors">
-          <X className="h-4 w-4 text-muted-foreground" />
-        </button>
+        <div className="flex items-center gap-2">
+          <BotonPdf url={oc.docOc}>Ver OC</BotonPdf>
+          <button
+            onClick={onClose}
+            aria-label="Cerrar detalle"
+            className="rounded-[var(--radius-lg)] p-1 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chart-3)]"
+          >
+            <X className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {details.map((item) => (
           <div key={item.label} className="space-y-1">
             <div className="flex items-center gap-1.5">
               <item.icon className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground uppercase tracking-wide">{item.label}</span>
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</span>
             </div>
-            <div className={cn("text-sm font-medium truncate", item.highlight && "text-[var(--chart-3)]")}>{item.value}</div>
+            <div className={cn("truncate text-sm font-medium", item.highlight && "text-[var(--chart-3)]")} title={item.value}>
+              {item.value}
+            </div>
           </div>
         ))}
+      </div>
+
+      <div className="mt-5 border-t border-border pt-4">
+        <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Facturas asociadas ({facturas.length})
+        </div>
+
+        {facturas.length === 0 ? (
+          <div className="rounded-[var(--radius-md)] border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+            Esta OC todav&iacute;a no tiene facturas asociadas.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {facturas.map((f) => (
+              <FacturaCard key={f.id} factura={f} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
