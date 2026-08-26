@@ -51,10 +51,30 @@ function coerceColumnValue(cv) {
 }
 
 function mapItemColumns(item, columnIdToFriendly) {
-  const mapped = { id: item.id, name: item.name, group: item.group ?? null };
+  // created_at/updated_at son campos nativos del item en monday (no columnas).
+  // La app original los pedia y mapeaba a createdAt/updatedAt - se usan p.ej.
+  // en el campo "Creado" de vales-pendientes; sin esto quedaba siempre en "-".
+  const mapped = {
+    id: item.id,
+    name: item.name,
+    group: item.group ?? null,
+    createdAt: item.created_at ?? null,
+    updatedAt: item.updated_at ?? null,
+  };
   for (const cv of item.column_values ?? []) {
     const friendlyKey = columnIdToFriendly[cv.id];
-    if (friendlyKey) mapped[friendlyKey] = coerceColumnValue(cv);
+    if (!friendlyKey) continue;
+    // Cuando la query pidio linked_items (withRelations), las columnas
+    // board_relation vuelven como { linkedItems: [...] } - misma forma que
+    // produce mapRawItem en lib/board-sdk.js para las paginas siguientes, para
+    // que fetchAllItemsWithRelations devuelva items homogeneos.
+    if (cv.linked_items && cv.linked_items.length > 0) {
+      mapped[friendlyKey] = {
+        linkedItems: cv.linked_items.map((li) => ({ id: li.id, name: li.name, sourceBoardId: li.board?.id })),
+      };
+    } else {
+      mapped[friendlyKey] = coerceColumnValue(cv);
+    }
   }
   return mapped;
 }
@@ -69,10 +89,20 @@ function invertColumns(columns) {
 
 async function handleItems(boardKey, schema, params) {
   const boardId = getBoardIdOrThrow(schema, boardKey);
-  const { columns = [], where = {}, limit = 100, cursor = null } = params;
+  const { columns = [], where = {}, limit = 100, cursor = null, withRelations = false } = params;
 
   const columnIds = columns.map((key) => resolveColumnId(boardKey, key));
   const columnIdToFriendly = invertColumns(schema.columns);
+
+  // Solo cuando el caller lo pide (fetchAllItemsWithRelations): trae los
+  // linked_items de las columnas board_relation. Fragmento identico al que ya
+  // usa fetchNextPageWithRelations en board-sdk.js, verificado contra el
+  // esquema real de la API. No se agrega por defecto para no cambiar la forma
+  // del dato de los demas consumidores (useOCData, usePaymentData, etc.).
+  const relFragment = withRelations
+    ? "... on BoardRelationValue { linked_items { id name board { id name } } }"
+    : "";
+  const cvFields = `column_values { id text value column { type } ${relFragment} }`;
 
   // Filtro por nombre de item: la API de monday no soporta esto de forma consistente
   // via query_params, asi que se filtra client-side (post-fetch) sobre la pagina traida.
@@ -84,6 +114,16 @@ async function handleItems(boardKey, schema, params) {
     const columnId = resolveColumnId(boardKey, key);
     if (typeof cond === "object" && Array.isArray(cond.neq)) {
       rules.push({ column_id: columnId, compare_value: cond.neq, operator: "not_any_of" });
+    } else if (typeof cond === "object" && typeof cond.eq === "string") {
+      // Igualdad sobre columnas status/color (ej. estado='SOLICITADA',
+      // obra='PL 46-50' en vales-pendientes). ANTES no habia handler para `eq`,
+      // asi que el filtro se ignoraba en silencio y la pantalla mostraba vales
+      // de CUALQUIER obra/estado (bug: al filtrar por PL 46-50 salian vales de
+      // M388). Para columnas status, `any_of` con el texto del label no filtra
+      // (espera indices); `contains_text` con el label si funciona - verificado
+      // en vivo contra la API. Los unicos usos de `eq` en la app son estado y
+      // obra (ambas status), sin riesgo de substring entre labels reales.
+      rules.push({ column_id: columnId, compare_value: [cond.eq], operator: "contains_text" });
     } else if (typeof cond === "object" && typeof cond.contains === "string") {
       rules.push({ column_id: columnId, compare_value: [cond.contains], operator: "contains_text" });
     } else if (typeof cond === "object" && cond.linkedItemId != null) {
@@ -101,7 +141,7 @@ async function handleItems(boardKey, schema, params) {
       `query ($cursor: String!, $limit: Int!) {
         next_items_page(cursor: $cursor, limit: $limit) {
           cursor
-          items { id name group { id title } column_values { id text value column { type } } }
+          items { id name created_at updated_at group { id title } ${cvFields} }
         }
       }`,
       { cursor, limit }
@@ -118,7 +158,7 @@ async function handleItems(boardKey, schema, params) {
       boards(ids: [$boardId]) {
         items_page(limit: $limit, query_params: $queryParams) {
           cursor
-          items { id name group { id title } column_values { id text value column { type } } }
+          items { id name created_at updated_at group { id title } ${cvFields} }
         }
       }
     }`,
