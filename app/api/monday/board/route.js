@@ -219,6 +219,45 @@ async function handleColumnOptions(boardKey, schema, params) {
   return { options };
 }
 
+/**
+ * Las columnas de vinculo (board_relation) no se pueden escribir con
+ * change_simple_column_value: monday responde "column type BoardRelationColumn is
+ * not supporting changing the column value with simple column value". Van por
+ * change_multiple_column_values con { item_ids: [...] }.
+ */
+function esRelacion(value) {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Array.isArray(value.linkedItems)
+  );
+}
+
+/**
+ * change_simple_column_value recibe el valor como string, pero monday espera un
+ * formato distinto segun el tipo de columna. Antes se hacia String(value) para todo,
+ * lo que rompia las fechas: el valor viaja como string ISO (JSON no tiene tipo Date)
+ * y la columna espera "YYYY-MM-DD".
+ *
+ * El resto de los casos da el mismo resultado que antes, asi que esto no cambia el
+ * comportamiento de las pantallas que ya funcionaban.
+ */
+function serializarValorColumna(value) {
+  if (value == null) return "";
+
+  // Date real (mismo proceso) o string ISO (lo habitual: viene por la red)
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
+    return value.slice(0, 10);
+  }
+
+  // dropdown con una o varias etiquetas
+  if (Array.isArray(value)) return value.join(", ");
+
+  return String(value);
+}
+
 async function handleItemUpdate(boardKey, schema, params) {
   const boardId = getBoardIdOrThrow(schema, boardKey);
   const { itemId, values = {} } = params;
@@ -226,17 +265,39 @@ async function handleItemUpdate(boardKey, schema, params) {
   const entries = Object.entries(values);
   if (!entries.length) return { id: itemId };
 
-  const mutationParts = entries.map(([friendlyKey, value], i) => {
+  // Los vinculos van por otra mutacion, ver esRelacion() arriba.
+  const simples = [];
+  const relaciones = {};
+  for (const [friendlyKey, value] of entries) {
     const columnId = resolveColumnId(boardKey, friendlyKey);
-    return `c${i}: change_simple_column_value(item_id: $itemId, board_id: $boardId, column_id: ${JSON.stringify(
-      columnId
-    )}, value: ${JSON.stringify(String(value))}) { id }`;
-  });
+    if (esRelacion(value)) {
+      relaciones[columnId] = { item_ids: value.linkedItems.map((l) => Number(l.id)) };
+    } else {
+      simples.push([columnId, serializarValorColumna(value)]);
+    }
+  }
 
-  await mondayFetch(
-    `mutation ($itemId: ID!, $boardId: ID!) { ${mutationParts.join("\n")} }`,
-    { itemId, boardId }
-  );
+  if (simples.length) {
+    const mutationParts = simples.map(
+      ([columnId, valor], i) =>
+        `c${i}: change_simple_column_value(item_id: $itemId, board_id: $boardId, column_id: ${JSON.stringify(
+          columnId
+        )}, value: ${JSON.stringify(valor)}) { id }`
+    );
+    await mondayFetch(
+      `mutation ($itemId: ID!, $boardId: ID!) { ${mutationParts.join("\n")} }`,
+      { itemId, boardId }
+    );
+  }
+
+  if (Object.keys(relaciones).length) {
+    await mondayFetch(
+      `mutation ($itemId: ID!, $boardId: ID!, $values: JSON!) {
+        change_multiple_column_values(item_id: $itemId, board_id: $boardId, column_values: $values) { id }
+      }`,
+      { itemId, boardId, values: JSON.stringify(relaciones) }
+    );
+  }
 
   return { id: itemId };
 }
