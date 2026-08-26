@@ -46,6 +46,7 @@ export function useOCData() {
               "condicionDeCompra",
               "rut1",
               "proveedores",
+              "docOc",
             ])
             .withPagination({ limit: 500 })
         ),
@@ -64,6 +65,7 @@ export function useOCData() {
               "centroDeCosto",
               "tipoDePago",
               "correoElectrnico",
+              "archivo",
             ])
             .withPagination({ limit: 500 })
         ),
