@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { IngresosBoard, ProveedoresBoard } from '@/lib/board-sdk';
+import { useObrasIngresos } from '@/hooks/useObras';
 import { Spinner } from '@/components/ui/spinner';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { IngresoLineItem } from '@/components/vale-express/IngresoLineItem';
 import { ProveedorSearch } from '@/components/vale-express/ProveedorSearch';
 import { Plus, PackageCheck, PackagePlus, RotateCcw, ChevronDown, X, ArrowLeft, Camera } from 'lucide-react';
-import { getAllRoles, canAccessIngreso, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras, getUserRoleData, ALL_OBRAS } from '@/hooks/vale-express/useUserRole';
+import { getAllRoles, canAccessIngreso, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras, getUserRoleData } from '@/hooks/vale-express/useUserRole';
 
 const ingresosBoard = new IngresosBoard();
 const proveedoresBoard = new ProveedoresBoard();
@@ -44,7 +45,16 @@ export default function IngresoPage() {
     const [submitted, setSubmitted] = useState(false);
     const [createdIds, setCreatedIds] = useState([]);
     const [errorDetails, setErrorDetails] = useState(null);
-    const [allowedObras, setAllowedObras] = useState(ALL_OBRAS);
+    const [acceso, setAcceso] = useState(null);
+    const { options: todasLasObras } = useObrasIngresos();
+
+    // "Todas las obras" para este usuario sale de monday, no de la lista
+    // hardcodeada: se recalcula solo cuando llegan los labels vivos.
+    const allowedObras = useMemo(
+        () => (acceso ? getAllowedObras(acceso.role, acceso.obras, acceso.restricted, todasLasObras) : todasLasObras),
+        [acceso, todasLasObras]
+    );
+
 
     useEffect(() => {
         const init = async () => {
@@ -73,9 +83,7 @@ export default function IngresoPage() {
                 }
 
                 // Set allowed obras for this user
-                const allowed = getAllowedObras(userRole, userObras, restricted);
-                console.log('[INGRESO] Allowed obras:', allowed);
-                setAllowedObras(allowed);
+                setAcceso({ role: userRole, obras: userObras, restricted });
 
                 // Load proveedores from board
                 await loadProveedores();

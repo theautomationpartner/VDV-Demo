@@ -17,10 +17,13 @@ import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
 import { PagosVdvBoard, FlujoContratacionSubcontratoBoard } from '@/lib/board-sdk';
+import { useObrasPagos } from '@/hooks/useObras';
 import { useUserManagement } from '@/hooks/portal-proveedor/useUserManagement';
 import { deduplicateProviders } from '@/hooks/portal-proveedor/providerAliases';
 
-const OBRAS = [
+// Fallback: la lista real sale de monday (useObrasPagos). Solo se usa mientras
+// carga o si monday no responde - no hay que mantenerla al dia a mano.
+const OBRAS_FALLBACK = [
   "PL 46-50", "VIK", "SAMOA", "IVA", "SELMAN", "NUEVO", "HUELEN", "ALAIA",
   "LEON 3355", "M506", "QUINCHO PDA 5007", "Marketing", "TIENDA PILATES",
   "CERRO COLORADO", "ADOLFO IBAÑEZ 270", "R20", "M388", "CHATEAU PAPUDO",
@@ -30,6 +33,8 @@ const OBRAS = [
 ];
 
 export default function AdminUsuariosPage() {
+  // Obras vivas del board PAGOS VDV: una obra nueva en monday aparece aca sola.
+  const { options: OBRAS } = useObrasPagos(OBRAS_FALLBACK);
   const router = useRouter();
   const [userContext, setUserContext] = useState(null);
 

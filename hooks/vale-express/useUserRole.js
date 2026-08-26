@@ -211,11 +211,15 @@ export function canAccessStock(role) {
  * Returns the list of obras a user can access.
  * Super Admin / Admin = ALL, restrictObras false = ALL, restrictObras true = only the listed obras.
  * Users without role assignment default to ALL obras (backward compatibility).
+ *
+ * `todasLasObras` es que se considera "todas": por defecto la lista hardcodeada
+ * ALL_OBRAS, pero las pantallas le pasan la lista viva que sale de monday
+ * (hooks/useObras.js) para que una obra nueva aparezca sin tocar el codigo.
  */
-export function getAllowedObras(role, obras, restricted) {
-    if (role === 'super_admin' || role === 'admin') return ALL_OBRAS;
-    if (!role) return ALL_OBRAS; // Users without explicit role get all obras
-    if (!restricted) return ALL_OBRAS;
+export function getAllowedObras(role, obras, restricted, todasLasObras = ALL_OBRAS) {
+    if (role === 'super_admin' || role === 'admin') return todasLasObras;
+    if (!role) return todasLasObras; // Users without explicit role get all obras
+    if (!restricted) return todasLasObras;
     if (!obras || obras.length === 0) return []; // restricted but none selected = no access
     return obras;
 }

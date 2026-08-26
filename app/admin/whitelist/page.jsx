@@ -25,7 +25,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Package, Handshake, UserX, MapPin, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ALL_OBRAS } from "@/hooks/vale-express/useUserRole";
+import { useObrasVales } from "@/hooks/useObras";
 
 const APP_LABELS = { "vale-express": "Vale Express", "portal-proveedor": "Portal Proveedor" };
 const APP_ICONS = { "vale-express": Package, "portal-proveedor": Handshake };
@@ -120,16 +120,17 @@ function SectionLabel({ children }) {
  * Selector de obras permitidas para una asignacion de Vale Express. Sigue
  * siendo un string separado por comas por debajo (mismo shape que consume
  * handleSave/openEdit) - esto solo cambia como se arma ese string: en vez de
- * tipearlo a mano, se elige de ALL_OBRAS (la misma lista que usa el resto de
- * Vale Express) y se va armando como chips removibles. El switch "Todas" es
+ * tipearlo a mano, se elige de las obras vivas del board VALES (las mismas que
+ * usa el resto de Vale Express) y se va armando como chips removibles. El switch "Todas" es
  * la misma semantica que ya tenia el campo vacio (restrictObras=false).
  */
 function ObrasPicker({ value, onChange }) {
   const selected = useMemo(() => value.split(",").map((s) => s.trim()).filter(Boolean), [value]);
   const [modoRestringido, setModoRestringido] = useState(selected.length > 0);
   const [open, setOpen] = useState(false);
+  const { options: todasLasObras } = useObrasVales();
 
-  const disponibles = ALL_OBRAS.filter((o) => !selected.includes(o));
+  const disponibles = todasLasObras.filter((o) => !selected.includes(o));
 
   const handleModoChange = (todasChecked) => {
     setModoRestringido(!todasChecked);
