@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { BaseDeDatosMaterialesBoard } from '@/lib/board-sdk';
+import { useColumnOptions } from '@/hooks/useColumnOptions';
 import { Spinner } from '@/components/ui/spinner';
 import { X, Package, ChevronDown } from 'lucide-react';
 
@@ -12,8 +13,11 @@ const materialesBoard = new BaseDeDatosMaterialesBoard();
 // que cada <button> a mano necesita este anillo para cumplir WCAG 2.1 AA.
 const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
-const UNIDADES = ["pieza", "caja", "litro", "metro", "TI", "UNID", "RO", "LT", "ML", "SC", "M2", "TN", "KG", "PAR", "KM", "L", "GLN", "MTs", "BL", "BALDE 5 KG", "TIRA", "TINETA", "BOLSA", "GAL"];
-const CATEGORIAS = ["EPP", "ASEO", "YESO CARTON", "HERRAMIENTAS MANUALES", "FIJACIONES", "GUARDAPOLVO", "PEGAMENTOS", "ACCESORIO BAÑO", "PORCELANATO", "AISLANTE", "LAVAPLATOS", "ARTEFACTO COCINA", "PUERTA", "INSUMO", "MADERAS", "CORNISAS", "METALCON", "MELÓN", "QUINCALLERIA", "TRAZADO", "CERAMICA", "PISO", "FIBROCEMENTO", "MOLDURA MADERA", "quinca", "FUNJIGLES", "PINTURA", "MATERIAL GENERAL", "SANITARIO", "NIVELADOR DE PISO", "GRIFERIA", "SILICONA", "PERFILES IPE", "PERFIL METALICO", "EQUIPAMIENTO BAÑO", "HORMIGON LISTO", "FIERRO CONSTRUCCION"];
+// Fallback: los labels reales salen de monday (useColumnOptions, abajo). Estas
+// listas solo se usan mientras carga o si monday no responde - no hay que
+// mantenerlas al dia a mano.
+const UNIDADES_FALLBACK = ["pieza", "caja", "litro", "metro", "TI", "UNID", "RO", "LT", "ML", "SC", "M2", "TN", "KG", "PAR", "KM", "L", "GLN", "MTs", "BL", "BALDE 5 KG", "TIRA", "TINETA", "BOLSA", "GAL"];
+const CATEGORIAS_FALLBACK = ["EPP", "ASEO", "YESO CARTON", "HERRAMIENTAS MANUALES", "FIJACIONES", "GUARDAPOLVO", "PEGAMENTOS", "ACCESORIO BAÑO", "PORCELANATO", "AISLANTE", "LAVAPLATOS", "ARTEFACTO COCINA", "PUERTA", "INSUMO", "MADERAS", "CORNISAS", "METALCON", "MELÓN", "QUINCALLERIA", "TRAZADO", "CERAMICA", "PISO", "FIBROCEMENTO", "MOLDURA MADERA", "quinca", "FUNJIGLES", "PINTURA", "MATERIAL GENERAL", "SANITARIO", "NIVELADOR DE PISO", "GRIFERIA", "SILICONA", "PERFILES IPE", "PERFIL METALICO", "EQUIPAMIENTO BAÑO", "HORMIGON LISTO", "FIERRO CONSTRUCCION"];
 
 export function CreateMaterialDialog({ searchTerm, onClose, onMaterialCreated }) {
     const [nombre, setNombre] = useState(searchTerm || '');
@@ -21,6 +25,11 @@ export function CreateMaterialDialog({ searchTerm, onClose, onMaterialCreated })
     const [categoria, setCategoria] = useState('');
     const [precio, setPrecio] = useState('');
     const [submitting, setSubmitting] = useState(false);
+
+    // Unidades y categorias vivas del board BASE DE DATOS MATERIALES: si el
+    // cliente agrega una categoria en monday, aparece aca sin tocar el codigo.
+    const { options: unidades } = useColumnOptions(materialesBoard, 'unidad', UNIDADES_FALLBACK);
+    const { options: categorias } = useColumnOptions(materialesBoard, 'categoriaMaterial', CATEGORIAS_FALLBACK);
 
     const canSubmit = nombre.trim() && unidad;
 
@@ -118,7 +127,7 @@ export function CreateMaterialDialog({ searchTerm, onClose, onMaterialCreated })
                                 className="w-full h-12 px-3 pr-9 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors appearance-none cursor-pointer"
                             >
                                 <option value="">Seleccionar...</option>
-                                {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+                                {unidades.map(u => <option key={u} value={u}>{u}</option>)}
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--fg-subtle)] pointer-events-none" />
                         </div>
@@ -136,7 +145,7 @@ export function CreateMaterialDialog({ searchTerm, onClose, onMaterialCreated })
                                 className="w-full h-12 px-3 pr-9 text-base bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors appearance-none cursor-pointer"
                             >
                                 <option value="">Seleccionar...</option>
-                                {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+                                {categorias.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--fg-subtle)] pointer-events-none" />
                         </div>

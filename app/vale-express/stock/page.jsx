@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ValesBoard, IngresosBoard, BaseDeDatosMaterialesBoard, fetchAllItemsWithRelations } from '@/lib/board-sdk';
+import { useObrasVales } from '@/hooks/useObras';
 import { Spinner } from '@/components/ui/spinner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -40,7 +41,16 @@ const MATERIALES_COL_MAP = {
 
 export default function StockPage() {
     const router = useRouter();
-    const [allowedObras, setAllowedObras] = useState([]);
+    const [acceso, setAcceso] = useState(null);
+    const { options: todasLasObras } = useObrasVales();
+
+    // "Todas las obras" para este usuario sale de monday, no de la lista
+    // hardcodeada: se recalcula solo cuando llegan los labels vivos.
+    const allowedObras = useMemo(
+        () => (acceso ? getAllowedObras(acceso.role, acceso.obras, acceso.restricted, todasLasObras) : todasLasObras),
+        [acceso, todasLasObras]
+    );
+
     const [selectedObra, setSelectedObra] = useState('');
     const [loading, setLoading] = useState(true);
     const [calculating, setCalculating] = useState(false);
@@ -67,8 +77,11 @@ export default function StockPage() {
                 const userRole = getRoleFromData(userData);
                 const userObras = getObrasFromData(userData);
                 const restricted = isObrasRestricted(userData);
+                setAcceso({ role: userRole, obras: userObras, restricted });
+                // El atajo de "una sola obra" sale de las obras asignadas al
+                // usuario, no de la lista completa, asi que no depende de los
+                // labels vivos y se puede resolver ya.
                 const allowed = getAllowedObras(userRole, userObras, restricted);
-                setAllowedObras(allowed);
                 if (allowed.length === 1) setSelectedObra(allowed[0]);
             } catch (err) {
                 console.error('Access check failed:', err);

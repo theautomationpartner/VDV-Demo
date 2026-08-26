@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ValesBoard } from '@/lib/board-sdk';
+import { useObrasVales } from '@/hooks/useObras';
 import { Spinner } from '@/components/ui/spinner';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { ArrowLeft, Shield, User, ChevronDown, Check, X, Users, Building2, ChevronRight, Lock, Unlock } from 'lucide-react';
-import { getAllRoles, saveAllRoles, ROLES, ALL_OBRAS, canAccessAdmin, canManageRoles, getRoleFromData, getObrasFromData, isObrasRestricted, getUserRoleData } from '@/hooks/vale-express/useUserRole';
+import { getAllRoles, saveAllRoles, ROLES, canAccessAdmin, canManageRoles, getRoleFromData, getObrasFromData, isObrasRestricted, getUserRoleData } from '@/hooks/vale-express/useUserRole';
 
 const valesBoard = new ValesBoard();
 
@@ -346,6 +347,8 @@ function UserCard({ user, data, hasChange, isCurrentUser, isExpanded, onToggleEx
 }
 
 function ObrasSelectorPanel({ data, onToggleRestrict, onObraToggle, onSelectAll }) {
+    // Obras vivas del board VALES: una obra nueva en monday aparece aca sola.
+    const { options: obrasDisponibles } = useObrasVales();
     return (
         <div className="border-t border-[var(--border-subtle)] bg-[color-mix(in_hsl,var(--surface-2)_50%,transparent)] px-3 py-3">
             {/* Toggle: all vs restricted */}
@@ -377,7 +380,7 @@ function ObrasSelectorPanel({ data, onToggleRestrict, onObraToggle, onSelectAll 
                         </div>
                     )}
                     <div className="grid grid-cols-2 gap-1.5 max-h-[280px] overflow-y-auto overscroll-contain">
-                        {ALL_OBRAS.map(obra => {
+                        {obrasDisponibles.map(obra => {
                             const isSelected = data.obras.includes(obra);
                             return (
                                 <button
