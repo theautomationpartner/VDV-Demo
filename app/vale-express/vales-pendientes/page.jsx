@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { ValesBoard } from '@/lib/board-sdk';
+import { useObrasVales } from '@/hooks/useObras';
 import { Spinner } from '@/components/ui/spinner';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { ArrowLeft, ClipboardList, Check, Pencil, X, ChevronDown, Package, RefreshCw } from 'lucide-react';
-import { getAllRoles, canAccessValesPendientes, canEditVales, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras, getUserRoleData, ALL_OBRAS } from '@/hooks/vale-express/useUserRole';
+import { getAllRoles, canAccessValesPendientes, canEditVales, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras, getUserRoleData } from '@/hooks/vale-express/useUserRole';
 
 const valesBoard = new ValesBoard();
 
@@ -23,7 +24,15 @@ export default function ValesPendientesPage() {
     const [loadingMore, setLoadingMore] = useState(false);
     const [items, setItems] = useState([]);
     const [cursor, setCursor] = useState(null);
-    const [allowedObras, setAllowedObras] = useState([]);
+    const [acceso, setAcceso] = useState(null);
+    const { options: todasLasObras } = useObrasVales();
+
+    // "Todas las obras" para este usuario sale de monday, no de la lista
+    // hardcodeada: se recalcula solo cuando llegan los labels vivos.
+    const allowedObras = useMemo(
+        () => (acceso ? getAllowedObras(acceso.role, acceso.obras, acceso.restricted, todasLasObras) : []),
+        [acceso, todasLasObras]
+    );
     const [isRestricted, setIsRestricted] = useState(false);
     const [filterObra, setFilterObra] = useState('');
 
@@ -62,8 +71,10 @@ export default function ValesPendientesPage() {
                 setReadOnly(true);
             }
 
+            setAcceso({ role: userRole, obras: userObras, restricted });
+            // fetchVales necesita la lista ya mismo (antes de que lleguen los
+            // labels vivos), asi que aca se resuelve con el fallback.
             const allowed = getAllowedObras(userRole, userObras, restricted);
-            setAllowedObras(allowed);
             const effectiveRestrict = restricted && userRole !== 'admin';
             setIsRestricted(effectiveRestrict);
 

@@ -14,9 +14,12 @@ import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, Command
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PagosVdvBoard, FlujoContratacionSubcontratoBoard, ProveedoresBoard, fetchAllItems } from '@/lib/board-sdk';
+import { useObrasPagos } from '@/hooks/useObras';
 import { useUserManagement } from '@/hooks/portal-proveedor/useUserManagement';
 
-const OBRAS_LIST = [
+// Fallback: la lista real sale de monday (useObrasPagos). Solo se usa mientras
+// carga o si monday no responde - no hay que mantenerla al dia a mano.
+const OBRAS_LIST_FALLBACK = [
   "PL 46-50", "VIK", "SAMOA", "IVA", "SELMAN", "NUEVO", "HUELEN", "ALAIA",
   "LEON 3355", "M506", "QUINCHO PDA 5007", "Marketing", "TIENDA PILATES",
   "CERRO COLORADO", "ADOLFO IBAÑEZ 270", "R20", "M388", "CHATEAU PAPUDO",
@@ -26,6 +29,8 @@ const OBRAS_LIST = [
 ];
 
 export default function SuperAdminFilterPage() {
+  // Obras vivas del board PAGOS VDV: una obra nueva en monday aparece aca sola.
+  const { options: OBRAS_LIST } = useObrasPagos(OBRAS_LIST_FALLBACK);
   const router = useRouter();
   const [userContext, setUserContext] = useState(null);
   const [selectedFilter, setSelectedFilter] = useState('all');

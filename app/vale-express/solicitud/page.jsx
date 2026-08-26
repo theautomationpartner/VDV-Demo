@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { ValesBoard } from '@/lib/board-sdk';
 import { Spinner } from '@/components/ui/spinner';
@@ -8,8 +8,10 @@ import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { MaterialLineItem } from '@/components/vale-express/MaterialLineItem';
 import { Plus, ClipboardCheck, FileText, RotateCcw, ChevronDown, X, ArrowLeft } from 'lucide-react';
-import { getAllRoles, canAccessSolicitud, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras, getUserRoleData, ALL_OBRAS } from '@/hooks/vale-express/useUserRole';
+import { getAllRoles, canAccessSolicitud, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras, getUserRoleData } from '@/hooks/vale-express/useUserRole';
 import { useObraStock } from '@/hooks/vale-express/useObraStock';
+import { useColumnOptions } from '@/hooks/useColumnOptions';
+import { useObrasVales } from '@/hooks/useObras';
 
 const valesBoard = new ValesBoard();
 
@@ -18,8 +20,12 @@ const valesBoard = new ValesBoard();
 // que cada <button> a mano necesita este anillo para cumplir WCAG 2.1 AA.
 const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
-const SOLICITANTES = ["BASILIO GUZMAN", "PATRICIO SAN JUAN", "JORGE MUÑOZ", "RODRIGO ROZBACZYLO", "FRANCISCO SEGURA", "ROMINTA TORO", "MACARENA LIZAMA", "ROMINA TORO", "CRISTIAN HIGUERAS", "ISABEL DELGADO", "NICOLAS HERNANDEZ"];
-const DESTINOS = ["PISO 6", "PISO 5", "PISO 4", "PISO 3", "PISO 2", "PISO 1", "EXTERIORES", "GENERAL/obras pequeñas", "PATIO PARROQUIAL", "EPP", "ARTICULO ASEO", "POSVENTA LEON", "PRESTAMO OBRA FORESTAL", "AJUSTE INVENTARIO", "DORM 61", "DORM 62", "DORM 63", "DORM 64", "DORM 65", "DPTO 301", "601", "602", "603", "604", "605", "606", "607", "608", "609", "610", "501", "502", "503", "504", "505", "506", "507", "508", "509", "510", "101", "102", "103", "104", "105", "106", "107", "108", "109", "110", "201", "202", "203", "204", "205", "206", "207", "208", "209", "210", "301", "302", "303", "304", "305", "306", "307", "308", "309", "310", "401", "402", "403", "404", "405", "406", "407", "408", "409", "410"];
+// Fallback: los labels reales de estas dos columnas se leen de monday en vivo
+// (useColumnOptions, mas abajo). Estas listas solo se usan mientras carga o si
+// monday no responde - NO hay que mantenerlas al dia a mano. Se dejan porque sin
+// ellas el formulario quedaria sin opciones cuando la API falla.
+const SOLICITANTES_FALLBACK = ["BASILIO GUZMAN", "PATRICIO SAN JUAN", "JORGE MUÑOZ", "RODRIGO ROZBACZYLO", "FRANCISCO SEGURA", "ROMINTA TORO", "MACARENA LIZAMA", "ROMINA TORO", "CRISTIAN HIGUERAS", "ISABEL DELGADO", "NICOLAS HERNANDEZ"];
+const DESTINOS_FALLBACK = ["PISO 6", "PISO 5", "PISO 4", "PISO 3", "PISO 2", "PISO 1", "EXTERIORES", "GENERAL/obras pequeñas", "PATIO PARROQUIAL", "EPP", "ARTICULO ASEO", "POSVENTA LEON", "PRESTAMO OBRA FORESTAL", "AJUSTE INVENTARIO", "DORM 61", "DORM 62", "DORM 63", "DORM 64", "DORM 65", "DPTO 301", "601", "602", "603", "604", "605", "606", "607", "608", "609", "610", "501", "502", "503", "504", "505", "506", "507", "508", "509", "510", "101", "102", "103", "104", "105", "106", "107", "108", "109", "110", "201", "202", "203", "204", "205", "206", "207", "208", "209", "210", "301", "302", "303", "304", "305", "306", "307", "308", "309", "310", "401", "402", "403", "404", "405", "406", "407", "408", "409", "410"];
 
 const emptyLine = () => ({
     id: crypto.randomUUID(),
@@ -41,10 +47,24 @@ export default function SolicitudPage() {
     const [submitted, setSubmitted] = useState(false);
     const [createdIds, setCreatedIds] = useState([]);
     const [errorDetails, setErrorDetails] = useState(null);
-    const [allowedObras, setAllowedObras] = useState(ALL_OBRAS);
+    const [acceso, setAcceso] = useState(null);
 
     // Fetch stock for the selected obra so users see availability
     const { getStock, loading: stockLoading, loaded: stockLoaded } = useObraStock(obra);
+
+    // Labels vivos de las columnas del board VALES: si el cliente agrega un
+    // destino o un solicitante en monday, aparece aca sin tocar el codigo.
+    const { options: solicitantes } = useColumnOptions(valesBoard, 'quienSolicita', SOLICITANTES_FALLBACK);
+    const { options: destinos } = useColumnOptions(valesBoard, 'destinoDelMaterial', DESTINOS_FALLBACK);
+    const { options: todasLasObras } = useObrasVales();
+
+    // "Todas las obras" para este usuario sale de monday, no de la lista
+    // hardcodeada: se recalcula solo cuando llegan los labels vivos.
+    const allowedObras = useMemo(
+        () => (acceso ? getAllowedObras(acceso.role, acceso.obras, acceso.restricted, todasLasObras) : todasLasObras),
+        [acceso, todasLasObras]
+    );
+
 
     useEffect(() => {
         const checkAccess = async () => {
@@ -71,9 +91,7 @@ export default function SolicitudPage() {
                 }
 
                 // Set allowed obras for this user
-                const allowed = getAllowedObras(userRole, userObras, restricted);
-                console.log('[SOLICITUD] Allowed obras:', allowed);
-                setAllowedObras(allowed);
+                setAcceso({ role: userRole, obras: userObras, restricted });
             } catch (err) {
                 console.error('Access check failed:', err);
                 router.push('/vale-express/dashboard');
@@ -355,7 +373,7 @@ export default function SolicitudPage() {
                             value={quienSolicita}
                             onChange={setQuienSolicita}
                             placeholder="Seleccionar..."
-                            options={SOLICITANTES}
+                            options={solicitantes}
                         />
                         <FormSelect
                             id="field-destino"
@@ -363,7 +381,7 @@ export default function SolicitudPage() {
                             value={destino}
                             onChange={setDestino}
                             placeholder="Seleccionar destino..."
-                            options={DESTINOS}
+                            options={destinos}
                         />
                         <div>
                             <label htmlFor="field-retira" className="block text-xs font-medium text-[var(--fg-muted)] mb-1.5">

@@ -12,6 +12,7 @@ import {
   demoHandleItemCreate,
   demoHandleUsersList,
   demoHandleUsersMe,
+  demoHandleColumnOptions,
 } from "@/lib/server/demo-data";
 
 // Modo demo: no le pega a monday.com en absoluto, sirve datos 100% inventados
@@ -171,6 +172,53 @@ async function handleItems(boardKey, schema, params) {
   return { items, cursor: page.cursor };
 }
 
+/**
+ * Labels reales de una columna dropdown/status de monday.com.
+ *
+ * Las 3 apps originales copiaban estas listas a mano en el codigo (ej. DESTINOS
+ * y SOLICITANTES en app/vale-express/solicitud/page.jsx). Cuando el cliente
+ * agrega un label en monday, la app no lo ofrece y el usuario no puede cargar el
+ * vale - paso con DORM 41 a DORM 46 en "DESTINO DEL MATERIAL". Esto los trae en
+ * vivo; el array hardcodeado queda solo como fallback si monday no responde.
+ *
+ * Soporta las dos formas en que monday devuelve los labels:
+ *   dropdown -> settings.labels = [{ id, name }, ...]
+ *   status   -> settings.labels = { "1": "NUEVO", "2": "APROBADO", ... }
+ */
+async function handleColumnOptions(boardKey, schema, params) {
+  const boardId = getBoardIdOrThrow(schema, boardKey);
+  const columnId = resolveColumnId(boardKey, params.column);
+
+  const data = await mondayFetch(
+    `query ($boardId: ID!, $columnIds: [String!]) {
+      boards(ids: [$boardId]) { columns(ids: $columnIds) { id type settings_str } }
+    }`,
+    { boardId, columnIds: [columnId] }
+  );
+
+  const columna = data.boards?.[0]?.columns?.[0];
+  if (!columna) return { options: [] };
+
+  let settings;
+  try {
+    settings = JSON.parse(columna.settings_str || "{}");
+  } catch {
+    return { options: [] };
+  }
+
+  const labels = settings.labels;
+  const nombres = Array.isArray(labels)
+    ? labels.map((l) => l?.name)
+    : labels && typeof labels === "object"
+      ? Object.values(labels)
+      : [];
+
+  // monday permite labels repetidos y vacios (el board VALES tiene varios) - el
+  // <select> no los quiere, asi que se deduplica preservando el orden de monday.
+  const options = [...new Set(nombres.filter((n) => typeof n === "string" && n.trim() !== ""))];
+  return { options };
+}
+
 async function handleItemUpdate(boardKey, schema, params) {
   const boardId = getBoardIdOrThrow(schema, boardKey);
   const { itemId, values = {} } = params;
@@ -261,6 +309,7 @@ export async function POST(request) {
       if (op === "usersMe") return Response.json({ result: demoHandleUsersMe() });
       if (op === "usersList") return Response.json({ result: demoHandleUsersList() });
       if (op === "items") return Response.json({ result: demoHandleItems(boardKey, params) });
+      if (op === "columnOptions") return Response.json({ result: demoHandleColumnOptions(boardKey, params) });
       if (op === "itemUpdate") return Response.json({ result: demoHandleItemUpdate(boardKey, params) });
       if (op === "itemCreate") return Response.json({ result: demoHandleItemCreate(boardKey, params) });
       return Response.json({ error: `Operacion desconocida: "${op}"` }, { status: 400 });
@@ -273,6 +322,9 @@ export async function POST(request) {
     const schema = getBoardSchema(boardKey);
 
     if (op === "items") return Response.json({ result: await handleItems(boardKey, schema, params) });
+
+    if (op === "columnOptions")
+      return Response.json({ result: await handleColumnOptions(boardKey, schema, params) });
 
     if (op === "itemUpdate" || op === "itemCreate") {
       if (AUTH_LAYERS_ENABLED) {
