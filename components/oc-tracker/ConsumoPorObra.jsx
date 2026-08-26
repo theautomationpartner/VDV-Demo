@@ -7,13 +7,25 @@ import { ChevronDown, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, X, Hash, Bu
 import { SemaforoIndicator } from "./SemaforoIndicator";
 import { ConsumptionBar } from "./ConsumptionBar";
 import { cn } from "@/lib/utils";
+import { OrdenesDeCompraMaxxaBoard } from "@/lib/board-sdk";
+import { useColumnOptions } from "@/hooks/useColumnOptions";
 
-const STATUS_OPTIONS = [
-  { value: "PENDIENTE", label: "Pendiente" },
-  { value: "APROBADO", label: "Aprobado" },
-  { value: "RECHAZADO", label: "Rechazado" },
-  { value: "NUEVO", label: "Nuevo" },
-];
+const ordenesBoard = new OrdenesDeCompraMaxxaBoard();
+
+// Fallback: los estados reales se leen de la columna "Estado documento" del
+// board de OC (useColumnOptions, mas abajo). Este array quedaba corto - le
+// faltaba DUPLICADO, que si existe en monday - y no hay que mantenerlo a mano.
+const ESTADOS_FALLBACK = ["PENDIENTE", "APROBADO", "RECHAZADO", "NUEVO"];
+
+// Los estados de monday vienen en mayusculas. Estos se muestran capitalizados;
+// cualquier estado nuevo que agregue el cliente se muestra tal cual viene.
+const ESTADO_LABELS = {
+  PENDIENTE: "Pendiente",
+  APROBADO: "Aprobado",
+  RECHAZADO: "Rechazado",
+  NUEVO: "Nuevo",
+  DUPLICADO: "Duplicado",
+};
 
 const statusStyles = {
   PENDIENTE: "bg-[color-mix(in_hsl,var(--chart-5)_15%,transparent)] text-[var(--chart-5)] border-[color-mix(in_hsl,var(--chart-5)_30%,transparent)]",
@@ -67,6 +79,9 @@ function OCDetailPanel({ oc, onClose }) {
 }
 
 export function ConsumoPorObra({ consumoPorObra, onUpdateStatus }) {
+  // Estados vivos del board de OC: si el cliente agrega uno en monday, aparece
+  // aca sin tocar el codigo.
+  const { options: estados } = useColumnOptions(ordenesBoard, "estadoDocumento", ESTADOS_FALLBACK);
   const [expandedObra, setExpandedObra] = useState(null);
   const [selectedOC, setSelectedOC] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
@@ -237,9 +252,9 @@ export function ConsumoPorObra({ consumoPorObra, onUpdateStatus }) {
                                   <SelectValue placeholder="Sin estado" />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-[var(--radius-sm)]">
-                                  {STATUS_OPTIONS.map((opt) => (
-                                    <SelectItem key={opt.value} value={opt.value} className="text-sm">
-                                      {opt.label}
+                                  {estados.map((estado) => (
+                                    <SelectItem key={estado} value={estado} className="text-sm">
+                                      {ESTADO_LABELS[estado] ?? estado}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
