@@ -3,7 +3,7 @@
 import { Fragment, useState, useMemo } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, X, Hash, Building2, DollarSign, Receipt, Coins, CalendarDays, FileText, CreditCard, ExternalLink, Network, List, Mail, Tag, Wallet, AlertCircle } from "lucide-react";
+import { ChevronDown, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, X, Hash, Building2, DollarSign, Receipt, Coins, CalendarDays, CreditCard, ExternalLink, Mail, Tag, Wallet, UserRound } from "lucide-react";
 import { SemaforoIndicator } from "./SemaforoIndicator";
 import { ConsumptionBar } from "./ConsumptionBar";
 import { cn } from "@/lib/utils";
@@ -65,17 +65,23 @@ function BotonPdf({ url, children }) {
   );
 }
 
-// Una factura de la lista: cabecera siempre visible, resto de los campos del
+// Una factura de la lista: cabecera siempre visible, el resto de los campos del
 // tablero al desplegar. Antes esta pantalla solo mostraba el total facturado de
 // la OC, sin forma de saber de que facturas salia.
+//
+// Los campos van ordenados por que tan seguido vienen cargados en el tablero
+// real (proveedor 99%, vencimiento 95%, centro de costo 73%, encargado 58%,
+// correo 11%). Los vacios no se dibujan: un panel lleno de guiones parece roto.
 function FacturaCard({ factura }) {
   const [abierta, setAbierta] = useState(false);
 
   const detalle = [
+    { icon: Building2, label: "Proveedor", value: factura.proveedores },
     { icon: Tag, label: "Estado", value: factura.estado },
     { icon: CalendarDays, label: "Vence", value: fmtFecha(factura.fechaVencimiento) },
     { icon: Wallet, label: "Centro de costo", value: factura.centroDeCosto },
     { icon: CreditCard, label: "Tipo de pago", value: factura.tipoDePago },
+    { icon: UserRound, label: "Encargado", value: factura.encargado },
     { icon: Mail, label: "Correo", value: factura.correoElectrnico },
   ].filter((d) => d.value);
 
@@ -105,6 +111,9 @@ function FacturaCard({ factura }) {
         )}
         <span className="text-sm font-medium">N&ordm; {factura.numeroFactura || "S/N"}</span>
         <span className="truncate text-xs text-muted-foreground">{fmtFecha(factura.fechaFactura) || "-"}</span>
+        {factura.proveedores && (
+          <span className="hidden truncate text-xs text-muted-foreground sm:inline">{factura.proveedores}</span>
+        )}
         <span className="ml-auto shrink-0 font-mono text-sm font-semibold tabular-nums">{fmtMoneda(factura.montoConIva)}</span>
       </button>
 
@@ -117,7 +126,9 @@ function FacturaCard({ factura }) {
                   <d.icon className="h-3 w-3 text-muted-foreground" />
                   <span className="text-[11px] uppercase tracking-wide text-muted-foreground">{d.label}</span>
                 </div>
-                <div className="truncate text-sm">{d.value}</div>
+                <div className="truncate text-sm" title={d.value}>
+                  {d.value}
+                </div>
               </div>
             ))}
           </div>
@@ -132,111 +143,18 @@ function FacturaCard({ factura }) {
   );
 }
 
-// Mapa de documentos de UNA orden de compra: la OC a la izquierda y sus facturas
-// colgando. Incluye el saldo sin facturar (o el sobreconsumo) como un nodo mas,
-// para que el dibujo cierre con la plata y no sea solo decorativo.
-function MapaDocumentos({ oc }) {
-  const facturas = oc.facturasVinculadas ?? [];
-  const saldo = (oc.monto || 0) - (oc.totalFacturado || 0);
-
-  return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-      <div className="shrink-0 rounded-[var(--radius-md)] border-2 border-[var(--chart-3)] bg-card px-4 py-3 sm:w-56">
-        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Orden de compra</div>
-        <div className="text-base font-semibold text-[var(--chart-3)]">N&ordm; {oc.numeroOc || "S/N"}</div>
-        <div className="mt-1 font-mono text-sm tabular-nums">{fmtMoneda(oc.monto)}</div>
-        {oc.estadoDocumento && <div className="mt-1 text-xs text-muted-foreground">{oc.estadoDocumento}</div>}
-        {oc.docOc && (
-          <div className="mt-2">
-            <BotonPdf url={oc.docOc}>Ver OC</BotonPdf>
-          </div>
-        )}
-      </div>
-
-      <div className="relative flex-1 space-y-2 sm:pl-8">
-        <span aria-hidden className="absolute bottom-5 left-3 top-5 hidden w-px bg-border sm:block" />
-
-        {facturas.length === 0 && (
-          <div className="rounded-[var(--radius-md)] border border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground">
-            Esta OC todav&iacute;a no tiene facturas asociadas.
-          </div>
-        )}
-
-        {facturas.map((f) => (
-          <div key={f.id} className="relative rounded-[var(--radius-md)] border border-border bg-card px-3 py-2.5">
-            <span aria-hidden className="absolute -left-5 top-1/2 hidden h-px w-5 bg-border sm:block" />
-            <div className="flex items-center gap-3">
-              <Receipt className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="text-sm font-medium">N&ordm; {f.numeroFactura || "S/N"}</span>
-              <span className="truncate text-xs text-muted-foreground">{fmtFecha(f.fechaFactura) || "-"}</span>
-              <span className="ml-auto shrink-0 font-mono text-sm font-semibold tabular-nums">{fmtMoneda(f.montoConIva)}</span>
-            </div>
-            {(f.estado || f.archivo) && (
-              <div className="mt-1.5 flex items-center gap-3 pl-7">
-                {f.estado && <span className="text-xs text-muted-foreground">{f.estado}</span>}
-                {f.archivo && <BotonPdf url={f.archivo}>PDF</BotonPdf>}
-              </div>
-            )}
-          </div>
-        ))}
-
-        {Math.abs(saldo) >= 1 && (
-          <div
-            className={cn(
-              "relative rounded-[var(--radius-md)] border border-dashed px-3 py-2.5",
-              saldo > 0 ? "border-border" : "border-[var(--primary)]"
-            )}
-          >
-            <span aria-hidden className="absolute -left-5 top-1/2 hidden h-px w-5 bg-border sm:block" />
-            <div className="flex items-center gap-3">
-              {saldo > 0 ? (
-                <Coins className="h-4 w-4 shrink-0 text-muted-foreground" />
-              ) : (
-                <AlertCircle className="h-4 w-4 shrink-0 text-[var(--primary)]" />
-              )}
-              <span className={cn("text-sm", saldo > 0 ? "text-muted-foreground" : "font-medium text-[var(--primary)]")}>
-                {saldo > 0 ? "Saldo sin facturar" : "Facturado de más"}
-              </span>
-              <span
-                className={cn(
-                  "ml-auto shrink-0 font-mono text-sm font-semibold tabular-nums",
-                  saldo > 0 ? "text-muted-foreground" : "text-[var(--primary)]"
-                )}
-              >
-                {fmtMoneda(Math.abs(saldo))}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function OCDetailPanel({ oc, onClose }) {
-  const [vista, setVista] = useState("lista");
   const facturas = oc.facturasVinculadas ?? [];
-
-  const proveedorName = oc.proveedores || "-";
-  const moneda = oc.moneda || "CLP";
-  const condicion = oc.condicionDeCompra || "-";
-  const rut = oc.rut1 || "-";
-  const validezStr = oc.validezDocumento || "-";
 
   const details = [
     { icon: Hash, label: "Nº OC", value: oc.numeroOc || "-", highlight: true },
-    { icon: Building2, label: "PROVEEDOR", value: proveedorName, highlight: true },
+    { icon: Building2, label: "PROVEEDOR", value: oc.proveedores || "-", highlight: true },
     { icon: DollarSign, label: "MONTO OC", value: fmtMoneda(oc.monto), highlight: true },
     { icon: Receipt, label: "FACTURADO", value: `${fmtMoneda(oc.totalFacturado)} (${oc.porcentajeConsumido.toFixed(0)}%)`, highlight: false },
-    { icon: Coins, label: "MONEDA", value: moneda, highlight: false },
-    { icon: CalendarDays, label: "VALIDEZ", value: validezStr, highlight: false },
-    { icon: CreditCard, label: "CONDICIÓN", value: condicion, highlight: false },
-    { icon: FileText, label: "RUT", value: rut, highlight: false },
-  ];
-
-  const tabs = [
-    { id: "lista", label: `Facturas (${facturas.length})`, icon: List },
-    { id: "mapa", label: "Mapa de documentos", icon: Network },
+    { icon: Coins, label: "MONEDA", value: oc.moneda || "CLP", highlight: false },
+    { icon: CalendarDays, label: "VALIDEZ", value: oc.validezDocumento || "-", highlight: false },
+    { icon: CreditCard, label: "CONDICIÓN", value: oc.condicionDeCompra || "-", highlight: false },
+    { icon: UserRound, label: "RESPONSABLE", value: oc.responsable || "-", highlight: false },
   ];
 
   return (
@@ -262,47 +180,28 @@ function OCDetailPanel({ oc, onClose }) {
               <item.icon className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</span>
             </div>
-            <div className={cn("truncate text-sm font-medium", item.highlight && "text-[var(--chart-3)]")}>{item.value}</div>
+            <div className={cn("truncate text-sm font-medium", item.highlight && "text-[var(--chart-3)]")} title={item.value}>
+              {item.value}
+            </div>
           </div>
         ))}
       </div>
 
       <div className="mt-5 border-t border-border pt-4">
-        <div className="mb-3 flex flex-wrap items-center gap-1">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setVista(t.id)}
-              aria-pressed={vista === t.id}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] px-3 py-1.5 text-xs font-medium transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chart-3)]",
-                vista === t.id
-                  ? "bg-[color-mix(in_hsl,var(--chart-3)_15%,transparent)] text-[var(--chart-3)]"
-                  : "text-muted-foreground hover:bg-muted"
-              )}
-            >
-              <t.icon className="h-3.5 w-3.5" />
-              {t.label}
-            </button>
-          ))}
+        <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Facturas asociadas ({facturas.length})
         </div>
 
-        {vista === "lista" ? (
-          facturas.length === 0 ? (
-            <div className="rounded-[var(--radius-md)] border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
-              Esta OC todav&iacute;a no tiene facturas asociadas.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {facturas.map((f) => (
-                <FacturaCard key={f.id} factura={f} />
-              ))}
-            </div>
-          )
+        {facturas.length === 0 ? (
+          <div className="rounded-[var(--radius-md)] border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+            Esta OC todav&iacute;a no tiene facturas asociadas.
+          </div>
         ) : (
-          <MapaDocumentos oc={oc} />
+          <div className="space-y-2">
+            {facturas.map((f) => (
+              <FacturaCard key={f.id} factura={f} />
+            ))}
+          </div>
         )}
       </div>
     </div>
