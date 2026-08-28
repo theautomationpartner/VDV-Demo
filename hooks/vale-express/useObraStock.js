@@ -24,12 +24,17 @@ const VALES_COL_MAP = {
 /**
  * Hook that fetches stock data for a given obra and returns a lookup function.
  * Caches per obra so switching back doesn't re-fetch.
- * Returns: { getStock(materialId) -> number|null, loading, loaded }
+ * Returns: { getStock(materialId) -> number|null, loading, loaded, refresh() }
+ *
+ * refresh() invalida el cache de la obra actual y vuelve a pedir. Hace falta
+ * despues de crear un vale: sin eso el cartel de stock seguia mostrando el
+ * numero viejo hasta cambiar de obra o recargar la pagina.
  */
 export function useObraStock(obra) {
     const [stockMap, setStockMap] = useState({});
     const [loading, setLoading] = useState(false);
     const [loaded, setLoaded] = useState(false);
+    const [reloadKey, setReloadKey] = useState(0);
     const cacheRef = useRef({});
     const abortRef = useRef(null);
 
@@ -40,7 +45,7 @@ export function useObraStock(obra) {
             return;
         }
 
-        // Check cache first
+        // Check cache first (refresh() ya borro la entrada si hubo que releer)
         if (cacheRef.current[obra]) {
             setStockMap(cacheRef.current[obra]);
             setLoaded(true);
@@ -48,7 +53,7 @@ export function useObraStock(obra) {
         }
 
         // Generate an abort key for this fetch
-        const fetchKey = `${obra}-${Date.now()}`;
+        const fetchKey = `${obra}-${reloadKey}-${Date.now()}`;
         abortRef.current = fetchKey;
 
         const fetchStock = async () => {
@@ -119,6 +124,12 @@ export function useObraStock(obra) {
         };
 
         fetchStock();
+    }, [obra, reloadKey]);
+
+    const refresh = useCallback(() => {
+        if (!obra) return;
+        delete cacheRef.current[obra];
+        setReloadKey((k) => k + 1);
     }, [obra]);
 
     const getStock = useCallback((materialId) => {
@@ -127,5 +138,5 @@ export function useObraStock(obra) {
         return id in stockMap ? stockMap[id] : 0;
     }, [stockMap, loaded]);
 
-    return { getStock, loading, loaded };
+    return { getStock, loading, loaded, refresh };
 }

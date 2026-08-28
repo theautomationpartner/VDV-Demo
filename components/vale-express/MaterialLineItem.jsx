@@ -36,7 +36,10 @@ export function MaterialLineItem({ index, item, onUpdate, onRemove, canRemove, s
             materialId: material.id,
             materialName: material.name,
             unidad: material.unidad || '-',
-            codigoInterno: material.codigoInterno || ''
+            codigoInterno: material.codigoInterno || '',
+            stockCritico: typeof material.stockCritico === 'number'
+                ? material.stockCritico
+                : (parseFloat(material.stockCritico) || null)
         });
         setTerm('');
         setShowDropdown(false);
@@ -48,7 +51,8 @@ export function MaterialLineItem({ index, item, onUpdate, onRemove, canRemove, s
             materialId: null,
             materialName: '',
             unidad: '',
-            codigoInterno: ''
+            codigoInterno: '',
+            stockCritico: null
         });
     };
 
@@ -176,14 +180,14 @@ function SelectedMaterial({ item, onClear, stockInfo }) {
             </div>
             {/* Stock indicator */}
             {hasStock && (
-                <StockBadge stock={stockQty} loading={stockLoading} />
+                <StockBadge stock={stockQty} loading={stockLoading} critico={item.stockCritico} />
             )}
         </div>
     );
 }
 
 /* Stock availability badge */
-function StockBadge({ stock, loading }) {
+function StockBadge({ stock, loading, critico }) {
     if (loading) {
         return (
             <div className="mt-1.5 flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--radius)] bg-[var(--surface-2)] border border-[var(--border-subtle)]">
@@ -195,10 +199,12 @@ function StockBadge({ stock, loading }) {
 
     if (stock === null) return null;
 
+    // Mismo criterio que Stock por Obra: el STOCK CRITICO del material, y 5
+    // solo cuando el material no lo tiene cargado.
+    const umbral = critico != null ? critico : 5;
     const isZero = stock === 0;
-    const isLow = stock > 0 && stock <= 5;
+    const isLow = stock > 0 && stock <= umbral;
     const isNegative = stock < 0;
-    const isGood = stock > 5;
 
     let bgClass, borderClass, textClass, label;
     if (isNegative) {
