@@ -6,8 +6,9 @@ import Link from 'next/link';
 import { ArrowLeft, FileText, CheckCircle2, Clock, AlertTriangle, ChevronRight } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useContracts } from '@/hooks/portal-proveedor/useSubcontractData';
+import { useContracts, clearSubcontractCache } from '@/hooks/portal-proveedor/useSubcontractData';
 import ContractDetail from '@/components/portal-proveedor/ContractDetail';
+import { Toaster } from '@/components/ui/sonner';
 
 const fmt = (v) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v || 0);
 
@@ -21,6 +22,7 @@ function classifyContract(c) {
 export default function ContratosPage() {
   const router = useRouter();
   const [userContext, setUserContext] = useState(null);
+  const [recarga, setRecarga] = useState(0);
   const [selectedObra, setSelectedObra] = useState(null);
 
   useEffect(() => {
@@ -29,7 +31,7 @@ export default function ContratosPage() {
     setUserContext(JSON.parse(ctx));
   }, [router]);
 
-  const { items, loading } = useContracts(userContext);
+  const { items, loading } = useContracts(userContext, recarga);
 
   const obraCards = useMemo(() => {
     const map = new Map();
@@ -60,6 +62,7 @@ export default function ContratosPage() {
 
   return (
     <div className="h-dvh flex flex-col">
+      <Toaster />
       <div className="h-14 border-b border-border flex items-center px-4 md:px-6 bg-background shrink-0">
         {selectedObra ? (
           <button type="button" onClick={() => setSelectedObra(null)} aria-label="Volver" className="mr-3 -ml-1 flex min-h-12 min-w-12 items-center justify-center rounded-md active:bg-accent/50 md:min-h-0 md:min-w-0 md:p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"><ArrowLeft className="w-5 h-5 text-muted-foreground" /></button>
@@ -126,7 +129,18 @@ export default function ContratosPage() {
               )}
             </>
           ) : (
-            <ContractDetail items={selectedItems} obraName={selectedObra} />
+            <ContractDetail
+              items={selectedItems}
+              obraName={selectedObra}
+              userContext={userContext}
+              onCambio={() => {
+                // Despues de un VB el contrato cambio en monday: se limpia el
+                // cache y se recarga, si no la pantalla sigue mostrando el
+                // estado viejo hasta que venza el TTL de 5 minutos.
+                clearSubcontractCache();
+                setRecarga((n) => n + 1);
+              }}
+            />
           )}
         </div>
       </div>
