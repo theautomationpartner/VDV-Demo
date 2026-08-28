@@ -151,7 +151,17 @@ async function handleItems(boardKey, schema, params) {
       // del item vinculado en vez de comparar el texto renderizado - inmune a
       // que el mismo proveedor aparezca con distinto nombre/typo en el board.
       // "any_of" es el operador que monday espera para connect_boards.
-      rules.push({ column_id: columnId, compare_value: [String(cond.linkedItemId)], operator: "any_of" });
+      //
+      // OJO CON EL TIPO: el id va como NUMERO, no como string. Con el id entre
+      // comillas monday no tira error, devuelve 0 resultados en silencio - y eso
+      // dejaba TODO el Portal Proveedores en cero para cualquier subcontratista
+      // (pagos, contratos y estados de pago). Verificado en vivo contra la API,
+      // con el proveedor de prueba y con uno real: string -> 0, numero -> los
+      // que corresponden.
+      const linkedId = Number(cond.linkedItemId);
+      if (Number.isFinite(linkedId)) {
+        rules.push({ column_id: columnId, compare_value: [linkedId], operator: "any_of" });
+      }
     }
   }
 
