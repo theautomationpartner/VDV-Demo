@@ -45,12 +45,16 @@ function PendienteDeFirma({ contract }) {
         </a>
       )}
 
+      {/* Solo el dato, sin afirmar quien recibe que: las etiquetas de ESTADO
+          FIRMAS muestran destinatarios posibles (CORREO REP LEGAL, ADMINISTRADOR,
+          MAIL CONTACTO) y un "2 Signed", asi que hay mas de un firmante. Decir
+          "se envia a X" seria una suposicion nuestra. */}
       {contract.correoRepLegal && (
         <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
           <Mail className="h-3.5 w-3.5 shrink-0 mt-0.5" />
           <span>
-            Se envía para firmar a <span className="text-foreground">{contract.correoRepLegal}</span>
-            {contract.repLegal ? ` (${contract.repLegal})` : ''}. La firma se hace desde ese correo.
+            Representante legal: <span className="text-foreground">{contract.repLegal || contract.correoRepLegal}</span>
+            {contract.repLegal ? ` — ${contract.correoRepLegal}` : ''}
           </span>
         </p>
       )}
