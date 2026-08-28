@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Building2, ChevronDown, ChevronUp, FileCheck2, Check, MessageSquareWarning, Lock, FileSignature } from 'lucide-react';
+import { Building2, ChevronDown, ChevronUp, Check, MessageSquareWarning, Lock, Eye, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
@@ -20,6 +20,33 @@ const getStatusBadge = (status) => {
   return { text: status, cls: 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' };
 };
 
+// Los archivos se piden a nuestro endpoint, no a monday directo: la URL que
+// monday devuelve exige sesion de monday, y un proveedor no la tiene - hacia
+// clic y terminaba en la pantalla de login. Ver app/api/monday/archivo.
+const urlArchivo = (itemId, columna, modo) =>
+  `/api/monday/archivo?boardKey=FlujoContratacionSubcontratoBoard&itemId=${itemId}&columna=${columna}&modo=${modo}`;
+
+/** Ver en el navegador o descargar: los dos caminos al mismo archivo. */
+function BotonesArchivo({ itemId, columna, etiqueta, destacado }) {
+  const base =
+    'inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  const estilo = destacado
+    ? 'border-green-600/30 bg-green-600/10 text-green-400 hover:bg-green-600/20'
+    : 'border-border bg-card text-foreground hover:bg-muted';
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <a href={urlArchivo(itemId, columna, 'ver')} target="_blank" rel="noopener noreferrer" className={`${base} ${estilo}`}>
+        <Eye className="h-4 w-4" />
+        {etiqueta}
+      </a>
+      <a href={urlArchivo(itemId, columna, 'descargar')} className={`${base} border-border bg-card text-muted-foreground hover:bg-muted`}>
+        <Download className="h-4 w-4" />
+        Descargar
+      </a>
+    </div>
+  );
+}
+
 // La firma en si ocurre en una herramienta externa y tiene que seguir ahi: un
 // clic en nuestra app no es una firma electronica. Lo que si podemos es acercar
 // al proveedor a ese momento - dejarle ver el documento que va a firmar y
@@ -33,17 +60,7 @@ function PendienteDeFirma({ contract }) {
     <div className="mt-4 rounded-md border border-border bg-muted/30 p-3">
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Pendiente de firma</p>
 
-      {contract.contratoParaFirma && (
-        <a
-          href={contract.contratoParaFirma}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <FileSignature className="h-4 w-4" />
-          Ver el documento a firmar
-        </a>
-      )}
+      <BotonesArchivo itemId={contract.id} columna="contratoParaFirma" etiqueta="Ver el documento a firmar" />
 
     </div>
   );
@@ -52,100 +69,11 @@ function PendienteDeFirma({ contract }) {
 // El proveedor no tenia forma de bajar su contrato firmado desde el Portal:
 // lo pedia por mail. monday guarda el PDF en la columna CONTRATO FIRMADO y
 // devuelve la URL lista para abrir.
-function ContratoFirmado({ url }) {
-  if (!url) return null;
+function ContratoFirmado({ contract }) {
+  if (!contract.contratoFirmado) return null;
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="mt-4 inline-flex items-center gap-2 rounded-md border border-green-600/30 bg-green-600/10 px-3 py-2 text-xs font-medium text-green-400 transition-colors hover:bg-green-600/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-    >
-      <FileCheck2 className="h-4 w-4" />
-      Ver contrato firmado
-    </a>
-  );
-}
-
-// Panel de aprobacion: aparece SOLO si a esta persona le toca un paso del
-// circuito (rolContrato en su asignacion). Un subcontratista nunca lo ve.
-function PanelVb({ contract, userContext, onListo }) {
-  const [obsAbierta, setObsAbierta] = useState(false);
-  const [comentario, setComentario] = useState('');
-  const { registrar, guardando } = useVbContrato();
-
-  const paso = pasoDelUsuario(userContext);
-  if (!paso) return null;
-
-  const habilitado = puedeAprobar(contract, paso);
-  const motivo = motivoBloqueo(contract, paso);
-  const ocupado = guardando === contract.id + paso.campo;
-
-  const enviar = async (aprueba) => {
-    if (!aprueba && !comentario.trim()) {
-      toast.error('Escribí el motivo de la observación.');
-      return;
-    }
-    const r = await registrar({
-      contratoId: contract.id,
-      paso,
-      aprueba,
-      comentario: comentario.trim(),
-      quien: userContext?.adminName || userContext?.proveedorName,
-    });
-    if (r.ok) {
-      toast.success(aprueba ? 'Visto bueno registrado' : 'Observación registrada');
-      setObsAbierta(false);
-      setComentario('');
-      onListo?.();
-    } else {
-      toast.error(r.error);
-    }
-  };
-
-  return (
-    <div className="mt-4 rounded-md border border-border bg-muted/30 p-3">
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Te toca: {paso.label}</p>
-
-      {!habilitado ? (
-        <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Lock className="h-3.5 w-3.5 shrink-0" />
-          {motivo}
-        </p>
-      ) : (
-        <>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Button size="sm" className="h-8 text-xs" disabled={ocupado} onClick={() => enviar(true)}>
-              <Check className="mr-1.5 h-3.5 w-3.5" />
-              Dar visto bueno
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs"
-              disabled={ocupado}
-              onClick={() => setObsAbierta((v) => !v)}
-            >
-              <MessageSquareWarning className="mr-1.5 h-3.5 w-3.5" />
-              Con observaciones
-            </Button>
-          </div>
-
-          {obsAbierta && (
-            <div className="mt-2 space-y-2">
-              <Textarea
-                value={comentario}
-                onChange={(e) => setComentario(e.target.value)}
-                placeholder="Qué hay que corregir. Queda registrado en el contrato."
-                className="min-h-[70px] text-xs"
-              />
-              <Button size="sm" variant="destructive" className="h-8 text-xs" disabled={ocupado} onClick={() => enviar(false)}>
-                Registrar observación
-              </Button>
-            </div>
-          )}
-        </>
-      )}
+    <div className="mt-4">
+      <BotonesArchivo itemId={contract.id} columna="contratoFirmado" etiqueta="Ver contrato firmado" destacado />
     </div>
   );
 }
@@ -201,7 +129,7 @@ export default function ContractDetail({ items, obraName, userContext, onCambio 
                 <ProcessTimeline steps={getTimelineSteps(contract)} />
                 <PanelVb contract={contract} userContext={userContext} onListo={onCambio} />
                 <PendienteDeFirma contract={contract} />
-                <ContratoFirmado url={contract.contratoFirmado} />
+                <ContratoFirmado contract={contract} />
               </div>
             )}
           </Card>
