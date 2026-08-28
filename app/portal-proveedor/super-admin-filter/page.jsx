@@ -162,7 +162,8 @@ export default function SuperAdminFilterPage() {
       mondayUserId: String(user.id),
       name: user.name,
       email: user.email || '',
-      photoUrl: user.photo_url || user.photo_thumb || '',
+      // photo_url es un objeto { original, thumb } (ver handleUsersList).
+      photoUrl: user.photo_url?.original || user.photo_thumb || '',
     });
     setMondayComboOpen(false);
   };

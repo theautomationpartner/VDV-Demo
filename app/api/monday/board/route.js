@@ -381,10 +381,30 @@ async function handleUsersMe() {
 
 async function handleUsersList(params) {
   const { limit = 200 } = params;
-  const data = await mondayFetch(`query ($limit: Int!) { users(limit: $limit) { id name email photo_url } }`, {
-    limit,
+  // OJO: el tipo User de la API de monday NO tiene `photo_url`. Pedirlo hacia
+  // fallar la query ENTERA ("Cannot query field photo_url on type User"), asi
+  // que la lista llegaba vacia: la pantalla Usuarios del Portal mostraba
+  // "No se encontro usuario" y no se podia dar de alta a nadie - que es como
+  // entra un proveedor al Portal. Los campos reales son photo_original y
+  // photo_thumb.
+  //
+  // Se devuelve photo_url como objeto { original, thumb } para conservar la
+  // forma que espera la UI, que es la que da el SDK de monday Vibe
+  // (`user.photo_url.original`); photo_thumb suelto queda como fallback.
+  const data = await mondayFetch(
+    `query ($limit: Int!) { users(limit: $limit) { id name email photo_original photo_thumb } }`,
+    { limit },
+  );
+  return (data.users ?? []).map((u) => {
+    const original = u.photo_original || u.photo_thumb || null;
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      photo_url: original ? { original, thumb: u.photo_thumb ?? null } : null,
+      photo_thumb: u.photo_thumb ?? null,
+    };
   });
-  return data.users;
 }
 
 export async function POST(request) {
