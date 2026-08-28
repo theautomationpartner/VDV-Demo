@@ -83,6 +83,11 @@ function mapItemColumns(item, columnIdToFriendly) {
       mapped[friendlyKey] = {
         linkedItems: cv.linked_items.map((li) => ({ id: li.id, name: li.name, sourceBoardId: li.board?.id })),
       };
+    } else if (cv.display_value) {
+      // board_relation sin withRelations: el nombre del vinculado, como string.
+      // Es lo que esperan los consumidores (`oc.proveedores` para mostrar,
+      // `item.proveedores.split(",")` en la pantalla Usuarios).
+      mapped[friendlyKey] = cv.display_value;
     } else {
       mapped[friendlyKey] = coerceColumnValue(cv);
     }
@@ -110,9 +115,17 @@ async function handleItems(boardKey, schema, params) {
   // usa fetchNextPageWithRelations en board-sdk.js, verificado contra el
   // esquema real de la API. No se agrega por defecto para no cambiar la forma
   // del dato de los demas consumidores (useOCData, usePaymentData, etc.).
+  //
+  // display_value va SIEMPRE, con o sin withRelations: es el nombre del/los item
+  // vinculado(s) que monday ya calcula, y sin el las columnas board_relation
+  // llegaban con text = null. Por eso el Portal mostraba "Sin proveedor" en cada
+  // orden de compra, y la pantalla Usuarios se quedaba sin lista de proveedores
+  // para dar de alta un subcontratista. La Vibe original lee
+  // `oc.proveedores?.linkedItems?.[0]?.name`; esto da el mismo nombre sin tener
+  // que pedir los linked_items completos en cada pantalla.
   const relFragment = withRelations
-    ? "... on BoardRelationValue { linked_items { id name board { id name } } }"
-    : "";
+    ? "... on BoardRelationValue { display_value linked_items { id name board { id name } } }"
+    : "... on BoardRelationValue { display_value }";
   const cvFields = `column_values { id text value column { type } ${relFragment} }`;
 
   // Filtro por nombre de item. ANTES solo se filtraba client-side sobre la
