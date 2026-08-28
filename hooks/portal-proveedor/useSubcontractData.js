@@ -109,7 +109,8 @@ const CONTRACT_COLS = ['obra', 'estadoContrato', 'estadoFirmas', 'proveedores', 
 const EP_COLS = ['obra', 'estado', 'proveedores', 'heather', 'vbOt', 'vbJt', 'vbAdm', 'vbApr', 'vbGg', 'firmaCaratula', 'montoPresentado', 'montoCorregido', 'numeroFactura'];
 const OC_COLS = ['numeroOc', 'obra', 'validezDocumento', 'moneda', 'monto', 'proveedores', 'rut', 'estadoDocumento', 'comentarios', 'condicionDeCompra', 'docOc', 'responsable'];
 
-export function useContracts(userContext) {
+/** `recarga` es un contador: subirlo fuerza a releer despues de un VB. */
+export function useContracts(userContext, recarga = 0) {
   const key = getCacheKey(userContext);
   const [items, setItems] = useState(() => (_contracts.items && _contracts.key === key) ? _contracts.items : []);
   const [loading, setLoading] = useState(() => !(_contracts.items && _contracts.key === key));
@@ -124,7 +125,7 @@ export function useContracts(userContext) {
       .then((all) => setItems(all))
       .catch((e) => console.error('Error contratos:', e))
       .finally(() => setLoading(false));
-  }, [userContext]);
+  }, [userContext, recarga]);
 
   return { items, loading };
 }

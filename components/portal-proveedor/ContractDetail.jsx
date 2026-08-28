@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from 'react';
-import { Building2, ChevronDown, ChevronUp, FileCheck2 } from 'lucide-react';
+import { Building2, ChevronDown, ChevronUp, FileCheck2, Check, MessageSquareWarning, Lock } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
+import { pasoDelUsuario, puedeAprobar, motivoBloqueo, useVbContrato } from '@/hooks/portal-proveedor/useVbContrato';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ProcessTimeline from '@/components/portal-proveedor/ProcessTimeline';
@@ -34,6 +38,89 @@ function ContratoFirmado({ url }) {
   );
 }
 
+// Panel de aprobacion: aparece SOLO si a esta persona le toca un paso del
+// circuito (rolContrato en su asignacion). Un subcontratista nunca lo ve.
+function PanelVb({ contract, userContext, onListo }) {
+  const [obsAbierta, setObsAbierta] = useState(false);
+  const [comentario, setComentario] = useState('');
+  const { registrar, guardando } = useVbContrato();
+
+  const paso = pasoDelUsuario(userContext);
+  if (!paso) return null;
+
+  const habilitado = puedeAprobar(contract, paso);
+  const motivo = motivoBloqueo(contract, paso);
+  const ocupado = guardando === contract.id + paso.campo;
+
+  const enviar = async (aprueba) => {
+    if (!aprueba && !comentario.trim()) {
+      toast.error('Escribí el motivo de la observación.');
+      return;
+    }
+    const r = await registrar({
+      contratoId: contract.id,
+      paso,
+      aprueba,
+      comentario: comentario.trim(),
+      quien: userContext?.adminName || userContext?.proveedorName,
+    });
+    if (r.ok) {
+      toast.success(aprueba ? 'Visto bueno registrado' : 'Observación registrada');
+      setObsAbierta(false);
+      setComentario('');
+      onListo?.();
+    } else {
+      toast.error(r.error);
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-md border border-border bg-muted/30 p-3">
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Te toca: {paso.label}</p>
+
+      {!habilitado ? (
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Lock className="h-3.5 w-3.5 shrink-0" />
+          {motivo}
+        </p>
+      ) : (
+        <>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button size="sm" className="h-8 text-xs" disabled={ocupado} onClick={() => enviar(true)}>
+              <Check className="mr-1.5 h-3.5 w-3.5" />
+              Dar visto bueno
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              disabled={ocupado}
+              onClick={() => setObsAbierta((v) => !v)}
+            >
+              <MessageSquareWarning className="mr-1.5 h-3.5 w-3.5" />
+              Con observaciones
+            </Button>
+          </div>
+
+          {obsAbierta && (
+            <div className="mt-2 space-y-2">
+              <Textarea
+                value={comentario}
+                onChange={(e) => setComentario(e.target.value)}
+                placeholder="Qué hay que corregir. Queda registrado en el contrato."
+                className="min-h-[70px] text-xs"
+              />
+              <Button size="sm" variant="destructive" className="h-8 text-xs" disabled={ocupado} onClick={() => enviar(false)}>
+                Registrar observación
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 const getTimelineSteps = (c) => [
   { label: 'VB Obra / Terreno', value: c.vbOt },
   { label: 'VP Aprobación', value: c.vpApr },
@@ -44,7 +131,7 @@ const getTimelineSteps = (c) => [
   { label: 'Estado Contrato', value: c.estadoContrato },
 ];
 
-export default function ContractDetail({ items, obraName }) {
+export default function ContractDetail({ items, obraName, userContext, onCambio }) {
   const [expandedItems, setExpandedItems] = useState({});
   const toggle = (id) => setExpandedItems((p) => ({ ...p, [id]: !p[id] }));
 
@@ -83,6 +170,7 @@ export default function ContractDetail({ items, obraName }) {
               <div className="px-3 pb-4 md:px-4 border-t border-border pt-3">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3 font-medium">Proceso del contrato</p>
                 <ProcessTimeline steps={getTimelineSteps(contract)} />
+                <PanelVb contract={contract} userContext={userContext} onListo={onCambio} />
                 <ContratoFirmado url={contract.contratoFirmado} />
               </div>
             )}

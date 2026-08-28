@@ -379,6 +379,16 @@ async function handleUsersMe() {
   return data.me;
 }
 
+async function handleItemNote(params) {
+  const { itemId, body } = params;
+  if (!itemId || !body) throw new Error("Faltan 'itemId' o 'body'");
+  const data = await mondayFetch(
+    `mutation ($itemId: ID!, $body: String!) { create_update(item_id: $itemId, body: $body) { id } }`,
+    { itemId: String(itemId), body: String(body) },
+  );
+  return data.create_update;
+}
+
 async function handleUsersList(params) {
   const { limit = 200 } = params;
   // OJO: el tipo User de la API de monday NO tiene `photo_url`. Pedirlo hacia
@@ -460,6 +470,22 @@ export async function POST(request) {
       }
       if (op === "itemUpdate") return Response.json({ result: await handleItemUpdate(boardKey, schema, params) });
       return Response.json({ result: await handleItemCreate(boardKey, schema, params) });
+    }
+
+    // Nota (update) sobre un item. Se usa para dejar el motivo cuando alguien
+    // marca un contrato CON OBS: queda en el item, donde el equipo lo busca, sin
+    // agregarle columnas al tablero del cliente. Pasa por el mismo guardia que
+    // itemUpdate porque escribe en el board del cliente igual.
+    if (op === "itemNote") {
+      if (AUTH_LAYERS_ENABLED) {
+        try {
+          verificarAccesoMutacion(sesion, boardKey, { op: "itemUpdate", values: params.values ?? {} });
+        } catch (err) {
+          if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
+          throw err;
+        }
+      }
+      return Response.json({ result: await handleItemNote(params) });
     }
 
     if (op === "usersList") return Response.json({ result: await handleUsersList(params) });

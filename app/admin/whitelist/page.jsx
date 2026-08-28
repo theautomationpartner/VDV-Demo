@@ -30,6 +30,22 @@ import { useObrasVales } from "@/hooks/useObras";
 const APP_LABELS = { "vale-express": "Vale Express", "portal-proveedor": "Portal Proveedor" };
 const APP_ICONS = { "vale-express": Package, "portal-proveedor": Handshake };
 
+// Paso del circuito de contratos que esta persona puede aprobar. Va aparte del
+// appRol porque son dos ejes distintos: el appRol dice que ve en el Portal, y
+// esto dice cual de los cinco VB puede dar. Se decidio guardarlo aca y no leer
+// las columnas de personas del tablero FLUJO CONTRATACION porque ese tablero no
+// alcanza: OT y ADMINISTRADOR estan cargadas en 76 de 79 contratos, APR en 29,
+// y para ABOGADO y REP LEGAL no existe columna. Ademas asi un cambio de
+// responsable se hace en un usuario y no en 79 items.
+export const ROLES_CONTRATO = [
+  { value: "", label: "Ninguno (no aprueba contratos)" },
+  { value: "ot", label: "VB Obra / Terreno" },
+  { value: "apr", label: "VP Aprobación" },
+  { value: "administrador", label: "VB Administrador" },
+  { value: "abogado", label: "VB Abogado" },
+  { value: "rep_legal", label: "VB Rep. Legal" },
+];
+
 const APP_ROLES = {
   "vale-express": [
     { value: "super_admin", label: "Super Admin" },
@@ -98,7 +114,7 @@ function initialsFor(text) {
 }
 
 function nuevaAsignacion(app) {
-  return { app, appRol: APP_ROLES[app][0].value, obras: "", restrictObras: false, proveedorName: "" };
+  return { app, appRol: APP_ROLES[app][0].value, obras: "", restrictObras: false, proveedorName: "", rolContrato: "" };
 }
 
 // Resumen de obras permitidas para la asignacion de Vale Express de un
@@ -440,6 +456,7 @@ export default function WhitelistAdminPage() {
         obras: (a.appConfig?.obras ?? []).join(", "),
         restrictObras: a.appConfig?.restrictObras === true,
         proveedorName: a.appConfig?.proveedorName ?? "",
+        rolContrato: a.appConfig?.rolContrato ?? "",
       }));
     const tieneAppsOcultas = (u.asignaciones ?? []).length > asignaciones.length;
     setForm({
@@ -483,7 +500,7 @@ export default function WhitelistAdminPage() {
         appConfig:
           a.app === "vale-express"
             ? { obras: a.obras.split(",").map((s) => s.trim()).filter(Boolean), restrictObras: a.restrictObras }
-            : { proveedorName: a.proveedorName.trim() || null },
+            : { proveedorName: a.proveedorName.trim() || null, rolContrato: a.rolContrato || null },
       }));
 
       const payload = { email: form.email.trim(), asignaciones };
@@ -786,6 +803,23 @@ export default function WhitelistAdminPage() {
                         value={a.obras}
                         onChange={(next) => updateAsignacion(index, { obras: next, restrictObras: next.trim().length > 0 })}
                       />
+                    )}
+
+                    {a.app === "portal-proveedor" && a.appRol !== "subcontratista" && (
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">Aprueba en contratos</Label>
+                        <Select
+                          value={a.rolContrato || "__ninguno__"}
+                          onValueChange={(v) => updateAsignacion(index, { rolContrato: v === "__ninguno__" ? "" : v })}
+                        >
+                          <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {ROLES_CONTRATO.map((r) => (
+                              <SelectItem key={r.value || "__ninguno__"} value={r.value || "__ninguno__"}>{r.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     )}
 
                     {a.app === "portal-proveedor" && a.appRol === "subcontratista" && (
