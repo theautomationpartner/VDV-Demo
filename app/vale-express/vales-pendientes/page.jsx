@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ValesBoard } from '@/lib/board-sdk';
 import { useObrasVales } from '@/hooks/useObras';
@@ -35,6 +35,7 @@ export default function ValesPendientesPage() {
     );
     const [isRestricted, setIsRestricted] = useState(false);
     const [filterObra, setFilterObra] = useState('');
+    const pedidoRef = useRef(0);
 
     // Inline editing
     const [editingItemId, setEditingItemId] = useState(null);
@@ -79,7 +80,8 @@ export default function ValesPendientesPage() {
             setIsRestricted(effectiveRestrict);
 
             console.log('[VALES] Allowed obras:', allowed, 'Restricted:', effectiveRestrict);
-            await fetchVales(null, allowed, effectiveRestrict, '');
+            // La lista la carga el efecto de mas abajo, recien cuando `acceso`
+            // quedo seteado. Aca se descartaba el resultado de este fetch.
         } catch (err) {
             console.error('[VALES] Init failed:', err);
             router.push('/vale-express/dashboard');
@@ -113,17 +115,24 @@ export default function ValesPendientesPage() {
     };
 
     const loadInitial = useCallback(async (obraFilter) => {
+        // Dos cargas solapadas (cambio de filtro, refresh) pisaban la lista con
+        // la que contestara ultimo, no con la ultima pedida. Cada pedido se
+        // numera y solo el mas nuevo puede escribir el estado.
+        const pedido = ++pedidoRef.current;
         setRefetching(true);
         try {
             const result = await fetchVales(null, allowedObras, isRestricted, obraFilter);
+            if (pedido !== pedidoRef.current) return;
             setItems(result.items || []);
             setCursor(result.cursor || null);
         } catch (err) {
             console.error('[VALES] Load failed:', err);
             toast.error('Error al cargar solicitudes');
         } finally {
-            setRefetching(false);
-            setLoading(false);
+            if (pedido === pedidoRef.current) {
+                setRefetching(false);
+                setLoading(false);
+            }
         }
     }, [allowedObras, isRestricted]);
 
@@ -153,12 +162,18 @@ export default function ValesPendientesPage() {
         loadInitial(filterObra);
     };
 
-    // First load after init sets allowedObras
+    // Primera carga: SOLO despues de que initPage resolvio el rol.
+    //
+    // Antes la condicion era `allowedObras.length > 0 || !isRestricted`, y en el
+    // primer render isRestricted todavia vale false: entraba igual y pedia los
+    // vales SIN filtrar por obra. Cuando llegaba el rol pedia de nuevo, ahora si
+    // filtrado, pero los dos pedidos corrian en paralelo y ganaba el que
+    // contestara ultimo - asi que a un usuario restringido a una obra le podian
+    // quedar a la vista vales de obras ajenas, de forma intermitente.
     useEffect(() => {
-        if (allowedObras.length > 0 || !isRestricted) {
-            loadInitial('');
-        }
-    }, [allowedObras, isRestricted]);
+        if (!acceso) return;
+        loadInitial('');
+    }, [acceso, allowedObras, isRestricted, loadInitial]);
 
     // --- Edit cantidad ---
     const startEdit = (item) => {
