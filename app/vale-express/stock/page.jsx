@@ -47,7 +47,11 @@ export default function StockPage() {
     // "Todas las obras" para este usuario sale de monday, no de la lista
     // hardcodeada: se recalcula solo cuando llegan los labels vivos.
     const allowedObras = useMemo(
-        () => (acceso ? getAllowedObras(acceso.role, acceso.obras, acceso.restricted, todasLasObras) : todasLasObras),
+        // Vacio -y no todasLasObras- mientras el rol no resolvio: si no, durante
+        // ese instante el desplegable ofrece obras que el usuario puede no tener
+        // permitidas. Una vez resuelto, getAllowedObras ya devuelve todas para
+        // quien no tiene restriccion.
+        () => (acceso ? getAllowedObras(acceso.role, acceso.obras, acceso.restricted, todasLasObras) : []),
         [acceso, todasLasObras]
     );
 
