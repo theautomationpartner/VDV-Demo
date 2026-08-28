@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Building2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Building2, ChevronDown, ChevronUp, FileCheck2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ProcessTimeline from '@/components/portal-proveedor/ProcessTimeline';
@@ -15,6 +15,24 @@ const getStatusBadge = (status) => {
   if (s.includes('SIN EFECTO') || s.includes('CANCELLED') || s.includes('FAILED')) return { text: status, cls: 'bg-red-600/20 text-red-400 border-red-600/30' };
   return { text: status, cls: 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' };
 };
+
+// El proveedor no tenia forma de bajar su contrato firmado desde el Portal:
+// lo pedia por mail. monday guarda el PDF en la columna CONTRATO FIRMADO y
+// devuelve la URL lista para abrir.
+function ContratoFirmado({ url }) {
+  if (!url) return null;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-4 inline-flex items-center gap-2 rounded-md border border-green-600/30 bg-green-600/10 px-3 py-2 text-xs font-medium text-green-400 transition-colors hover:bg-green-600/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+    >
+      <FileCheck2 className="h-4 w-4" />
+      Ver contrato firmado
+    </a>
+  );
+}
 
 const getTimelineSteps = (c) => [
   { label: 'VB Obra / Terreno', value: c.vbOt },
@@ -65,6 +83,7 @@ export default function ContractDetail({ items, obraName }) {
               <div className="px-3 pb-4 md:px-4 border-t border-border pt-3">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3 font-medium">Proceso del contrato</p>
                 <ProcessTimeline steps={getTimelineSteps(contract)} />
+                <ContratoFirmado url={contract.contratoFirmado} />
               </div>
             )}
           </Card>
