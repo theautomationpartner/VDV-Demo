@@ -19,8 +19,11 @@ export function useMaterialSearch() {
         }
         setLoading(true);
         try {
+            // stockCritico viaja con el material para que el cartel de stock de
+            // la linea use el umbral real de ESE material, igual que Stock por
+            // Obra - antes marcaba "stock bajo" con un 5 fijo para todos.
             const res = await board.items()
-                .withColumns(['unidad', 'codigoInterno'])
+                .withColumns(['unidad', 'codigoInterno', 'stockCritico'])
                 .where({ name: searchTerm })
                 .withPagination({ limit: 15 })
                 .execute();

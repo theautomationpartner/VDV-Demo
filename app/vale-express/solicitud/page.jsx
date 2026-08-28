@@ -33,6 +33,7 @@ const emptyLine = () => ({
     materialName: '',
     unidad: '',
     codigoInterno: '',
+    stockCritico: null,
     cantidad: ''
 });
 
@@ -50,7 +51,7 @@ export default function SolicitudPage() {
     const [acceso, setAcceso] = useState(null);
 
     // Fetch stock for the selected obra so users see availability
-    const { getStock, loading: stockLoading, loaded: stockLoaded } = useObraStock(obra);
+    const { getStock, loading: stockLoading, loaded: stockLoaded, refresh: refreshStock } = useObraStock(obra);
 
     // Labels vivos de las columnas del board VALES: si el cliente agrega un
     // destino o un solicitante en monday, aparece aca sin tocar el codigo.
@@ -194,6 +195,10 @@ export default function SolicitudPage() {
 
             setCreatedIds(ids);
             setSubmitted(true);
+            // El stock de la obra quedo viejo: los vales recien creados todavia
+            // no descuentan (nacen SOLICITADA) pero si el bodeguero los entrega
+            // mientras esta pantalla sigue abierta, el cartel mentiria.
+            refreshStock();
             if (warnings.length > 0) {
                 console.warn('[VALE] Completed with warnings:', warnings);
                 toast.success(`Vale creado (${ids.length} ítem). Algunos campos pueden requerir revisión.`);
@@ -222,7 +227,7 @@ export default function SolicitudPage() {
         } finally {
             setSubmitting(false);
         }
-    }, [canSubmit, submitting, validLines, obra, quienSolicita, destino, quienRetira]);
+    }, [canSubmit, submitting, validLines, obra, quienSolicita, destino, quienRetira, refreshStock]);
 
     const handleReset = () => {
         setObra('');

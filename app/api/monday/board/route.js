@@ -115,11 +115,20 @@ async function handleItems(boardKey, schema, params) {
     : "";
   const cvFields = `column_values { id text value column { type } ${relFragment} }`;
 
-  // Filtro por nombre de item: la API de monday no soporta esto de forma consistente
-  // via query_params, asi que se filtra client-side (post-fetch) sobre la pagina traida.
+  // Filtro por nombre de item. ANTES solo se filtraba client-side sobre la
+  // pagina ya traida: como el buscador de materiales pide limit:15, la busqueda
+  // solo miraba los primeros 15 items del board - de 1008 materiales, 993 eran
+  // inencontrables (y lo mismo en Ingreso de Materiales, que usa el mismo hook).
+  // monday SI soporta el filtro server-side con column_id "name" + contains_text;
+  // verificado en vivo: es substring exacto e insensible a mayusculas, la misma
+  // semantica que el filtro de abajo, que se deja como red de seguridad y para
+  // las paginas que llegan por next_items_page.
   const nameFilter = typeof where.name === "string" ? where.name.toLowerCase() : null;
 
   const rules = [];
+  if (typeof where.name === "string" && where.name.trim()) {
+    rules.push({ column_id: "name", compare_value: [where.name], operator: "contains_text" });
+  }
   for (const [key, cond] of Object.entries(where)) {
     if (key === "name" || cond == null) continue;
     const columnId = resolveColumnId(boardKey, key);
