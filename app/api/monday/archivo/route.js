@@ -1,4 +1,8 @@
-import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
+import {
+  verificarAcceso,
+  accesoErrorToResponse,
+  AccesoError,
+} from "@/lib/server/auth-guard";
 import { getBoardSchema, resolveColumnId } from "@/lib/board-schemas";
 
 const MONDAY_API_URL = "https://api.monday.com/v2";
@@ -46,7 +50,10 @@ export async function GET(request) {
   const modo = searchParams.get("modo") === "ver" ? "ver" : "descargar";
 
   if (!boardKey || !itemId || !columna) {
-    return Response.json({ error: "Faltan boardKey, itemId o columna" }, { status: 400 });
+    return Response.json(
+      { error: "Faltan boardKey, itemId o columna" },
+      { status: 400 },
+    );
   }
 
   let columnId;
@@ -58,61 +65,92 @@ export async function GET(request) {
   }
 
   const token = process.env.MONDAY_API_TOKEN;
-  if (!token) return Response.json({ error: "Falta MONDAY_API_TOKEN" }, { status: 500 });
+  if (!token)
+    return Response.json({ error: "Falta MONDAY_API_TOKEN" }, { status: 500 });
 
   const pedir = async (query, variables) => {
     const res = await fetch(MONDAY_API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: token, "API-Version": "2025-07" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: token,
+        "API-Version": "2025-07",
+      },
       body: JSON.stringify({ query, variables }),
     });
     const json = await res.json();
-    if (json.errors) throw new Error(json.errors[0]?.message ?? "Error de monday");
+    if (json.errors)
+      throw new Error(json.errors[0]?.message ?? "Error de monday");
     return json.data;
   };
 
-  // 1) Que asset hay en esa columna de ese item.
-  const datos = await pedir(
-    `query ($itemId: ID!, $columnId: String!) {
+  try {
+    // 1) Que asset hay en esa columna de ese item.
+    const datos = await pedir(
+      `query ($itemId: ID!, $columnId: String!) {
       items(ids: [$itemId]) { column_values(ids: [$columnId]) { value } }
     }`,
-    { itemId: String(itemId), columnId },
-  );
+      { itemId: String(itemId), columnId },
+    );
 
-  let assetId = null;
-  try {
-    const crudo = datos.items?.[0]?.column_values?.[0]?.value;
-    assetId = JSON.parse(crudo || "{}")?.files?.[0]?.assetId ?? null;
-  } catch {
-    assetId = null;
+    let assetId = null;
+    try {
+      const crudo = datos.items?.[0]?.column_values?.[0]?.value;
+      assetId = JSON.parse(crudo || "{}")?.files?.[0]?.assetId ?? null;
+    } catch {
+      assetId = null;
+    }
+    if (!assetId)
+      return Response.json(
+        { error: "Esa columna no tiene ningun archivo" },
+        { status: 404 },
+      );
+
+    // 2) La URL temporal, que si funciona sin sesion de monday.
+    const asset = (
+      await pedir(
+        // OJO con el tipo: assets(ids:) espera [ID!]! y no [ID!]. Con el tipo mal
+        // monday rechaza la query entera y el endpoint devolvia 500.
+        `query ($ids: [ID!]!) { assets(ids: $ids) { public_url name file_size file_extension } }`,
+        { ids: [String(assetId)] },
+      )
+    ).assets?.[0];
+    if (!asset?.public_url)
+      return Response.json(
+        { error: "No se pudo resolver el archivo" },
+        { status: 502 },
+      );
+
+    const tam = Number(asset.file_size || 0);
+    // El navegador solo sabe mostrar PDF e imagenes. Un .docx -que es lo que
+    // tienen varios contratos- se baja igual, asi que no vale la pena pasarlo
+    // por nuestro servidor.
+    const ext = String(asset.file_extension || asset.name || "").toLowerCase();
+    const visible = /\.?(pdf|png|jpe?g|gif|webp)$/.test(ext);
+
+    // Para mostrarlo en el navegador hay que reemitirlo: la URL de monday viene
+    // firmada con "attachment" y esa parte no se puede cambiar sin romper la
+    // firma. Los archivos grandes se desvian para no pasarlos por el servidor.
+    if (modo === "ver" && visible && tam > 0 && tam <= LIMITE_INLINE) {
+      const archivo = await fetch(asset.public_url);
+      if (!archivo.ok) return Response.redirect(asset.public_url, 302);
+      const nombre = (asset.name || "documento").replace(/"/g, "");
+      return new Response(archivo.body, {
+        headers: {
+          "Content-Type":
+            archivo.headers.get("content-type") || "application/pdf",
+          "Content-Disposition": `inline; filename="${nombre}"`,
+          "Cache-Control": "private, max-age=300",
+        },
+      });
+    }
+
+    return Response.redirect(asset.public_url, 302);
+  } catch (err) {
+    console.error("[archivo] no se pudo resolver:", err?.message);
+    return Response.json(
+      { error: err?.message || "No se pudo abrir el archivo" },
+      { status: 502 },
+    );
   }
-  if (!assetId) return Response.json({ error: "Esa columna no tiene ningun archivo" }, { status: 404 });
-
-  // 2) La URL temporal, que si funciona sin sesion de monday.
-  const asset = (
-    await pedir(`query ($ids: [ID!]) { assets(ids: $ids) { public_url name file_size } }`, {
-      ids: [String(assetId)],
-    })
-  ).assets?.[0];
-  if (!asset?.public_url) return Response.json({ error: "No se pudo resolver el archivo" }, { status: 502 });
-
-  const tam = Number(asset.file_size || 0);
-
-  // Para mostrarlo en el navegador hay que reemitirlo: la URL de monday viene
-  // firmada con "attachment" y esa parte no se puede cambiar sin romper la
-  // firma. Los archivos grandes se desvian para no pasarlos por el servidor.
-  if (modo === "ver" && tam > 0 && tam <= LIMITE_INLINE) {
-    const archivo = await fetch(asset.public_url);
-    if (!archivo.ok) return Response.redirect(asset.public_url, 302);
-    const nombre = (asset.name || "documento").replace(/"/g, "");
-    return new Response(archivo.body, {
-      headers: {
-        "Content-Type": archivo.headers.get("content-type") || "application/pdf",
-        "Content-Disposition": `inline; filename="${nombre}"`,
-        "Cache-Control": "private, max-age=300",
-      },
-    });
-  }
-
-  return Response.redirect(asset.public_url, 302);
 }
