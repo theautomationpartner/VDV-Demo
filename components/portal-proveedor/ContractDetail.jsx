@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Building2, ChevronDown, ChevronUp, FileCheck2, Check, MessageSquareWarning, Lock, FileSignature, Mail } from 'lucide-react';
+import { Building2, ChevronDown, ChevronUp, FileCheck2, Check, MessageSquareWarning, Lock, FileSignature } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
@@ -27,7 +27,7 @@ const getStatusBadge = (status) => {
 function PendienteDeFirma({ contract }) {
   const yaFirmado = !!contract.contratoFirmado;
   if (yaFirmado) return null;
-  if (!contract.contratoParaFirma && !contract.correoRepLegal) return null;
+  if (!contract.contratoParaFirma) return null;
 
   return (
     <div className="mt-4 rounded-md border border-border bg-muted/30 p-3">
@@ -45,19 +45,6 @@ function PendienteDeFirma({ contract }) {
         </a>
       )}
 
-      {/* Solo el dato, sin afirmar quien recibe que: las etiquetas de ESTADO
-          FIRMAS muestran destinatarios posibles (CORREO REP LEGAL, ADMINISTRADOR,
-          MAIL CONTACTO) y un "2 Signed", asi que hay mas de un firmante. Decir
-          "se envia a X" seria una suposicion nuestra. */}
-      {contract.correoRepLegal && (
-        <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
-          <Mail className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-          <span>
-            Representante legal: <span className="text-foreground">{contract.repLegal || contract.correoRepLegal}</span>
-            {contract.repLegal ? ` — ${contract.correoRepLegal}` : ''}
-          </span>
-        </p>
-      )}
     </div>
   );
 }
