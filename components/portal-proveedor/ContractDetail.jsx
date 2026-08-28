@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Building2, ChevronDown, ChevronUp, FileCheck2, Check, MessageSquareWarning, Lock } from 'lucide-react';
+import { Building2, ChevronDown, ChevronUp, FileCheck2, Check, MessageSquareWarning, Lock, FileSignature, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
@@ -19,6 +19,44 @@ const getStatusBadge = (status) => {
   if (s.includes('SIN EFECTO') || s.includes('CANCELLED') || s.includes('FAILED')) return { text: status, cls: 'bg-red-600/20 text-red-400 border-red-600/30' };
   return { text: status, cls: 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' };
 };
+
+// La firma en si ocurre en una herramienta externa y tiene que seguir ahi: un
+// clic en nuestra app no es una firma electronica. Lo que si podemos es acercar
+// al proveedor a ese momento - dejarle ver el documento que va a firmar y
+// decirle a que correo se lo mandaron.
+function PendienteDeFirma({ contract }) {
+  const yaFirmado = !!contract.contratoFirmado;
+  if (yaFirmado) return null;
+  if (!contract.contratoParaFirma && !contract.correoRepLegal) return null;
+
+  return (
+    <div className="mt-4 rounded-md border border-border bg-muted/30 p-3">
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Pendiente de firma</p>
+
+      {contract.contratoParaFirma && (
+        <a
+          href={contract.contratoParaFirma}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <FileSignature className="h-4 w-4" />
+          Ver el documento a firmar
+        </a>
+      )}
+
+      {contract.correoRepLegal && (
+        <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
+          <Mail className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          <span>
+            Se envía para firmar a <span className="text-foreground">{contract.correoRepLegal}</span>
+            {contract.repLegal ? ` (${contract.repLegal})` : ''}. La firma se hace desde ese correo.
+          </span>
+        </p>
+      )}
+    </div>
+  );
+}
 
 // El proveedor no tenia forma de bajar su contrato firmado desde el Portal:
 // lo pedia por mail. monday guarda el PDF en la columna CONTRATO FIRMADO y
@@ -171,6 +209,7 @@ export default function ContractDetail({ items, obraName, userContext, onCambio 
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3 font-medium">Proceso del contrato</p>
                 <ProcessTimeline steps={getTimelineSteps(contract)} />
                 <PanelVb contract={contract} userContext={userContext} onListo={onCambio} />
+                <PendienteDeFirma contract={contract} />
                 <ContratoFirmado url={contract.contratoFirmado} />
               </div>
             )}

@@ -105,7 +105,7 @@ async function fetchBoard(board, columns, userContext, cache) {
   return cache.promise;
 }
 
-const CONTRACT_COLS = ['obra', 'estadoContrato', 'estadoFirmas', 'proveedores', 'vbOt', 'vpApr', 'vbAdministrador', 'vbAbogado', 'vbRepLegal', 'contratoFirmado', 'montoContratoBruto', 'centroCosto'];
+const CONTRACT_COLS = ['obra', 'estadoContrato', 'estadoFirmas', 'proveedores', 'vbOt', 'vpApr', 'vbAdministrador', 'vbAbogado', 'vbRepLegal', 'contratoFirmado', 'contratoParaFirma', 'repLegal', 'correoRepLegal', 'montoContratoBruto', 'centroCosto'];
 const EP_COLS = ['obra', 'estado', 'proveedores', 'heather', 'vbOt', 'vbJt', 'vbAdm', 'vbApr', 'vbGg', 'firmaCaratula', 'montoPresentado', 'montoCorregido', 'numeroFactura'];
 const OC_COLS = ['numeroOc', 'obra', 'validezDocumento', 'moneda', 'monto', 'proveedores', 'rut', 'estadoDocumento', 'comentarios', 'condicionDeCompra', 'docOc', 'responsable'];
 

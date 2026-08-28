@@ -123,9 +123,13 @@ async function handleItems(boardKey, schema, params) {
   // para dar de alta un subcontratista. La Vibe original lee
   // `oc.proveedores?.linkedItems?.[0]?.name`; esto da el mismo nombre sin tener
   // que pedir los linked_items completos en cada pantalla.
+  // Las columnas espejo (mirror) tienen el mismo problema que las de vinculo:
+  // `text` viene null y el dato real esta en display_value. Sin esto, CORREO REP
+  // LEGAL y REP LEGAL del tablero de contratos llegaban vacios.
+  const mirrorFragment = "... on MirrorValue { display_value }";
   const relFragment = withRelations
-    ? "... on BoardRelationValue { display_value linked_items { id name board { id name } } }"
-    : "... on BoardRelationValue { display_value }";
+    ? `... on BoardRelationValue { display_value linked_items { id name board { id name } } } ${mirrorFragment}`
+    : `... on BoardRelationValue { display_value } ${mirrorFragment}`;
   const cvFields = `column_values { id text value column { type } ${relFragment} }`;
 
   // Filtro por nombre de item. ANTES solo se filtraba client-side sobre la
