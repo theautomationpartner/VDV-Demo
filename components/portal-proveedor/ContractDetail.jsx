@@ -26,8 +26,16 @@ const getStatusBadge = (status) => {
 const urlArchivo = (itemId, columna, modo) =>
   `/api/monday/archivo?boardKey=FlujoContratacionSubcontratoBoard&itemId=${itemId}&columna=${columna}&modo=${modo}`;
 
-/** Ver en el navegador o descargar: los dos caminos al mismo archivo. */
-function BotonesArchivo({ itemId, columna, etiqueta, destacado }) {
+/**
+ * Ver en el navegador o descargar.
+ *
+ * `soloDescarga` para los archivos que el navegador no sabe mostrar: el
+ * documento a firmar es .docx en 68 de 69 contratos (GetSign genera el
+ * borrador en Word y devuelve el firmado en PDF), y un boton "Ver" que
+ * termina bajando el archivo confunde. El contrato firmado, en cambio, es
+ * PDF en los 68 casos.
+ */
+function BotonesArchivo({ itemId, columna, etiqueta, destacado, soloDescarga }) {
   const base =
     'inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
   const estilo = destacado
@@ -35,14 +43,23 @@ function BotonesArchivo({ itemId, columna, etiqueta, destacado }) {
     : 'border-border bg-card text-foreground hover:bg-muted';
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
-      <a href={urlArchivo(itemId, columna, 'ver')} target="_blank" rel="noopener noreferrer" className={`${base} ${estilo}`}>
-        <Eye className="h-4 w-4" />
-        {etiqueta}
-      </a>
-      <a href={urlArchivo(itemId, columna, 'descargar')} className={`${base} border-border bg-card text-muted-foreground hover:bg-muted`}>
-        <Download className="h-4 w-4" />
-        Descargar
-      </a>
+      {soloDescarga ? (
+        <a href={urlArchivo(itemId, columna, 'descargar')} className={`${base} ${estilo}`}>
+          <Download className="h-4 w-4" />
+          {etiqueta}
+        </a>
+      ) : (
+        <>
+          <a href={urlArchivo(itemId, columna, 'ver')} target="_blank" rel="noopener noreferrer" className={`${base} ${estilo}`}>
+            <Eye className="h-4 w-4" />
+            {etiqueta}
+          </a>
+          <a href={urlArchivo(itemId, columna, 'descargar')} className={`${base} border-border bg-card text-muted-foreground hover:bg-muted`}>
+            <Download className="h-4 w-4" />
+            Descargar
+          </a>
+        </>
+      )}
     </div>
   );
 }
@@ -60,7 +77,7 @@ function PendienteDeFirma({ contract }) {
     <div className="mt-4 rounded-md border border-border bg-muted/30 p-3">
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Pendiente de firma</p>
 
-      <BotonesArchivo itemId={contract.id} columna="contratoParaFirma" etiqueta="Ver el documento a firmar" />
+      <BotonesArchivo itemId={contract.id} columna="contratoParaFirma" etiqueta="Descargar el documento a firmar" soloDescarga />
 
     </div>
   );
