@@ -30,7 +30,7 @@ export default function OrdenesDeCompraPage() {
 
   const { items, loading } = useOrdenesCompra(userContext);
   const { facturacionMap, loading: factLoading, facturaStats } = useFacturacion();
-  const { stats: pagosStats, loading: pagosLoading } = useFacturasPendientes();
+  const { stats: pagosStats, loading: pagosLoading } = useFacturasPendientes(userContext);
 
   const obraCards = useMemo(() => {
     const map = new Map();
