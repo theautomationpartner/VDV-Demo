@@ -1,66 +1,89 @@
 "use client";
 
-import { useState } from 'react';
-import { Building2, ChevronDown, ChevronUp, Check, MessageSquareWarning, Lock, Eye, Download } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
-import { pasoDelUsuario, puedeAprobar, motivoBloqueo, useVbContrato } from '@/hooks/portal-proveedor/useVbContrato';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import ProcessTimeline from '@/components/portal-proveedor/ProcessTimeline';
+import { useState } from "react";
+import {
+  Building2,
+  ChevronDown,
+  ChevronUp,
+  Check,
+  MessageSquareWarning,
+  Lock,
+  Download,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import {
+  pasoDelUsuario,
+  puedeAprobar,
+  motivoBloqueo,
+  useVbContrato,
+} from "@/hooks/portal-proveedor/useVbContrato";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import ProcessTimeline from "@/components/portal-proveedor/ProcessTimeline";
 
-const fmt = (v) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v || 0);
+const fmt = (v) =>
+  new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    maximumFractionDigits: 0,
+  }).format(v || 0);
 
 const getStatusBadge = (status) => {
-  if (!status) return { text: 'Sin estado', cls: 'bg-muted text-muted-foreground border-border' };
+  if (!status)
+    return {
+      text: "Sin estado",
+      cls: "bg-muted text-muted-foreground border-border",
+    };
   const s = status.toUpperCase();
-  if (s.includes('FIRMADO') || s.includes('COMPLETED')) return { text: status, cls: 'bg-green-600/20 text-green-400 border-green-600/30' };
-  if (s.includes('SIN EFECTO') || s.includes('CANCELLED') || s.includes('FAILED')) return { text: status, cls: 'bg-red-600/20 text-red-400 border-red-600/30' };
-  return { text: status, cls: 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' };
+  if (s.includes("FIRMADO") || s.includes("COMPLETED"))
+    return {
+      text: status,
+      cls: "bg-green-600/20 text-green-400 border-green-600/30",
+    };
+  if (
+    s.includes("SIN EFECTO") ||
+    s.includes("CANCELLED") ||
+    s.includes("FAILED")
+  )
+    return {
+      text: status,
+      cls: "bg-red-600/20 text-red-400 border-red-600/30",
+    };
+  return {
+    text: status,
+    cls: "bg-yellow-600/20 text-yellow-400 border-yellow-600/30",
+  };
 };
 
 // Los archivos se piden a nuestro endpoint, no a monday directo: la URL que
 // monday devuelve exige sesion de monday, y un proveedor no la tiene - hacia
 // clic y terminaba en la pantalla de login. Ver app/api/monday/archivo.
-const urlArchivo = (itemId, columna, modo) =>
-  `/api/monday/archivo?boardKey=FlujoContratacionSubcontratoBoard&itemId=${itemId}&columna=${columna}&modo=${modo}`;
+const urlArchivo = (itemId, columna) =>
+  `/api/monday/archivo?boardKey=FlujoContratacionSubcontratoBoard&itemId=${itemId}&columna=${columna}`;
 
 /**
- * Ver en el navegador o descargar.
+ * Un solo boton: descargar.
  *
- * `soloDescarga` para los archivos que el navegador no sabe mostrar: el
- * documento a firmar es .docx en 68 de 69 contratos (GetSign genera el
- * borrador en Word y devuelve el firmado en PDF), y un boton "Ver" que
- * termina bajando el archivo confunde. El contrato firmado, en cambio, es
- * PDF en los 68 casos.
+ * Se probo mostrar el archivo en el navegador (Content-Disposition inline) y
+ * funciona, pero solo para PDF de menos de 4 MB: el documento a firmar es
+ * .docx en 68 de 69 contratos y 3 de los 68 contratos firmados pasan ese
+ * tamano. Un boton que a veces muestra y a veces baja confunde mas de lo que
+ * ayuda, asi que por ahora se ofrece solo la descarga, que es consistente.
  */
-function BotonesArchivo({ itemId, columna, etiqueta, destacado, soloDescarga }) {
-  const base =
-    'inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+function BotonArchivo({ itemId, columna, etiqueta, destacado }) {
   const estilo = destacado
-    ? 'border-green-600/30 bg-green-600/10 text-green-400 hover:bg-green-600/20'
-    : 'border-border bg-card text-foreground hover:bg-muted';
+    ? "border-green-600/30 bg-green-600/10 text-green-400 hover:bg-green-600/20"
+    : "border-border bg-card text-foreground hover:bg-muted";
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-2">
-      {soloDescarga ? (
-        <a href={urlArchivo(itemId, columna, 'descargar')} className={`${base} ${estilo}`}>
-          <Download className="h-4 w-4" />
-          {etiqueta}
-        </a>
-      ) : (
-        <>
-          <a href={urlArchivo(itemId, columna, 'ver')} target="_blank" rel="noopener noreferrer" className={`${base} ${estilo}`}>
-            <Eye className="h-4 w-4" />
-            {etiqueta}
-          </a>
-          <a href={urlArchivo(itemId, columna, 'descargar')} className={`${base} border-border bg-card text-muted-foreground hover:bg-muted`}>
-            <Download className="h-4 w-4" />
-            Descargar
-          </a>
-        </>
-      )}
-    </div>
+    <a
+      href={urlArchivo(itemId, columna)}
+      className={`mt-2 inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${estilo}`}
+    >
+      <Download className="h-4 w-4" />
+      {etiqueta}
+    </a>
   );
 }
 
@@ -75,10 +98,15 @@ function PendienteDeFirma({ contract }) {
 
   return (
     <div className="mt-4 rounded-md border border-border bg-muted/30 p-3">
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Pendiente de firma</p>
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+        Pendiente de firma
+      </p>
 
-      <BotonesArchivo itemId={contract.id} columna="contratoParaFirma" etiqueta="Descargar el documento a firmar" soloDescarga />
-
+      <BotonArchivo
+        itemId={contract.id}
+        columna="contratoParaFirma"
+        etiqueta="Descargar el documento a firmar"
+      />
     </div>
   );
 }
@@ -90,7 +118,12 @@ function ContratoFirmado({ contract }) {
   if (!contract.contratoFirmado) return null;
   return (
     <div className="mt-4">
-      <BotonesArchivo itemId={contract.id} columna="contratoFirmado" etiqueta="Ver contrato firmado" destacado />
+      <BotonArchivo
+        itemId={contract.id}
+        columna="contratoFirmado"
+        etiqueta="Descargar contrato firmado"
+        destacado
+      />
     </div>
   );
 }
@@ -99,7 +132,7 @@ function ContratoFirmado({ contract }) {
 // circuito (rolContrato en su asignacion). Un subcontratista nunca lo ve.
 function PanelVb({ contract, userContext, onListo }) {
   const [obsAbierta, setObsAbierta] = useState(false);
-  const [comentario, setComentario] = useState('');
+  const [comentario, setComentario] = useState("");
   const { registrar, guardando } = useVbContrato();
 
   const paso = pasoDelUsuario(userContext);
@@ -111,7 +144,7 @@ function PanelVb({ contract, userContext, onListo }) {
 
   const enviar = async (aprueba) => {
     if (!aprueba && !comentario.trim()) {
-      toast.error('Escribí el motivo de la observación.');
+      toast.error("Escribí el motivo de la observación.");
       return;
     }
     const r = await registrar({
@@ -122,9 +155,11 @@ function PanelVb({ contract, userContext, onListo }) {
       quien: userContext?.adminName || userContext?.proveedorName,
     });
     if (r.ok) {
-      toast.success(aprueba ? 'Visto bueno registrado' : 'Observación registrada');
+      toast.success(
+        aprueba ? "Visto bueno registrado" : "Observación registrada",
+      );
       setObsAbierta(false);
-      setComentario('');
+      setComentario("");
       onListo?.();
     } else {
       toast.error(r.error);
@@ -133,7 +168,9 @@ function PanelVb({ contract, userContext, onListo }) {
 
   return (
     <div className="mt-4 rounded-md border border-border bg-muted/30 p-3">
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Te toca: {paso.label}</p>
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+        Te toca: {paso.label}
+      </p>
 
       {!habilitado ? (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -143,7 +180,12 @@ function PanelVb({ contract, userContext, onListo }) {
       ) : (
         <>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button size="sm" className="h-8 text-xs" disabled={ocupado} onClick={() => enviar(true)}>
+            <Button
+              size="sm"
+              className="h-8 text-xs"
+              disabled={ocupado}
+              onClick={() => enviar(true)}
+            >
               <Check className="mr-1.5 h-3.5 w-3.5" />
               Dar visto bueno
             </Button>
@@ -167,7 +209,13 @@ function PanelVb({ contract, userContext, onListo }) {
                 placeholder="Qué hay que corregir. Queda registrado en el contrato."
                 className="min-h-[70px] text-xs"
               />
-              <Button size="sm" variant="destructive" className="h-8 text-xs" disabled={ocupado} onClick={() => enviar(false)}>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-8 text-xs"
+                disabled={ocupado}
+                onClick={() => enviar(false)}
+              >
                 Registrar observación
               </Button>
             </div>
@@ -179,21 +227,32 @@ function PanelVb({ contract, userContext, onListo }) {
 }
 
 const getTimelineSteps = (c) => [
-  { label: 'VB Obra / Terreno', value: c.vbOt },
-  { label: 'VP Aprobación', value: c.vpApr },
-  { label: 'VB Administrador', value: c.vbAdministrador },
-  { label: 'VB Abogado', value: c.vbAbogado },
-  { label: 'VB Rep. Legal', value: c.vbRepLegal },
-  { label: 'Estado Firmas', value: c.estadoFirmas },
-  { label: 'Estado Contrato', value: c.estadoContrato },
+  { label: "VB Obra / Terreno", value: c.vbOt },
+  { label: "VP Aprobación", value: c.vpApr },
+  { label: "VB Administrador", value: c.vbAdministrador },
+  { label: "VB Abogado", value: c.vbAbogado },
+  { label: "VB Rep. Legal", value: c.vbRepLegal },
+  { label: "Estado Firmas", value: c.estadoFirmas },
+  { label: "Estado Contrato", value: c.estadoContrato },
 ];
 
-export default function ContractDetail({ items, obraName, userContext, onCambio }) {
+export default function ContractDetail({
+  items,
+  obraName,
+  userContext,
+  onCambio,
+}) {
   const [expandedItems, setExpandedItems] = useState({});
   const toggle = (id) => setExpandedItems((p) => ({ ...p, [id]: !p[id] }));
 
   if (items.length === 0) {
-    return <Card className="p-8 border-border"><p className="text-center text-muted-foreground text-sm">No hay contratos para esta obra</p></Card>;
+    return (
+      <Card className="p-8 border-border">
+        <p className="text-center text-muted-foreground text-sm">
+          No hay contratos para esta obra
+        </p>
+      </Card>
+    );
   }
 
   return (
@@ -201,7 +260,9 @@ export default function ContractDetail({ items, obraName, userContext, onCambio 
       <div className="flex items-center gap-2 mb-1">
         <Building2 className="w-4 h-4 text-muted-foreground" />
         <h2 className="text-sm font-semibold text-foreground">{obraName}</h2>
-        <Badge variant="secondary" className="text-[10px] h-5">{items.length} contratos</Badge>
+        <Badge variant="secondary" className="text-[10px] h-5">
+          {items.length} contratos
+        </Badge>
       </div>
       {items.map((contract) => {
         const badge = getStatusBadge(contract.estadoContrato);
@@ -215,19 +276,39 @@ export default function ContractDetail({ items, obraName, userContext, onCambio 
               className="w-full p-3 md:p-4 flex items-start justify-between gap-3 text-left active:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             >
               <div className="min-w-0 flex-1 space-y-1.5">
-                <p className="font-medium text-sm text-foreground leading-tight break-words">{contract.name}</p>
+                <p className="font-medium text-sm text-foreground leading-tight break-words">
+                  {contract.name}
+                </p>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] border ${badge.cls}`}>{badge.text}</span>
-                  {contract.montoContratoBruto ? <span className="text-xs font-medium tabular-nums text-foreground">{fmt(contract.montoContratoBruto)}</span> : null}
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] border ${badge.cls}`}
+                  >
+                    {badge.text}
+                  </span>
+                  {contract.montoContratoBruto ? (
+                    <span className="text-xs font-medium tabular-nums text-foreground">
+                      {fmt(contract.montoContratoBruto)}
+                    </span>
+                  ) : null}
                 </div>
               </div>
-              {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0 mt-1" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />}
+              {isOpen ? (
+                <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
+              )}
             </button>
             {isOpen && (
               <div className="px-3 pb-4 md:px-4 border-t border-border pt-3">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3 font-medium">Proceso del contrato</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3 font-medium">
+                  Proceso del contrato
+                </p>
                 <ProcessTimeline steps={getTimelineSteps(contract)} />
-                <PanelVb contract={contract} userContext={userContext} onListo={onCambio} />
+                <PanelVb
+                  contract={contract}
+                  userContext={userContext}
+                  onListo={onCambio}
+                />
                 <PendienteDeFirma contract={contract} />
                 <ContratoFirmado contract={contract} />
               </div>
