@@ -21,6 +21,23 @@ import { Download, AlertTriangle, ZoomIn, ZoomOut } from "lucide-react";
 /** Cambios de ancho menores a esto se ignoran. Ver el ResizeObserver de abajo. */
 const CAMBIO_DE_ANCHO_RELEVANTE = 32;
 
+/**
+ * Techo de pixeles por pagina dibujada. Es el mismo numero que usa el visor
+ * oficial de pdf.js (maxCanvasPixels), y existe por una razon concreta:
+ *
+ * el area de un canvas crece al CUADRADO del zoom. Sin techo, una pagina carta
+ * en un dialogo de 1000 px al 300% con pantalla de densidad 2 pide un canvas de
+ * 6000 x 7765 = 46 millones de pixeles = 186 MB para UNA pagina. Chrome mata la
+ * pestana y se pierde toda la aplicacion ("This page couldn't load").
+ *
+ * Al pasarse del techo se baja la densidad de dibujado, NO el tamano en
+ * pantalla: la pagina se sigue viendo del mismo tamano, apenas menos nitida.
+ */
+const MAX_PIXELES_POR_PAGINA = 5 * 1024 * 1024;
+
+/** Mas densidad que esta no se nota, y cuadruplica la memoria. */
+const MAX_DENSIDAD = 2;
+
 export default function VisorPdfDialog({ itemId, nombre, abierto, onOpenChange }) {
   const [estado, setEstado] = useState("cargando");
   const [numPaginas, setNumPaginas] = useState(0);
@@ -38,9 +55,18 @@ export default function VisorPdfDialog({ itemId, nombre, abierto, onOpenChange }
     const contenedor = contenedorRef.current;
     if (!contenedor || dibujandoRef.current) return;
     dibujandoRef.current = true;
+
+    // Soltar los canvas anteriores a mano: dejarlos al recolector de basura
+    // hace que convivan los viejos y los nuevos, justo cuando mas memoria se
+    // esta usando.
+    for (const viejo of contenedor.children) {
+      if (viejo instanceof HTMLCanvasElement) {
+        viejo.width = 0;
+        viejo.height = 0;
+      }
+    }
     contenedor.replaceChildren();
 
-    const ratio = window.devicePixelRatio || 1;
     // clientWidth puede leer 0 justo al abrir el dialogo, antes de que el
     // layout se asiente: ahi se usa el ancho de la ventana como referencia.
     const anchoDisponible = contenedor.clientWidth || Math.min(window.innerWidth - 32, 1000);
@@ -48,22 +74,34 @@ export default function VisorPdfDialog({ itemId, nombre, abierto, onOpenChange }
 
     try {
       for (let n = 1; n <= pdf.numPages; n++) {
-       
         const page = await pdf.getPage(n);
-
         const original = page.getViewport({ scale: 1 });
-        const escalaAjuste = (anchoDisponible / original.width) * zoom;
-        const viewport = page.getViewport({ scale: escalaAjuste * ratio });
+        if (!original.width) continue;
+
+        // Tamano en pantalla: el ancho disponible por el zoom. Es lo que ve el
+        // usuario y no se toca.
+        const escalaEnPantalla = (anchoDisponible / original.width) * zoom;
+        const enPantalla = page.getViewport({ scale: escalaEnPantalla });
+
+        // Densidad de dibujado: se recorta lo necesario para no pasar el techo.
+        let densidad = Math.min(window.devicePixelRatio || 1, MAX_DENSIDAD);
+        const pixeles = enPantalla.width * enPantalla.height * densidad * densidad;
+        if (pixeles > MAX_PIXELES_POR_PAGINA) {
+          densidad *= Math.sqrt(MAX_PIXELES_POR_PAGINA / pixeles);
+        }
+
+        const viewport = page.getViewport({ scale: escalaEnPantalla * densidad });
 
         const canvas = document.createElement("canvas");
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        canvas.style.width = `${viewport.width / ratio}px`;
-        canvas.style.height = "auto";
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        // El tamano en pantalla sale del viewport SIN la densidad: asi la
+        // pagina se ve igual de grande aunque se haya bajado la nitidez.
+        canvas.style.width = `${Math.round(enPantalla.width)}px`;
+        canvas.style.height = `${Math.round(enPantalla.height)}px`;
         canvas.className = "mx-auto mb-5 block rounded-md border border-border bg-card shadow-sm";
         contenedor.appendChild(canvas);
 
-       
         await page.render({ canvas, canvasContext: canvas.getContext("2d"), viewport }).promise;
       }
     } finally {
