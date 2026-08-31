@@ -287,7 +287,6 @@ export default function OcHistorial({ currentUser }) {
                         itemId={item.id}
                         numeroOc={item.numeroOc}
                         tieneDocumento={Boolean(item.docOc)}
-                        nombreDocumento={item.docOc}
                       />
                     </div>
                   </div>
@@ -367,7 +366,6 @@ export default function OcHistorial({ currentUser }) {
                               itemId={item.id}
                               numeroOc={item.numeroOc}
                               tieneDocumento={Boolean(item.docOc)}
-                              nombreDocumento={item.docOc}
                             />
                           </div>
                         </TableCell>
