@@ -58,14 +58,18 @@ export default function VerDocumentoOc({ itemId, numeroOc, tieneDocumento }) {
         <ExternalLink className="h-4 w-4 text-muted-foreground" />
       </Button>
 
-      {abierto && (
-        <VisorPdfDialog
-          itemId={itemId}
-          nombre={nombreArchivo}
-          abierto={abierto}
-          onOpenChange={setAbierto}
-        />
-      )}
+      {/* Se renderiza SIEMPRE, como el resto de los dialogos de la app.
+          Con {abierto && ...} el visor se desmontaba en el mismo instante en
+          que el dialogo arrancaba su secuencia de cierre, y los dos quedaban
+          peleando por el mismo nodo: la pestana se caia entera al cerrar el
+          documento. pdf.js igual solo se carga al abrir, porque el efecto que
+          lo importa sale temprano mientras `abierto` sea false. */}
+      <VisorPdfDialog
+        itemId={itemId}
+        nombre={nombreArchivo}
+        abierto={abierto}
+        onOpenChange={setAbierto}
+      />
     </div>
   );
 }

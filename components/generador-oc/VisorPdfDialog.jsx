@@ -50,6 +50,9 @@ export default function VisorPdfDialog({ itemId, nombre, abierto, onOpenChange }
   // dos existen para cortar el bucle del ResizeObserver de mas abajo.
   const anchoDibujadoRef = useRef(0);
   const dibujandoRef = useRef(false);
+  // La tarea de dibujado en curso. pdf.js pide cancelarla antes de cerrar el
+  // documento; destruirlo con una tarea viva deja al worker a medio camino.
+  const tareaRef = useRef(null);
 
   const dibujar = useCallback(async (pdf, zoom) => {
     const contenedor = contenedorRef.current;
@@ -102,7 +105,14 @@ export default function VisorPdfDialog({ itemId, nombre, abierto, onOpenChange }
         canvas.className = "mx-auto mb-5 block rounded-md border border-border bg-card shadow-sm";
         contenedor.appendChild(canvas);
 
-        await page.render({ canvas, canvasContext: canvas.getContext("2d"), viewport }).promise;
+        const tarea = page.render({
+          canvas,
+          canvasContext: canvas.getContext("2d"),
+          viewport,
+        });
+        tareaRef.current = tarea;
+        await tarea.promise;
+        tareaRef.current = null;
       }
     } finally {
       dibujandoRef.current = false;
@@ -113,6 +123,8 @@ export default function VisorPdfDialog({ itemId, nombre, abierto, onOpenChange }
     if (!abierto) return undefined;
 
     let activo = true;
+    // Se guarda ahora: en la limpieza, el ref ya puede apuntar a otra cosa.
+    const contenedorAlAbrir = contenedorRef.current;
     setEstado("cargando");
     setNumPaginas(0);
 
@@ -158,8 +170,27 @@ export default function VisorPdfDialog({ itemId, nombre, abierto, onOpenChange }
 
     return () => {
       activo = false;
+
+      // El orden importa: primero se corta el dibujado en curso, despues se
+      // sueltan los canvas, y recien al final se cierra el documento.
+      try {
+        tareaRef.current?.cancel();
+      } catch {
+        // Si ya termino, cancel() puede quejarse: no hay nada que hacer.
+      }
+      tareaRef.current = null;
+
+      if (contenedorAlAbrir) {
+        for (const canvas of contenedorAlAbrir.querySelectorAll("canvas")) {
+          canvas.width = 0;
+          canvas.height = 0;
+        }
+        contenedorAlAbrir.replaceChildren();
+      }
+
       pdfRef.current?.destroy();
       pdfRef.current = null;
+      dibujandoRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [abierto, itemId, dibujar]);
