@@ -113,7 +113,7 @@ function GeneradorOc() {
         </Card>
       )}
 
-      {vista === "lista" && <OcHistorial />}
+      {vista === "lista" && <OcHistorial currentUser={usuario} />}
 
       {vista === "formulario" && (
         <div>

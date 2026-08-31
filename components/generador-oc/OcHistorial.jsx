@@ -20,51 +20,15 @@ import {
 } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Loader2, FileDown } from "lucide-react";
-import { getOcs, getObrasOc } from "@/lib/generador-oc/datos";
+import { Search, Loader2, Pencil } from "lucide-react";
+import { toast } from "sonner";
+import { getOcs, getObrasOc, actualizarEstadoOc } from "@/lib/generador-oc/datos";
+import EstadoOcCell from "./EstadoOcCell";
+import VerDocumentoOc from "./VerDocumentoOc";
+import AprobarOcDialog from "./AprobarOcDialog";
+import EditarOcDialog from "./EditarOcDialog";
 
 const TODAS = "__todas__";
-
-const ESTILO_ESTADO = {
-  APROBADO: "border-[hsl(var(--precio-bueno))]/40 bg-[hsl(var(--precio-bueno-soft))] text-[hsl(var(--precio-bueno))]",
-  PENDIENTE: "border-[hsl(var(--precio-medio))]/40 bg-[hsl(var(--precio-medio-soft))] text-[hsl(var(--precio-medio))]",
-  RECHAZADO: "border-[hsl(var(--precio-alto))]/40 bg-[hsl(var(--precio-alto-soft))] text-[hsl(var(--precio-alto))]",
-};
-
-function EstadoBadge({ estado }) {
-  const texto = estado || "—";
-  return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
-        ESTILO_ESTADO[texto] ?? "border-border bg-muted text-muted-foreground"
-      }`}
-    >
-      {texto}
-    </span>
-  );
-}
-
-/** Enlace al PDF de la orden. Vacio si esa orden todavia no tiene documento. */
-function VerDocumento({ item }) {
-  if (!item.docOc) return <span className="text-xs text-muted-foreground">Sin PDF</span>;
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      title={`Descargar el PDF de la OC ${item.numeroOc}`}
-      aria-label={`Descargar el PDF de la OC ${item.numeroOc}`}
-      render={
-        <a
-          href={`/api/monday/archivo?boardKey=OrdenesDeCompraMaxxaBoard&itemId=${item.id}&columna=docOc`}
-          target="_blank"
-          rel="noopener noreferrer"
-        />
-      }
-    >
-      <FileDown className="h-4 w-4" />
-    </Button>
-  );
-}
 
 function formatDate(valor) {
   if (!valor) return "—";
@@ -86,14 +50,21 @@ function nombreProveedor(item) {
   return item.proveedores?.linkedItems?.[0]?.name || item.proveedores || "—";
 }
 
-/** Las personas de una columna de persona, que llega como texto separado por coma. */
+/** Las columnas de persona llegan como texto separado por coma. */
 function personas(valor) {
   if (!valor) return "—";
-  if (Array.isArray(valor)) return valor.map((p) => p.name ?? p).join(", ") || "—";
   return String(valor);
 }
 
-export default function OcHistorial() {
+function contienePersona(valor, nombre) {
+  if (!valor || !nombre) return false;
+  return String(valor)
+    .split(",")
+    .map((s) => s.trim())
+    .includes(nombre);
+}
+
+export default function OcHistorial({ currentUser }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -102,6 +73,9 @@ export default function OcHistorial() {
   const [obraFilter, setObraFilter] = useState(TODAS);
   const [estadoFilter, setEstadoFilter] = useState(TODAS);
   const [obras, setObras] = useState([]);
+  const [actualizandoId, setActualizandoId] = useState(null);
+  const [aprobandoId, setAprobandoId] = useState(null);
+  const [editandoId, setEditandoId] = useState(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -149,6 +123,48 @@ export default function OcHistorial() {
     return () => clearTimeout(timer);
   }, [cargar]);
 
+  /**
+   * Rechazar o reabrir. Se pinta el estado nuevo antes de que monday conteste y
+   * se revierte si el servidor lo rechaza: es una accion de un clic y esperar
+   * dos segundos con la fila igual da la sensacion de que no paso nada.
+   */
+  const cambiarEstado = async (itemId, estado) => {
+    const anterior = items;
+    setActualizandoId(itemId);
+    setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, estadoDocumento: estado } : i)));
+
+    try {
+      await actualizarEstadoOc({ itemId, estado });
+    } catch (error) {
+      console.error("[generador-oc] Error al cambiar el estado de la OC:", error);
+      setItems(anterior);
+      toast.error(error?.message || "No se pudo cambiar el estado de la orden.");
+    } finally {
+      setActualizandoId(null);
+    }
+  };
+
+  /**
+   * Quien puede gestionar cada orden. La pantalla lo usa para no ofrecer lo que
+   * va a fallar; quien puede de verdad lo verifica el servidor contra el
+   * tablero (lib/server/board-access-policy.js).
+   */
+  const permisos = (item) => {
+    const esGerenteGeneral = currentUser?.cargo?.trim().toLowerCase() === "gerente general";
+    const nombre = currentUser?.name;
+    const esResponsable = contienePersona(item.responsable, nombre);
+    const esAprobador = esGerenteGeneral || contienePersona(item.aprobador, nombre);
+    const puedeGestionar = Boolean(currentUser?.id) && (esGerenteGeneral || esResponsable || esAprobador);
+    return {
+      puedeGestionar,
+      esAprobador: Boolean(currentUser?.id) && esAprobador,
+      puedeEditar: puedeGestionar && item.estadoDocumento !== "APROBADO",
+    };
+  };
+
+  const filaAprobando = items.find((i) => i.id === aprobandoId);
+  const filaEditando = items.find((i) => i.id === editandoId);
+
   return (
     <div className="space-y-6">
       <Card className="p-4">
@@ -195,7 +211,6 @@ export default function OcHistorial() {
       {loading ? (
         <Card className="space-y-4 p-6">
           {Array.from({ length: 5 }).map((_, i) => (
-             
             <Skeleton key={i} className="h-12 w-full" />
           ))}
         </Card>
@@ -207,49 +222,78 @@ export default function OcHistorial() {
         <>
           {/* Tarjetas — pantallas angostas */}
           <div className="space-y-3 md:hidden">
-            {items.map((item) => (
-              <Card key={item.id} className="p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">
-                      OC {item.numeroOc || "—"} · {nombreProveedor(item)}
-                    </p>
-                    <p className="truncate text-sm text-muted-foreground">{item.obra || "—"}</p>
-                  </div>
-                  <p className="shrink-0 whitespace-nowrap text-right font-semibold tabular-nums">
-                    {formatCurrency(item.monto, item.moneda)}
-                  </p>
-                </div>
-
-                <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                  <div className="min-w-0">
-                    <dt className="text-xs text-muted-foreground">Fecha</dt>
-                    <dd className="truncate">{formatDate(item.createdAt)}</dd>
-                  </div>
-                  <div className="min-w-0">
-                    <dt className="text-xs text-muted-foreground">Responsable</dt>
-                    <dd className="truncate">{personas(item.responsable)}</dd>
-                  </div>
-                  <div className="col-span-2 min-w-0">
-                    <dt className="text-xs text-muted-foreground">Aprobador</dt>
-                    <dd className="truncate">{personas(item.aprobador)}</dd>
-                  </div>
-                  {item.comentariosInternos && (
-                    <div className="col-span-2 min-w-0">
-                      <dt className="text-xs text-muted-foreground">Notas internas</dt>
-                      <dd className="line-clamp-2 text-xs italic text-muted-foreground">
-                        {item.comentariosInternos}
-                      </dd>
+            {items.map((item) => {
+              const { puedeGestionar, esAprobador, puedeEditar } = permisos(item);
+              return (
+                <Card key={item.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">
+                        OC {item.numeroOc || "—"} · {nombreProveedor(item)}
+                      </p>
+                      <p className="truncate text-sm text-muted-foreground">{item.obra || "—"}</p>
                     </div>
-                  )}
-                </dl>
+                    <p className="shrink-0 whitespace-nowrap text-right font-semibold tabular-nums">
+                      {formatCurrency(item.monto, item.moneda)}
+                    </p>
+                  </div>
 
-                <div className="mt-3 flex items-center justify-between gap-2 border-t pt-3">
-                  <EstadoBadge estado={item.estadoDocumento} />
-                  <VerDocumento item={item} />
-                </div>
-              </Card>
-            ))}
+                  <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                    <div className="min-w-0">
+                      <dt className="text-xs text-muted-foreground">Fecha</dt>
+                      <dd className="truncate">{formatDate(item.createdAt)}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-xs text-muted-foreground">Responsable</dt>
+                      <dd className="truncate">{personas(item.responsable)}</dd>
+                    </div>
+                    <div className="col-span-2 min-w-0">
+                      <dt className="text-xs text-muted-foreground">Aprobador</dt>
+                      <dd className="truncate">{personas(item.aprobador)}</dd>
+                    </div>
+                    {item.comentariosInternos && (
+                      <div className="col-span-2 min-w-0">
+                        <dt className="text-xs text-muted-foreground">Notas internas</dt>
+                        <dd className="line-clamp-2 text-xs italic text-muted-foreground">
+                          {item.comentariosInternos}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+
+                  <div className="mt-3 flex items-center justify-between gap-2 border-t pt-3">
+                    <EstadoOcCell
+                      estado={item.estadoDocumento}
+                      puedeGestionar={puedeGestionar}
+                      esAprobador={esAprobador}
+                      actualizando={actualizandoId === item.id}
+                      onSolicitarAprobar={() => setAprobandoId(item.id)}
+                      onRechazar={() => cambiarEstado(item.id, "RECHAZADO")}
+                      onReabrir={() => cambiarEstado(item.id, "PENDIENTE")}
+                    />
+                    <div className="flex items-center gap-0.5">
+                      {puedeEditar && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title={`Editar OC ${item.numeroOc}`}
+                          aria-label={`Editar OC ${item.numeroOc}`}
+                          onClick={() => setEditandoId(item.id)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <VerDocumentoOc
+                        itemId={item.id}
+                        numeroOc={item.numeroOc}
+                        tieneDocumento={Boolean(item.docOc)}
+                        nombreDocumento={item.docOc}
+                      />
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
           </div>
 
           {/* Tabla — pantallas medianas y grandes */}
@@ -267,42 +311,69 @@ export default function OcHistorial() {
                     <TableHead className="text-right">Monto</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead className="max-w-[200px]">Notas internas</TableHead>
-                    <TableHead className="text-right">Documento</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.numeroOc || "—"}</TableCell>
-                      <TableCell>{nombreProveedor(item)}</TableCell>
-                      <TableCell>{item.obra || "—"}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatDate(item.createdAt)}
-                      </TableCell>
-                      <TableCell className="text-sm">{personas(item.responsable)}</TableCell>
-                      <TableCell className="text-sm">{personas(item.aprobador)}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatCurrency(item.monto, item.moneda)}
-                      </TableCell>
-                      <TableCell>
-                        <EstadoBadge estado={item.estadoDocumento} />
-                      </TableCell>
-                      <TableCell className="max-w-[200px]">
-                        {item.comentariosInternos ? (
-                          <p className="line-clamp-2 text-xs italic text-muted-foreground">
-                            {item.comentariosInternos}
-                          </p>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-end gap-0.5">
-                          <VerDocumento item={item} />
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {items.map((item) => {
+                    const { puedeGestionar, esAprobador, puedeEditar } = permisos(item);
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.numeroOc || "—"}</TableCell>
+                        <TableCell>{nombreProveedor(item)}</TableCell>
+                        <TableCell>{item.obra || "—"}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {formatDate(item.createdAt)}
+                        </TableCell>
+                        <TableCell className="text-sm">{personas(item.responsable)}</TableCell>
+                        <TableCell className="text-sm">{personas(item.aprobador)}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatCurrency(item.monto, item.moneda)}
+                        </TableCell>
+                        <TableCell>
+                          <EstadoOcCell
+                            estado={item.estadoDocumento}
+                            puedeGestionar={puedeGestionar}
+                            esAprobador={esAprobador}
+                            actualizando={actualizandoId === item.id}
+                            onSolicitarAprobar={() => setAprobandoId(item.id)}
+                            onRechazar={() => cambiarEstado(item.id, "RECHAZADO")}
+                            onReabrir={() => cambiarEstado(item.id, "PENDIENTE")}
+                          />
+                        </TableCell>
+                        <TableCell className="max-w-[200px]">
+                          {item.comentariosInternos ? (
+                            <p className="line-clamp-2 text-xs italic text-muted-foreground">
+                              {item.comentariosInternos}
+                            </p>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-0.5">
+                            {puedeEditar && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title={`Editar OC ${item.numeroOc}`}
+                                aria-label={`Editar OC ${item.numeroOc}`}
+                                onClick={() => setEditandoId(item.id)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <VerDocumentoOc
+                              itemId={item.id}
+                              numeroOc={item.numeroOc}
+                              tieneDocumento={Boolean(item.docOc)}
+                              nombreDocumento={item.docOc}
+                            />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -328,6 +399,36 @@ export default function OcHistorial() {
             </div>
           )}
         </>
+      )}
+
+      {aprobandoId && currentUser && (
+        <AprobarOcDialog
+          itemId={aprobandoId}
+          numeroOc={filaAprobando?.numeroOc ?? null}
+          currentUser={currentUser}
+          open={Boolean(aprobandoId)}
+          onOpenChange={(open) => !open && setAprobandoId(null)}
+          onAprobada={() => {
+            setItems((prev) =>
+              prev.map((i) => (i.id === aprobandoId ? { ...i, estadoDocumento: "APROBADO" } : i)),
+            );
+            toast.success("Orden aprobada. El PDF quedó actualizado con las dos firmas.");
+          }}
+        />
+      )}
+
+      {editandoId && currentUser && (
+        <EditarOcDialog
+          itemId={editandoId}
+          numeroOc={filaEditando?.numeroOc ?? null}
+          currentUser={currentUser}
+          open={Boolean(editandoId)}
+          onOpenChange={(open) => !open && setEditandoId(null)}
+          onGuardado={() => {
+            cargar();
+            toast.success("Cambios guardados.");
+          }}
+        />
       )}
     </div>
   );

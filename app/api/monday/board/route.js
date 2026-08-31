@@ -717,7 +717,11 @@ export async function POST(request) {
     if (op === "itemUpdate" || op === "itemCreate") {
       if (AUTH_LAYERS_ENABLED) {
         try {
-          verificarAccesoMutacion(sesion, boardKey, { op, values: params.values });
+          await verificarAccesoMutacion(sesion, boardKey, {
+            op,
+            values: params.values,
+            itemId: params.itemId,
+          });
         } catch (err) {
           if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
           throw err;
@@ -734,7 +738,11 @@ export async function POST(request) {
     if (op === "itemNote") {
       if (AUTH_LAYERS_ENABLED) {
         try {
-          verificarAccesoMutacion(sesion, boardKey, { op: "itemUpdate", values: params.values ?? {} });
+          await verificarAccesoMutacion(sesion, boardKey, {
+            op: "itemUpdate",
+            values: params.values ?? {},
+            itemId: params.itemId,
+          });
         } catch (err) {
           if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
           throw err;
@@ -750,7 +758,11 @@ export async function POST(request) {
     if (op === "subitemCreate") {
       if (AUTH_LAYERS_ENABLED) {
         try {
-          verificarAccesoMutacion(sesion, boardKey, { op: "itemCreate", values: params.values });
+          await verificarAccesoMutacion(sesion, boardKey, {
+            op: "itemCreate",
+            values: params.values,
+            itemId: params.parentItemId,
+          });
         } catch (err) {
           if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
           throw err;
@@ -762,7 +774,11 @@ export async function POST(request) {
     if (op === "notify") {
       if (AUTH_LAYERS_ENABLED) {
         try {
-          verificarAccesoMutacion(sesion, boardKey, { op: "notify", values: {} });
+          await verificarAccesoMutacion(sesion, boardKey, {
+            op: "notify",
+            values: {},
+            itemId: params.itemId,
+          });
         } catch (err) {
           if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
           throw err;
