@@ -47,10 +47,18 @@ function GeneradorOc() {
   // nada, porque para el navegador ya estabas ahi.
   const enFormulario = searchParams.get("nueva") === "1";
 
+  // Este efecto corre solo cuando la direccion CAMBIA entre historial y
+  // formulario. Mientras se emite (vista previa, confirmacion) la direccion no
+  // se toca, asi que no pisa nada de eso.
   useEffect(() => {
-    // Entrar al formulario lo hacen las acciones de la pagina, que ademas
-    // ponen la direccion; aca solo se atiende la vuelta al historial.
-    if (enFormulario) return;
+    if (enFormulario) {
+      // Se llega aca tanto por el link "Nueva Orden" del menu como por los
+      // botones de la pagina. El borrador que se este retomando no se toca.
+      setVista("formulario");
+      setPreviewData(null);
+      setExito(null);
+      return;
+    }
     setVista("lista");
     setPreviewData(null);
     setExito(null);
