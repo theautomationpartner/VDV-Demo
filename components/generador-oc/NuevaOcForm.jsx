@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,7 +15,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Trash2, Plus, Wrench, Package, Pencil } from "lucide-react";
+import { Trash2, Plus, Save, Wrench, Package, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import {
   searchProveedores,
@@ -29,6 +29,10 @@ import FichaProveedor, { datosFaltantes } from "./FichaProveedor";
 import EditarProveedorDialog from "./EditarProveedorDialog";
 import SelectorAprobador from "./SelectorAprobador";
 import SelectorCentroCosto from "./SelectorCentroCosto";
+import AlertaPrecioLinea from "./precios/AlertaPrecioLinea";
+import ResumenAhorroOc from "./precios/ResumenAhorroOc";
+import HistorialMaterialPanel from "./precios/HistorialMaterialPanel";
+import { useAnalisisPrecios } from "@/hooks/generador-oc/useAnalisisPrecios";
 import { calcularTotalLinea } from "@/lib/generador-oc/pdf";
 import { DESPACHO_LABELS } from "@/lib/generador-oc/despacho";
 import {
@@ -38,6 +42,12 @@ import {
   sumarDias,
   fechaLarga,
 } from "@/lib/generador-oc/fechas";
+import {
+  guardarBorrador,
+  guardarBorradorAutomatico,
+  leerBorradorAutomatico,
+  limpiarBorradorAutomatico,
+} from "@/lib/generador-oc/borradores";
 
 const LINEA_VACIA = {
   codigo: "",
@@ -48,28 +58,37 @@ const LINEA_VACIA = {
   centroCosto: "",
 };
 
-function formularioVacio() {
+/**
+ * Arma el contenido del formulario, vacio o a partir de un borrador.
+ *
+ * La fecha de emision es SIEMPRE el dia en que se retoma la orden, nunca la que
+ * tenia guardada el borrador: una orden emitida hoy no puede decir que se
+ * emitio la semana pasada.
+ */
+function construirFormData(base) {
   const emision = hoyISO();
+  const dias = base?.validezDias ?? 30;
+
   return {
-    tipoOc: "MATERIALES",
-    proveedor: null,
-    aprobador: null,
-    obra: "",
+    tipoOc: base?.tipoOc ?? "MATERIALES",
+    proveedor: base?.proveedor ?? null,
+    aprobador: base?.aprobador ?? null,
+    obra: base?.obra ?? "",
     validezDesde: emision,
-    validezHasta: sumarDias(emision, 30),
-    validezDias: 30,
-    pago: { credito: false, dias: 30 },
-    moneda: "CLP",
-    afectaIva: true,
-    condicionDeCompra: "",
-    despacho: { tipo: "RETIRO_CLIENTE" },
-    comentarios: "",
-    items: [{ ...LINEA_VACIA }],
-    contactoEmisor: { email: "", telefono: "" },
+    validezHasta: sumarDias(emision, dias),
+    validezDias: dias,
+    pago: base?.pago ?? { credito: false, dias: 30 },
+    moneda: base?.moneda ?? "CLP",
+    afectaIva: base?.afectaIva ?? true,
+    condicionDeCompra: base?.condicionDeCompra ?? "",
+    despacho: base?.despacho ?? { tipo: "RETIRO_CLIENTE" },
+    comentarios: base?.comentarios ?? "",
+    items: (base?.items ?? [{ ...LINEA_VACIA }]).map((i) => ({ ...LINEA_VACIA, ...i })),
+    contactoEmisor: base?.contactoEmisor ?? { email: "", telefono: "" },
   };
 }
 
-export default function NuevaOcForm({ onPreview, currentUser }) {
+export default function NuevaOcForm({ onPreview, currentUser, borrador = null, onBorradorGuardado }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [proveedoresResults, setProveedoresResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -79,8 +98,50 @@ export default function NuevaOcForm({ onPreview, currentUser }) {
   const [unidades, setUnidades] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [editandoProveedor, setEditandoProveedor] = useState(false);
+  // Id del borrador guardado a mano que se esta editando, si hay alguno.
+  const [borradorId, setBorradorId] = useState(borrador?.id ?? null);
+  const [guardadoTexto, setGuardadoTexto] = useState("");
 
-  const [formData, setFormData] = useState(formularioVacio);
+  const [formData, setFormData] = useState(() => construirFormData(borrador?.data ?? null));
+
+  // El borrador automatico se restaura una sola vez y solo si no se esta
+  // retomando uno guardado a mano, que manda sobre el.
+  const autoRestaurado = useRef(false);
+  useEffect(() => {
+    if (borrador || autoRestaurado.current) return;
+    autoRestaurado.current = true;
+    const auto = leerBorradorAutomatico();
+    if (auto) setFormData(construirFormData(auto));
+  }, [borrador]);
+
+  // Autoguardado: la red por si se cierra la pestana sin querer.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      guardarBorradorAutomatico(formData);
+      // Si ya lo guardaste a mano, ese borrador se mantiene al dia solo.
+      if (borradorId) {
+        try {
+          guardarBorrador(formData, { id: borradorId });
+          setGuardadoTexto("Borrador actualizado");
+        } catch (error) {
+          console.error("[generador-oc] No se pudo actualizar el borrador:", error);
+        }
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [formData, borradorId]);
+
+  const handleGuardarBorrador = () => {
+    try {
+      const guardado = guardarBorrador(formData, { id: borradorId });
+      setBorradorId(guardado.id);
+      onBorradorGuardado?.(guardado.id);
+      setGuardadoTexto("Borrador guardado. Podés cerrar y retomarlo desde la pestaña Borradores.");
+    } catch (error) {
+      console.error("[generador-oc] No se pudo guardar el borrador:", error);
+      setGuardadoTexto("No se pudo guardar el borrador. Intentá de nuevo.");
+    }
+  };
 
   // El contacto del emisor se precarga desde su perfil de monday y queda editable.
   useEffect(() => {
@@ -179,6 +240,14 @@ export default function NuevaOcForm({ onPreview, currentUser }) {
 
   const esServicio = formData.tipoOc === "SERVICIOS";
 
+  // Cada linea se compara contra lo que ya se compro antes. Los servicios no:
+  // son unicos y no tienen historial con el que compararse.
+  const { analisis, urlDeRegistro } = useAnalisisPrecios(
+    esServicio ? [] : formData.items,
+    formData.moneda,
+  );
+  const [materialHistorial, setMaterialHistorial] = useState(null);
+
   const handlePreview = () => {
     if (!formData.proveedor || !formData.obra || formData.items.length === 0) {
       toast.error("Por favor complete todos los campos obligatorios");
@@ -205,6 +274,7 @@ export default function NuevaOcForm({ onPreview, currentUser }) {
       return;
     }
 
+    limpiarBorradorAutomatico();
     onPreview({ ...formData, numeroOc });
   };
 
@@ -753,6 +823,17 @@ export default function NuevaOcForm({ onPreview, currentUser }) {
                     )}
                   </div>
                 </div>
+
+                {!esServicio && item.descripcion.trim() !== "" && item.precioUnitario > 0 && (
+                  <div className="mt-2.5">
+                    <AlertaPrecioLinea
+                      analisis={analisis[index]}
+                      moneda={formData.moneda}
+                      onVerHistorial={() => setMaterialHistorial(item.descripcion)}
+                      urlDeRegistro={(registroId) => urlDeRegistro(index, registroId)}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -820,6 +901,11 @@ export default function NuevaOcForm({ onPreview, currentUser }) {
         </div>
       </Card>
 
+      {/* Que se podria ahorrar en esta orden segun compras anteriores */}
+      {!esServicio && (
+        <ResumenAhorroOc items={formData.items} analisis={analisis} moneda={formData.moneda} />
+      )}
+
       {/* Totales */}
       <Card className="bg-muted p-6">
         <div className="space-y-2">
@@ -838,11 +924,34 @@ export default function NuevaOcForm({ onPreview, currentUser }) {
         </div>
       </Card>
 
-      <div className="flex justify-end">
-        <Button size="lg" onClick={handlePreview} className="w-full sm:w-auto">
-          Previsualizar Orden de Compra
-        </Button>
+      {/* Guardar para seguir despues, o pasar a la vista previa */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="flex min-h-5 items-center gap-2 text-sm text-muted-foreground">
+          {guardadoTexto && (
+            <>
+              <Save className="h-4 w-4 shrink-0" />
+              {guardadoTexto}
+            </>
+          )}
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Button variant="outline" size="lg" onClick={handleGuardarBorrador}>
+            <Save className="mr-2 h-4 w-4" />
+            Guardar borrador
+          </Button>
+          <Button size="lg" onClick={handlePreview}>
+            Previsualizar Orden de Compra
+          </Button>
+        </div>
       </div>
+
+      <HistorialMaterialPanel
+        abierto={materialHistorial !== null}
+        onOpenChange={(abierto) => !abierto && setMaterialHistorial(null)}
+        nombre={materialHistorial ?? ""}
+        moneda={formData.moneda}
+        usuario={currentUser?.name ?? ""}
+      />
     </div>
   );
 }

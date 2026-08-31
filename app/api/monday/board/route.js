@@ -112,6 +112,8 @@ async function handleItems(boardKey, schema, params) {
     cursor = null,
     withRelations = false,
     orderBy = null,
+    subBoardKey = null,
+    subColumns = [],
   } = params;
 
   const columnIds = columns.map((key) => resolveColumnId(boardKey, key));
@@ -138,6 +140,29 @@ async function handleItems(boardKey, schema, params) {
     ? `... on BoardRelationValue { display_value linked_items { id name board { id name } } } ${mirrorFragment}`
     : `... on BoardRelationValue { display_value } ${mirrorFragment}`;
   const cvFields = `column_values { id text value column { type } ${relFragment} }`;
+
+  // Subelementos junto con los items, en la misma consulta. Lo necesita el
+  // historial de precios del Generador de OC: cada linea de una orden vive como
+  // subelemento, y pedirlos orden por orden serian 150 consultas encadenadas.
+  let subFields = "";
+  let subIdToFriendly = {};
+  if (subBoardKey) {
+    const subSchema = getBoardSchema(subBoardKey);
+    subIdToFriendly = invertColumns(subSchema.columns);
+    const subIds = subColumns.map((key) => resolveColumnId(subBoardKey, key));
+    const subCv = subIds.length
+      ? `column_values(ids: ${JSON.stringify(subIds)}) { id text value column { type } }`
+      : "";
+    subFields = `subitems { id name created_at updated_at ${subCv} }`;
+  }
+
+  const mapear = (it) => {
+    const item = mapItemColumns(it, columnIdToFriendly);
+    if (subBoardKey) {
+      item.subitems = (it.subitems ?? []).map((sub) => mapItemColumns(sub, subIdToFriendly));
+    }
+    return item;
+  };
 
   // Filtro por nombre de item. ANTES solo se filtraba client-side sobre la
   // pagina ya traida: como el buscador de materiales pide limit:15, la busqueda
@@ -195,13 +220,13 @@ async function handleItems(boardKey, schema, params) {
       `query ($cursor: String!, $limit: Int!) {
         next_items_page(cursor: $cursor, limit: $limit) {
           cursor
-          items { id name created_at updated_at group { id title } ${cvFields} }
+          items { id name created_at updated_at group { id title } ${cvFields} ${subFields} }
         }
       }`,
       { cursor, limit }
     );
     const page = data.next_items_page;
-    let items = page.items.map((it) => mapItemColumns(it, columnIdToFriendly));
+    let items = page.items.map(mapear);
     if (nameFilter) items = items.filter((it) => it.name?.toLowerCase().includes(nameFilter));
     return { items, cursor: page.cursor };
   }
@@ -229,7 +254,7 @@ async function handleItems(boardKey, schema, params) {
       boards(ids: [$boardId]) {
         items_page(limit: $limit, query_params: $queryParams) {
           cursor
-          items { id name created_at updated_at group { id title } ${cvFields} }
+          items { id name created_at updated_at group { id title } ${cvFields} ${subFields} }
         }
       }
     }`,
@@ -237,7 +262,7 @@ async function handleItems(boardKey, schema, params) {
   );
   const page = data.boards?.[0]?.items_page;
   if (!page) return { items: [], cursor: null };
-  let items = page.items.map((it) => mapItemColumns(it, columnIdToFriendly));
+  let items = page.items.map(mapear);
   if (nameFilter) items = items.filter((it) => it.name?.toLowerCase().includes(nameFilter));
   return { items, cursor: page.cursor };
 }

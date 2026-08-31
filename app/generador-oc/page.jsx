@@ -5,9 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, AlertTriangle } from "lucide-react";
 import { useSesionOc } from "@/hooks/generador-oc/useSesionOc";
+import { useBorradores } from "@/hooks/generador-oc/useBorradores";
+import { limpiarBorradorAutomatico } from "@/lib/generador-oc/borradores";
 import OcHistorial from "@/components/generador-oc/OcHistorial";
+import BorradoresPanel from "@/components/generador-oc/BorradoresPanel";
+import ConsultarPrecios from "@/components/generador-oc/precios/ConsultarPrecios";
 import NuevaOcForm from "@/components/generador-oc/NuevaOcForm";
 import OcPreview from "@/components/generador-oc/OcPreview";
 import OcSuccess from "@/components/generador-oc/OcSuccess";
@@ -28,6 +33,12 @@ function GeneradorOc() {
   const [vista, setVista] = useState("lista");
   const [previewData, setPreviewData] = useState(null);
   const [exito, setExito] = useState(null);
+  const [tabActiva, setTabActiva] = useState("historial");
+  // El borrador que se esta retomando, y el que quedo guardado desde el
+  // formulario: al emitir la orden ese borrador deja de tener sentido.
+  const [borradorActivo, setBorradorActivo] = useState(null);
+  const [borradorGuardadoId, setBorradorGuardadoId] = useState(null);
+  const { borradores, cargando: cargandoBorradores, eliminar } = useBorradores();
 
   // "Nueva Orden" del menú lateral entra por ?nueva=1 - es un link, no un
   // botón, así que la vista se abre acá y el parámetro se limpia enseguida.
@@ -44,12 +55,25 @@ function GeneradorOc() {
     setVista("formulario");
     setPreviewData(null);
     setExito(null);
+    setBorradorActivo(null);
+    setBorradorGuardadoId(null);
+  };
+
+  const continuarBorrador = (borrador) => {
+    setBorradorActivo(borrador);
+    setBorradorGuardadoId(borrador.id);
+    setPreviewData(null);
+    setExito(null);
+    setVista("formulario");
   };
 
   const volverALista = () => {
     setVista("lista");
     setPreviewData(null);
     setExito(null);
+    // Si venia de un borrador guardado, se vuelve a la pestana de borradores.
+    if (borradorGuardadoId) setTabActiva("borradores");
+    setBorradorActivo(null);
   };
 
   if (cargando) {
@@ -113,7 +137,37 @@ function GeneradorOc() {
         </Card>
       )}
 
-      {vista === "lista" && <OcHistorial currentUser={usuario} />}
+      {vista === "lista" && (
+        <Tabs value={tabActiva} onValueChange={setTabActiva} className="space-y-6">
+          <TabsList className="w-full overflow-x-auto sm:w-auto">
+            <TabsTrigger value="historial">Historial de OCs</TabsTrigger>
+            <TabsTrigger value="borradores">
+              Borradores
+              {borradores.length > 0 && (
+                <span className="ml-2 rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-semibold text-primary-foreground">
+                  {borradores.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="precios">Consultar precios</TabsTrigger>
+          </TabsList>
+          <TabsContent value="historial">
+            <OcHistorial currentUser={usuario} />
+          </TabsContent>
+          <TabsContent value="borradores">
+            <BorradoresPanel
+              borradores={borradores}
+              cargando={cargandoBorradores}
+              onContinuar={continuarBorrador}
+              onEliminar={eliminar}
+              onNueva={nuevaOrden}
+            />
+          </TabsContent>
+          <TabsContent value="precios">
+            <ConsultarPrecios usuario={usuario?.name ?? ""} />
+          </TabsContent>
+        </Tabs>
+      )}
 
       {vista === "formulario" && (
         <div>
@@ -121,9 +175,16 @@ function GeneradorOc() {
             <Button variant="ghost" onClick={volverALista}>
               ← Volver al Historial
             </Button>
+            {borradorActivo && (
+              <p className="text-sm text-muted-foreground">
+                Retomando borrador: <span className="font-medium">{borradorActivo.titulo}</span>
+              </p>
+            )}
           </div>
           <NuevaOcForm
             currentUser={usuario}
+            borrador={borradorActivo}
+            onBorradorGuardado={setBorradorGuardadoId}
             onPreview={(data) => {
               setPreviewData(data);
               setVista("preview");
@@ -140,6 +201,13 @@ function GeneradorOc() {
           onSuccess={(itemId, numeroOc) => {
             setExito({ itemId, numeroOc });
             setVista("exito");
+            // La orden ya esta emitida: su borrador deja de tener sentido.
+            limpiarBorradorAutomatico();
+            if (borradorGuardadoId) {
+              eliminar(borradorGuardadoId);
+              setBorradorGuardadoId(null);
+              setBorradorActivo(null);
+            }
           }}
         />
       )}
