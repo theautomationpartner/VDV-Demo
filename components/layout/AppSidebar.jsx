@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut, UserCog, MoreHorizontal } from "lucide-react";
 import { NAV_SECTIONS } from "@/lib/nav-config";
+import { esRutaPublica } from "@/lib/rutas-publicas";
 import { cn } from "@/lib/utils";
 import { useUserRole, ROLES } from "@/hooks/vale-express/useUserRole";
 import { getGlobalEmail, getGlobalApps } from "@/lib/client/fixed-accounts";
@@ -211,6 +212,9 @@ export function AppSidebar() {
   const { collapsed, toggleCollapsed, expand } = useSidebarCollapse();
   const currentUser = useCurrentUser(pathname, roles["vale-express"]);
   const [moreOpen, setMoreOpen] = useState(false);
+  // En una ruta publica (el QR de una OC) quien mira es un proveedor: no tiene
+  // por que ver el menu interno ni los nombres de los modulos.
+  const publica = esRutaPublica(pathname);
 
   // OC Tracker no tiene dueño (cualquier cuenta lo puede ver); Vale Express y
   // Portal Proveedor solo se muestran si estan entre las apps asignadas a la
@@ -267,6 +271,8 @@ export function AppSidebar() {
     }
     window.location.href = "/";
   };
+
+  if (publica) return null;
 
   return (
     <>
