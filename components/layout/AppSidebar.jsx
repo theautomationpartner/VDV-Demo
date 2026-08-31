@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut, UserCog, MoreHorizontal } from "lucide-react";
 import { NAV_SECTIONS } from "@/lib/nav-config";
@@ -204,8 +204,36 @@ function useSidebarCollapse() {
   return { collapsed, toggleCollapsed, expand };
 }
 
+/**
+ * Si un item del menu es el que se esta viendo.
+ *
+ * Se mira tambien lo que va despues del "?": hay secciones que se distinguen
+ * solo por ahi. En el Generador de OC, el historial es /generador-oc y el
+ * formulario /generador-oc?nueva=1; comparando solo la ruta, el historial
+ * quedaba marcado siempre, incluso estando en el formulario.
+ */
+function itemActivo(item, hermanos, pathname, search) {
+  const [ruta, query] = item.href.split("?");
+  if (pathname !== ruta) return false;
+
+  const puestos = new URLSearchParams(search);
+  const pide = (q) => [...new URLSearchParams(q)].every(([k, v]) => puestos.get(k) === v);
+
+  if (query) return pide(query);
+
+  // El item sin parametros propios queda activo salvo que otro de la misma
+  // seccion pida justo los que hay puestos. Asi los filtros de otras
+  // pantallas (?estado=..., ?obra=...) no le apagan la marca.
+  return !hermanos.some(
+    (otro) => otro !== item && otro.href.startsWith(`${ruta}?`) && pide(otro.href.split("?")[1]),
+  );
+}
+
 export function AppSidebar() {
   const pathname = usePathname();
+  // Lo que va despues del "?": hace falta para saber que item del menu esta
+  // activo cuando dos comparten la misma ruta (ver itemActivo).
+  const search = useSearchParams().toString();
   const roles = useSidebarRoles(pathname);
   const homeApps = useHomeApps(pathname);
   const isWhitelistAdmin = canSeeWhitelist(roles);
@@ -391,7 +419,7 @@ export function AppSidebar() {
                         )}
                       >
                         {visibleItems.map((item) => {
-                          const isItemActive = pathname === item.href;
+                          const isItemActive = itemActivo(item, visibleItems, pathname, search);
                           const ItemIcon = item.icon;
                           return (
                             <li key={item.href}>
@@ -510,6 +538,7 @@ export function AppSidebar() {
       {/* ---------- Mobile (<md): bottom nav en la thumb zone + sub-nav de la seccion activa + sheet "Más" ---------- */}
       <MobileNav
         pathname={pathname}
+        search={search}
         visibleSections={visibleSections}
         activeSection={activeSection}
         roles={roles}
@@ -536,6 +565,7 @@ export function AppSidebar() {
  */
 function MobileNav({
   pathname,
+  search,
   visibleSections,
   activeSection,
   roles,
@@ -638,7 +668,7 @@ function MobileNav({
 
             <div className="flex flex-col gap-1 px-4 pb-4">
               {openSectionItems.map((item) => {
-                const isItemActive = pathname === item.href;
+                const isItemActive = itemActivo(item, openSectionItems, pathname, search);
                 const ItemIcon = item.icon;
                 return (
                   <Link

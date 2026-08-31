@@ -40,16 +40,22 @@ function GeneradorOc() {
   const [borradorGuardadoId, setBorradorGuardadoId] = useState(null);
   const { borradores, cargando: cargandoBorradores, eliminar } = useBorradores();
 
-  // "Nueva Orden" del menú lateral entra por ?nueva=1 - es un link, no un
-  // botón, así que la vista se abre acá y el parámetro se limpia enseguida.
+  // Que se ve lo dice la URL: /generador-oc es el historial y ?nueva=1 es el
+  // formulario. Antes el parametro se borraba apenas entraba, y quedaban las
+  // dos vistas con la MISMA direccion: el menu lateral marcaba "Órdenes de
+  // Compra" aunque estuvieras en el formulario, y al hacerle clic no pasaba
+  // nada, porque para el navegador ya estabas ahi.
+  const enFormulario = searchParams.get("nueva") === "1";
+
   useEffect(() => {
-    if (searchParams.get("nueva") === "1") {
-      setVista("formulario");
-      setPreviewData(null);
-      setExito(null);
-      router.replace("/generador-oc");
-    }
-  }, [searchParams, router]);
+    // Entrar al formulario lo hacen las acciones de la pagina, que ademas
+    // ponen la direccion; aca solo se atiende la vuelta al historial.
+    if (enFormulario) return;
+    setVista("lista");
+    setPreviewData(null);
+    setExito(null);
+    setBorradorActivo(null);
+  }, [enFormulario]);
 
   const nuevaOrden = () => {
     setVista("formulario");
@@ -57,6 +63,7 @@ function GeneradorOc() {
     setExito(null);
     setBorradorActivo(null);
     setBorradorGuardadoId(null);
+    router.push("/generador-oc?nueva=1");
   };
 
   const continuarBorrador = (borrador) => {
@@ -65,6 +72,7 @@ function GeneradorOc() {
     setPreviewData(null);
     setExito(null);
     setVista("formulario");
+    router.push("/generador-oc?nueva=1");
   };
 
   const volverALista = () => {
@@ -74,6 +82,7 @@ function GeneradorOc() {
     // Si venia de un borrador guardado, se vuelve a la pestana de borradores.
     if (borradorGuardadoId) setTabActiva("borradores");
     setBorradorActivo(null);
+    router.push("/generador-oc");
   };
 
   if (cargando) {
@@ -139,7 +148,11 @@ function GeneradorOc() {
 
       {vista === "lista" && (
         <Tabs value={tabActiva} onValueChange={setTabActiva} className="space-y-6">
-          <TabsList className="w-full overflow-x-auto sm:w-auto">
+          {/* overflow-y-hidden a proposito: al poner overflow-x el navegador
+              convierte el overflow-y en auto, y como la tira tiene alto fijo
+              (h-8) el contador de borradores la desbordaba por un pelo y
+              aparecia una barrita vertical. */}
+          <TabsList className="w-full overflow-x-auto overflow-y-hidden sm:w-auto">
             <TabsTrigger value="historial">Historial de OCs</TabsTrigger>
             <TabsTrigger value="borradores">
               Borradores
