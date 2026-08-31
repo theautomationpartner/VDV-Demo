@@ -21,24 +21,21 @@ import { getCentrosCosto } from "@/lib/generador-oc/datos";
  * copia en el codigo: la Vibe tenia 65 centros escritos a mano y cada centro
  * nuevo del cliente quedaba fuera hasta tocar el codigo.
  *
- * El catalogo no cambia dentro de una sesion, asi que se cachea en memoria.
+ * El cache lo maneja getCentrosCosto (5 minutos, ver lib/generador-oc/cache).
+ * Antes se guardaba aca en una variable que no expiraba nunca: un centro de
+ * costo nuevo no aparecia hasta recargar la pagina.
  */
-let cache = null;
-
 export default function SelectorCentroCosto({ valor, onChange, onAplicarATodas }) {
   const [abierto, setAbierto] = useState(false);
-  const [centros, setCentros] = useState(cache ?? []);
-  const [cargando, setCargando] = useState(!cache);
+  const [centros, setCentros] = useState([]);
+  const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    if (cache) return undefined;
     let activo = true;
 
     getCentrosCosto()
       .then((lista) => {
-        if (!activo) return;
-        cache = lista ?? [];
-        setCentros(cache);
+        if (activo) setCentros(lista ?? []);
       })
       .catch((e) => console.error("[generador-oc] Error al cargar centros de costo:", e))
       .finally(() => {
