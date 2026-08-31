@@ -2,8 +2,8 @@
 
 import { ExternalLink } from "lucide-react";
 import { formatoFecha, formatoMoneda } from "./formato";
+import { urlItemMonday } from "@/lib/monday-links";
 
-const BOARD_OC_ID = "18409929921";
 
 /** El detalle de compras del material, de la mas reciente a la mas vieja. */
 export default function TablaComprasMaterial({ registros, moneda }) {
@@ -45,7 +45,7 @@ export default function TablaComprasMaterial({ registros, moneda }) {
                 {r.itemOcMonday ? (
                   <a
                     className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
-                    href={`https://monday.com/boards/${BOARD_OC_ID}/pulses/${r.itemOcMonday}`}
+                    href={urlItemMonday(r.itemOcMonday)}
                     target="_blank"
                     rel="noopener noreferrer"
                   >

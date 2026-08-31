@@ -4,8 +4,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import VisorPdfDialog from "./VisorPdfDialog";
 import { FileText, FileX2, ExternalLink } from "lucide-react";
+import { urlItemMonday } from "@/lib/monday-links";
 
-const BOARD_ID = "18409929921";
 
 /**
  * Abre el PDF de la orden en un visor dentro de la app. Si esa orden todavia no
@@ -21,7 +21,7 @@ export default function VerDocumentoOc({ itemId, numeroOc, tieneDocumento }) {
   const nombreArchivo = numeroOc ? `OC ${numeroOc}.pdf` : "orden-de-compra.pdf";
 
   const abrirEnMonday = () =>
-    window.open(`https://view.monday.com/${BOARD_ID}-${itemId}`, "_blank", "noopener,noreferrer");
+    window.open(urlItemMonday(itemId), "_blank", "noopener,noreferrer");
 
   if (!tieneDocumento) {
     return (
