@@ -3,8 +3,8 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CheckCircle2, ExternalLink, Plus } from "lucide-react";
+import { urlItemMonday } from "@/lib/monday-links";
 
-const BOARD_OC = "18409929921";
 
 export default function OcSuccess({ numeroOc, itemId, onCreateAnother }) {
   return (
@@ -30,7 +30,7 @@ export default function OcSuccess({ numeroOc, itemId, onCreateAnother }) {
             className="w-full"
             variant="outline"
             onClick={() =>
-              window.open(`https://view.monday.com/${BOARD_OC}-${itemId}`, "_blank", "noopener")
+              window.open(urlItemMonday(itemId), "_blank", "noopener")
             }
           >
             <ExternalLink className="mr-2 h-4 w-4" />
