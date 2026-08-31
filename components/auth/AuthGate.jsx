@@ -58,7 +58,7 @@ export function AuthGate({ children }) {
 
   if (state.phase === "loading") {
     return (
-      <div className="flex w-full min-h-screen items-center justify-center">
+      <div className="flex w-full h-full justify-center overflow-y-auto [&>*]:my-auto">
         <Spinner className="size-8" />
       </div>
     );
@@ -70,7 +70,7 @@ export function AuthGate({ children }) {
 
   if (state.phase === "error") {
     return (
-      <div className="flex w-full min-h-screen items-center justify-center p-8">
+      <div className="flex w-full h-full justify-center overflow-y-auto [&>*]:my-auto p-8">
         <Card className="max-w-sm p-6 text-center space-y-3">
           <ShieldAlert className="mx-auto w-10 h-10 text-muted-foreground" />
           <h1 className="text-lg font-semibold">Error de conexión</h1>
@@ -104,7 +104,7 @@ function LoginFlow({ onDone }) {
 
   if (step === "blocked") {
     return (
-      <div className="flex w-full min-h-screen items-center justify-center p-8">
+      <div className="flex w-full h-full justify-center overflow-y-auto [&>*]:my-auto p-8">
         <Card className="max-w-sm p-6 text-center space-y-3">
           <ShieldAlert className="mx-auto w-10 h-10 text-destructive" />
           <h1 className="text-lg font-semibold">Sin acceso</h1>
@@ -162,7 +162,7 @@ function EmailScreen({ onAuthorized, onBlocked }) {
   };
 
   return (
-    <div className="flex w-full min-h-screen items-center justify-center p-8">
+    <div className="flex w-full h-full justify-center overflow-y-auto [&>*]:my-auto p-8">
       <Card className="max-w-sm w-full p-6 space-y-4">
         <div className="text-center space-y-1">
           <h1 className="text-lg font-semibold">VDV Suite</h1>
@@ -249,7 +249,7 @@ function SetupScreen({ preAuthToken, onDone }) {
 
   if (recoveryCodes) {
     return (
-      <div className="flex w-full min-h-screen items-center justify-center p-8">
+      <div className="flex w-full h-full justify-center overflow-y-auto [&>*]:my-auto p-8">
         <Card className="max-w-md w-full p-6 space-y-4">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-6 h-6 text-emerald-500" />
@@ -273,7 +273,7 @@ function SetupScreen({ preAuthToken, onDone }) {
   }
 
   return (
-    <div className="flex w-full min-h-screen items-center justify-center p-8">
+    <div className="flex w-full h-full justify-center overflow-y-auto [&>*]:my-auto p-8">
       <Card className="max-w-md w-full p-6 space-y-4">
         <h1 className="text-lg font-semibold">Configurar verificación en dos pasos</h1>
         <p className="text-sm text-muted-foreground">
@@ -355,7 +355,7 @@ function CodeScreen({ preAuthToken, onDone, onNeedsSetup }) {
   };
 
   return (
-    <div className="flex w-full min-h-screen items-center justify-center p-8">
+    <div className="flex w-full h-full justify-center overflow-y-auto [&>*]:my-auto p-8">
       <Card className="max-w-sm w-full p-6 space-y-4">
         <h1 className="text-lg font-semibold">Verificación en dos pasos</h1>
         <form onSubmit={handleSubmit} className="space-y-3">

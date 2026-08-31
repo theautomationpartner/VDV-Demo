@@ -23,12 +23,17 @@ export default function RootLayout({ children }) {
   return (
     <html
       lang="es"
-      className={`dark ${geistSans.variable} ${geistMono.variable} h-full overflow-x-hidden antialiased`}
+      className={`dark ${geistSans.variable} ${geistMono.variable} h-full overflow-hidden antialiased`}
     >
-      {/* min-h-dvh (no solo min-h-screen): en mobile, "100vh" salta cada vez que
-          la barra de direcciones del navegador se oculta/muestra al scrollear -
-          dvh se ajusta al viewport visible real en cada momento. */}
-      <body data-app="shell" className="flex h-full min-h-dvh overflow-x-hidden bg-[var(--background)] text-[var(--foreground)]">
+      {/* Alto exacto de la pantalla y sin scroll propio: el unico que scrollea
+          es <main>. Si <body> tambien pudiera, aparecerian DOS barras juntas -
+          pasaba al abrir un desplegable cerca del fondo, porque esos menus se
+          montan como hijos de <body> y estiraban el documento.
+
+          h-dvh y no h-full: en mobile "100vh" cuenta el alto con la barra de
+          direcciones escondida, asi que parte del contenido quedaba tapada.
+          dvh es el alto visible real en cada momento. */}
+      <body data-app="shell" className="flex h-dvh overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
         <AuthGate>
           <AppSidebar />
           {/* pb-28 en mobile reserva espacio para el bottom nav fijo (h-16) + la

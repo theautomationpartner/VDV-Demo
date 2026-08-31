@@ -158,11 +158,17 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
           <div
             ref={contenedorRef}
             className={cn(
-              "relative w-full max-w-[320px] rounded-md border-2 border-dashed bg-muted/30",
+              "relative w-full max-w-[320px] rounded-md border-2 border-dashed bg-white",
               disabled && "opacity-60",
             )}
             style={{ height: alto }}
           >
+            {/*
+              Fondo blanco: la tinta es casi negra y con el tema oscuro el trazo
+              quedaba invisible mientras se firmaba. Es fondo de CSS, no pixeles
+              del canvas, asi que el PNG exportado sigue transparente y el PDF
+              no cambia.
+            */}
             <canvas
               ref={canvasRef}
               aria-label={`Área para dibujar la firma de ${label}`}
@@ -170,11 +176,11 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerLeave={handlePointerUp}
-              className="touch-none rounded-md"
+              className="touch-none rounded-md bg-white"
               style={{ width: ancho, height: alto }}
             />
             {!haTrazo && !value && (
-              <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+              <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-slate-400">
                 Firme aquí con el mouse o el dedo
               </p>
             )}
@@ -195,7 +201,7 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
 
         <TabsContent value="subir">
           <div
-            className="flex w-full max-w-[320px] flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed bg-muted/30 p-3"
+            className="flex w-full max-w-[320px] flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed bg-white p-3"
             style={{ height: alto }}
           >
             {value ? (
@@ -206,7 +212,7 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
                 className="max-h-full max-w-full object-contain"
               />
             ) : (
-              <p className="text-center text-xs text-muted-foreground">
+              <p className="text-center text-xs text-slate-400">
                 Suba una imagen de la firma (PNG o JPG, máx. 5 MB)
               </p>
             )}
