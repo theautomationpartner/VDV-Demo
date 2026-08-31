@@ -105,7 +105,16 @@ function invertColumns(columns) {
 
 async function handleItems(boardKey, schema, params) {
   const boardId = getBoardIdOrThrow(schema, boardKey);
-  const { columns = [], where = {}, limit = 100, cursor = null, withRelations = false } = params;
+  const {
+    columns = [],
+    where = {},
+    limit = 100,
+    cursor = null,
+    withRelations = false,
+    orderBy = null,
+    subBoardKey = null,
+    subColumns = [],
+  } = params;
 
   const columnIds = columns.map((key) => resolveColumnId(boardKey, key));
   const columnIdToFriendly = invertColumns(schema.columns);
@@ -131,6 +140,29 @@ async function handleItems(boardKey, schema, params) {
     ? `... on BoardRelationValue { display_value linked_items { id name board { id name } } } ${mirrorFragment}`
     : `... on BoardRelationValue { display_value } ${mirrorFragment}`;
   const cvFields = `column_values { id text value column { type } ${relFragment} }`;
+
+  // Subelementos junto con los items, en la misma consulta. Lo necesita el
+  // historial de precios del Generador de OC: cada linea de una orden vive como
+  // subelemento, y pedirlos orden por orden serian 150 consultas encadenadas.
+  let subFields = "";
+  let subIdToFriendly = {};
+  if (subBoardKey) {
+    const subSchema = getBoardSchema(subBoardKey);
+    subIdToFriendly = invertColumns(subSchema.columns);
+    const subIds = subColumns.map((key) => resolveColumnId(subBoardKey, key));
+    const subCv = subIds.length
+      ? `column_values(ids: ${JSON.stringify(subIds)}) { id text value column { type } }`
+      : "";
+    subFields = `subitems { id name created_at updated_at ${subCv} }`;
+  }
+
+  const mapear = (it) => {
+    const item = mapItemColumns(it, columnIdToFriendly);
+    if (subBoardKey) {
+      item.subitems = (it.subitems ?? []).map((sub) => mapItemColumns(sub, subIdToFriendly));
+    }
+    return item;
+  };
 
   // Filtro por nombre de item. ANTES solo se filtraba client-side sobre la
   // pagina ya traida: como el buscador de materiales pide limit:15, la busqueda
@@ -188,24 +220,41 @@ async function handleItems(boardKey, schema, params) {
       `query ($cursor: String!, $limit: Int!) {
         next_items_page(cursor: $cursor, limit: $limit) {
           cursor
-          items { id name created_at updated_at group { id title } ${cvFields} }
+          items { id name created_at updated_at group { id title } ${cvFields} ${subFields} }
         }
       }`,
       { cursor, limit }
     );
     const page = data.next_items_page;
-    let items = page.items.map((it) => mapItemColumns(it, columnIdToFriendly));
+    let items = page.items.map(mapear);
     if (nameFilter) items = items.filter((it) => it.name?.toLowerCase().includes(nameFilter));
     return { items, cursor: page.cursor };
   }
 
-  const queryParams = rules.length ? { rules } : undefined;
+  // Orden del tablero. monday no ordena por defecto: devuelve los items en el
+  // orden en que estan en el board, que no es el de creacion. El historial de
+  // Ordenes de Compra necesita la mas nueva primero, y con paginacion no
+  // alcanza con ordenar la pagina ya traida.
+  //
+  // "createdAt" se traduce a la columna virtual __creation_log__, que es como
+  // monday expone la fecha de creacion en query_params (verificado en vivo).
+  let orderByRule = null;
+  if (orderBy?.column) {
+    const columnaOrden =
+      orderBy.column === "createdAt" ? "__creation_log__" : resolveColumnId(boardKey, orderBy.column);
+    orderByRule = [{ column_id: columnaOrden, direction: orderBy.direction === "asc" ? "asc" : "desc" }];
+  }
+
+  const queryParams =
+    rules.length || orderByRule
+      ? { ...(rules.length ? { rules } : {}), ...(orderByRule ? { order_by: orderByRule } : {}) }
+      : undefined;
   data = await mondayFetch(
     `query ($boardId: ID!, $limit: Int!, $queryParams: ItemsQuery) {
       boards(ids: [$boardId]) {
         items_page(limit: $limit, query_params: $queryParams) {
           cursor
-          items { id name created_at updated_at group { id title } ${cvFields} }
+          items { id name created_at updated_at group { id title } ${cvFields} ${subFields} }
         }
       }
     }`,
@@ -213,7 +262,7 @@ async function handleItems(boardKey, schema, params) {
   );
   const page = data.boards?.[0]?.items_page;
   if (!page) return { items: [], cursor: null };
-  let items = page.items.map((it) => mapItemColumns(it, columnIdToFriendly));
+  let items = page.items.map(mapear);
   if (nameFilter) items = items.filter((it) => it.name?.toLowerCase().includes(nameFilter));
   return { items, cursor: page.cursor };
 }
@@ -281,6 +330,73 @@ function esRelacion(value) {
 }
 
 /**
+ * Hay tipos de columna que change_simple_column_value directamente no sabe
+ * escribir: hay que mandarlos como JSON por change_multiple_column_values.
+ * Antes esto no hacia falta porque ninguna pantalla escribia esas columnas.
+ * El Generador de OC si: la orden lleva Responsable y APROBADOR (people) y
+ * VALIDEZ DOCUMENTO (timeline). Sin esto, String({from,to}) mandaba
+ * "[object Object]" y la columna quedaba vacia sin ningun error visible.
+ *
+ * Se reconocen por la FORMA del valor, que es la misma que usaba el SDK de
+ * monday Vibe, para que el codigo migrado no tenga que cambiar:
+ *   people   -> [{ id, kind: "person" }]
+ *   timeline -> { from: "YYYY-MM-DD", to: "YYYY-MM-DD" }
+ *   phone    -> { phone, country }
+ *   email    -> { email, text }
+ */
+function esPersonas(value) {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((v) => v && typeof v === "object" && !Array.isArray(v) && v.id != null)
+  );
+}
+
+function esObjetoPlano(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function esRango(value) {
+  return esObjetoPlano(value) && ("from" in value || "to" in value);
+}
+
+function esTelefono(value) {
+  return esObjetoPlano(value) && "phone" in value;
+}
+
+function esEmail(value) {
+  return esObjetoPlano(value) && "email" in value;
+}
+
+/** Devuelve el JSON que espera change_multiple_column_values, o null si no aplica. */
+function valorComplejo(value) {
+  if (esPersonas(value)) {
+    return {
+      personsAndTeams: value.map((p) => ({ id: Number(p.id), kind: p.kind ?? "person" })),
+    };
+  }
+  if (esRango(value)) {
+    const desde = normalizarFecha(value.from);
+    const hasta = normalizarFecha(value.to);
+    return desde || hasta ? { from: desde || hasta, to: hasta || desde } : {};
+  }
+  if (esTelefono(value)) {
+    return { phone: String(value.phone ?? ""), countryShortName: value.country ?? "CL" };
+  }
+  if (esEmail(value)) {
+    return { email: String(value.email ?? ""), text: value.text ?? String(value.email ?? "") };
+  }
+  return null;
+}
+
+/** "2026-08-31T00:00:00.000Z" o Date -> "2026-08-31". */
+function normalizarFecha(valor) {
+  if (!valor) return "";
+  if (valor instanceof Date) return valor.toISOString().slice(0, 10);
+  return String(valor).slice(0, 10);
+}
+
+/**
  * change_simple_column_value recibe el valor como string, pero monday espera un
  * formato distinto segun el tipo de columna. Antes se hacia String(value) para todo,
  * lo que rompia las fechas: el valor viaja como string ISO (JSON no tiene tipo Date)
@@ -318,9 +434,14 @@ async function handleItemUpdate(boardKey, schema, params) {
     const columnId = resolveColumnId(boardKey, friendlyKey);
     if (esRelacion(value)) {
       relaciones[columnId] = { item_ids: value.linkedItems.map((l) => Number(l.id)) };
-    } else {
-      simples.push([columnId, serializarValorColumna(value)]);
+      continue;
     }
+    const complejo = valorComplejo(value);
+    if (complejo) {
+      relaciones[columnId] = complejo;
+      continue;
+    }
+    simples.push([columnId, serializarValorColumna(value)]);
   }
 
   if (simples.length) {
@@ -379,8 +500,153 @@ async function handleItemCreate(boardKey, schema, params) {
 }
 
 async function handleUsersMe() {
-  const data = await mondayFetch(`{ me { id name email photo_url } }`);
-  return data.me;
+  // Mismo problema que en handleUsersList: `photo_url` NO existe en el tipo User
+  // de monday y pedirlo hace fallar la query entera ("Cannot query field
+  // photo_url on type User"). Verificado en vivo. Nadie llamaba a esta operacion
+  // todavia, asi que no habia sintoma; el Generador de OC si la necesita.
+  //
+  // `title` es el cargo del perfil de monday: es lo que se imprime debajo de la
+  // firma en la Orden de Compra, y lo que decide si alguien es Gerente General.
+  const data = await mondayFetch(
+    `{ me { id name email title phone mobile_phone photo_original photo_thumb } }`,
+  );
+  const me = data.me;
+  if (!me) return null;
+  const original = me.photo_original || me.photo_thumb || null;
+  return {
+    ...me,
+    photo_url: original ? { original, thumb: me.photo_thumb ?? null } : null,
+  };
+}
+
+/**
+ * Un item puntual por id, con sus columnas y -si se pide- sus subelementos.
+ *
+ * Hasta ahora todo se leia con handleItems(), que trae una pagina del tablero:
+ * para "dame ESTA orden de compra" eso significa pedir hasta 500 items y
+ * descartar 499. Con el id, monday responde solo ese.
+ */
+async function handleItemById(boardKey, schema, params) {
+  const { itemId, columns = [], subBoardKey = null, subColumns = [] } = params;
+  if (!itemId) throw new Error("Falta 'itemId'");
+  getBoardIdOrThrow(schema, boardKey);
+
+  const columnIds = columns.map((key) => resolveColumnId(boardKey, key));
+  const columnIdToFriendly = invertColumns(schema.columns);
+  const cvFields = columnIds.length
+    ? `column_values(ids: ${JSON.stringify(columnIds)}) {
+         id text value column { type }
+         ... on BoardRelationValue { display_value linked_items { id name board { id name } } }
+         ... on MirrorValue { display_value }
+       }`
+    : "";
+
+  let subFields = "";
+  let subIdToFriendly = {};
+  if (subBoardKey) {
+    const subSchema = getBoardSchema(subBoardKey);
+    subIdToFriendly = invertColumns(subSchema.columns);
+    const subIds = subColumns.map((key) => resolveColumnId(subBoardKey, key));
+    const subCv = subIds.length
+      ? `column_values(ids: ${JSON.stringify(subIds)}) { id text value column { type } }`
+      : "";
+    subFields = `subitems { id name created_at updated_at ${subCv} }`;
+  }
+
+  const data = await mondayFetch(
+    `query ($itemId: [ID!]) {
+      items(ids: $itemId) { id name created_at updated_at group { id title } ${cvFields} ${subFields} }
+    }`,
+    { itemId: [String(itemId)] },
+  );
+
+  const crudo = data.items?.[0];
+  if (!crudo) return null;
+
+  const item = mapItemColumns(crudo, columnIdToFriendly);
+  if (subBoardKey) {
+    item.subitems = (crudo.subitems ?? []).map((sub) => mapItemColumns(sub, subIdToFriendly));
+  }
+  return item;
+}
+
+/**
+ * Los subelementos de un item. Cada linea de una Orden de Compra vive como
+ * subelemento: es asi como el tablero del cliente guarda el detalle, y es la
+ * fuente del historial de precios.
+ *
+ * Las columnas del subelemento NO son las del tablero padre - viven en el
+ * tablero de subelementos - por eso el caller manda `subBoardKey`.
+ */
+async function handleSubitems(params) {
+  const { itemId, subBoardKey, columns = [] } = params;
+  if (!itemId || !subBoardKey) throw new Error("Faltan 'itemId' o 'subBoardKey'");
+
+  const subSchema = getBoardSchema(subBoardKey);
+  const columnIds = columns.map((key) => resolveColumnId(subBoardKey, key));
+  const columnIdToFriendly = invertColumns(subSchema.columns);
+
+  const cvFields = columnIds.length
+    ? `column_values(ids: ${JSON.stringify(columnIds)}) { id text value column { type } }`
+    : "";
+
+  const data = await mondayFetch(
+    `query ($itemId: [ID!]) {
+      items(ids: $itemId) {
+        subitems { id name created_at updated_at ${cvFields} }
+      }
+    }`,
+    { itemId: [String(itemId)] },
+  );
+
+  const subitems = data.items?.[0]?.subitems ?? [];
+  return { subitems: subitems.map((it) => mapItemColumns(it, columnIdToFriendly)) };
+}
+
+/**
+ * Crea un subelemento. No se puede hacer con create_item: monday tiene una
+ * mutacion aparte, y el board_id del subelemento es el del tablero de
+ * subelementos, no el del padre - de ahi que los valores se resuelvan contra
+ * `subBoardKey`.
+ */
+async function handleSubitemCreate(params) {
+  const { parentItemId, subBoardKey, name, values = {} } = params;
+  if (!parentItemId || !subBoardKey) throw new Error("Faltan 'parentItemId' o 'subBoardKey'");
+
+  const data = await mondayFetch(
+    `mutation ($parentId: ID!, $name: String!) {
+      create_subitem(parent_item_id: $parentId, item_name: $name) { id name board { id } }
+    }`,
+    { parentId: String(parentItemId), name: String(name ?? "") },
+  );
+  const creado = data.create_subitem;
+
+  if (Object.keys(values).length) {
+    const subSchema = getBoardSchema(subBoardKey);
+    await handleItemUpdate(subBoardKey, subSchema, { itemId: creado.id, values });
+  }
+
+  return { id: creado.id, name: creado.name };
+}
+
+/**
+ * Notificacion dentro de monday. La usa el Generador de OC para avisarle al
+ * aprobador que le quedo una orden esperando: en la Vibe original el aprobador
+ * se enteraba asi, y sin esto la orden quedaria pendiente sin que nadie lo sepa.
+ * Nunca bloquea la operacion que la dispara.
+ */
+async function handleNotify(boardKey, schema, params) {
+  const { userId, itemId, text } = params;
+  if (!userId || !itemId || !text) throw new Error("Faltan 'userId', 'itemId' o 'text'");
+  getBoardIdOrThrow(schema, boardKey);
+
+  const data = await mondayFetch(
+    `mutation ($userId: ID!, $itemId: ID!, $text: String!) {
+      create_notification(user_id: $userId, target_id: $itemId, text: $text, target_type: Project) { id }
+    }`,
+    { userId: String(userId), itemId: String(itemId), text: String(text) },
+  );
+  return data.create_notification;
 }
 
 async function handleItemNote(params) {
@@ -405,8 +671,14 @@ async function handleUsersList(params) {
   // Se devuelve photo_url como objeto { original, thumb } para conservar la
   // forma que espera la UI, que es la que da el SDK de monday Vibe
   // (`user.photo_url.original`); photo_thumb suelto queda como fallback.
+  //
+  // `title` es el cargo del perfil de monday. Lo necesita el Generador de OC:
+  // se imprime debajo de la firma en la Orden de Compra y es lo que distingue
+  // al Gerente General, que puede aprobar cualquier orden.
   const data = await mondayFetch(
-    `query ($limit: Int!) { users(limit: $limit) { id name email photo_original photo_thumb } }`,
+    `query ($limit: Int!) {
+      users(limit: $limit) { id name email title phone mobile_phone enabled photo_original photo_thumb }
+    }`,
     { limit },
   );
   return (data.users ?? []).map((u) => {
@@ -415,6 +687,10 @@ async function handleUsersList(params) {
       id: u.id,
       name: u.name,
       email: u.email,
+      title: u.title ?? null,
+      phone: u.phone ?? null,
+      mobile_phone: u.mobile_phone ?? null,
+      enabled: u.enabled ?? true,
       photo_url: original ? { original, thumb: u.photo_thumb ?? null } : null,
       photo_thumb: u.photo_thumb ?? null,
     };
@@ -466,7 +742,11 @@ export async function POST(request) {
     if (op === "itemUpdate" || op === "itemCreate") {
       if (AUTH_LAYERS_ENABLED) {
         try {
-          verificarAccesoMutacion(sesion, boardKey, { op, values: params.values });
+          await verificarAccesoMutacion(sesion, boardKey, {
+            op,
+            values: params.values,
+            itemId: params.itemId,
+          });
         } catch (err) {
           if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
           throw err;
@@ -483,13 +763,53 @@ export async function POST(request) {
     if (op === "itemNote") {
       if (AUTH_LAYERS_ENABLED) {
         try {
-          verificarAccesoMutacion(sesion, boardKey, { op: "itemUpdate", values: params.values ?? {} });
+          await verificarAccesoMutacion(sesion, boardKey, {
+            op: "itemUpdate",
+            values: params.values ?? {},
+            itemId: params.itemId,
+          });
         } catch (err) {
           if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
           throw err;
         }
       }
       return Response.json({ result: await handleItemNote(params) });
+    }
+
+    if (op === "item") return Response.json({ result: await handleItemById(boardKey, schema, params) });
+
+    if (op === "subitems") return Response.json({ result: await handleSubitems(params) });
+
+    if (op === "subitemCreate") {
+      if (AUTH_LAYERS_ENABLED) {
+        try {
+          await verificarAccesoMutacion(sesion, boardKey, {
+            op: "itemCreate",
+            values: params.values,
+            itemId: params.parentItemId,
+          });
+        } catch (err) {
+          if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
+          throw err;
+        }
+      }
+      return Response.json({ result: await handleSubitemCreate(params) });
+    }
+
+    if (op === "notify") {
+      if (AUTH_LAYERS_ENABLED) {
+        try {
+          await verificarAccesoMutacion(sesion, boardKey, {
+            op: "notify",
+            values: {},
+            itemId: params.itemId,
+          });
+        } catch (err) {
+          if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
+          throw err;
+        }
+      }
+      return Response.json({ result: await handleNotify(boardKey, schema, params) });
     }
 
     if (op === "usersList") return Response.json({ result: await handleUsersList(params) });

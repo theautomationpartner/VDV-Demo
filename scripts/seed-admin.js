@@ -4,19 +4,27 @@
 // 'super_admin' en cualquier app deja editar, 'admin' deja solo ver - ver
 // app/api/auth/whitelist/route.js). No es un rol propio de la whitelist, es
 // el mismo rol que ya usa esa app (Vale Express / Portal Proveedor).
-// Uso: node scripts/seed-admin.js correo@cliente.com [vale-express|portal-proveedor]
+// Uso: node scripts/seed-admin.js correo@cliente.com [vale-express|portal-proveedor|generador-oc] [mondayUserId]
+//
+// El tercer argumento solo aplica a generador-oc: es el id del usuario de
+// monday con el que esa persona va a emitir ordenes (queda como Responsable en
+// el tablero). Sin el se puede entrar y mirar, pero no emitir.
 require("./load-env");
 const { neon } = require("@neondatabase/serverless");
 
 async function main() {
   const email = process.argv[2];
   const app = process.argv[3] || "vale-express";
+  const mondayUserId = process.argv[4];
+  const APPS = ["vale-express", "portal-proveedor", "generador-oc"];
   if (!email) {
-    console.error("Uso: node scripts/seed-admin.js correo@cliente.com [vale-express|portal-proveedor]");
+    console.error(
+      "Uso: node scripts/seed-admin.js correo@cliente.com [" + APPS.join("|") + "] [mondayUserId]",
+    );
     process.exit(1);
   }
-  if (app !== "vale-express" && app !== "portal-proveedor") {
-    console.error("La app tiene que ser 'vale-express' o 'portal-proveedor'.");
+  if (!APPS.includes(app)) {
+    console.error("La app tiene que ser una de: " + APPS.join(", "));
     process.exit(1);
   }
   const url = process.env.DATABASE_URL;
@@ -32,7 +40,11 @@ async function main() {
   const asignacionesPrevias = existentes[0]?.asignaciones ?? [];
   const asignaciones = [
     ...asignacionesPrevias.filter((a) => a.app !== app),
-    { app, appRol: "super_admin", appConfig: {} },
+    {
+      app,
+      appRol: "super_admin",
+      appConfig: mondayUserId ? { mondayUserId: Number(mondayUserId) } : {},
+    },
   ];
 
   const rows = await sql`

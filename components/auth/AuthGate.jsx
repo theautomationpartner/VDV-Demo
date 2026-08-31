@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { ShieldAlert, ShieldCheck, Mail } from "lucide-react";
 import { seedAppSessionFromEmail } from "@/lib/client/fixed-accounts";
+import { esRutaPublica } from "@/lib/rutas-publicas";
 
 /**
  * Login propio de la app (whitelist de emails + 2FA) - se monta una sola vez en
@@ -21,9 +22,14 @@ import { seedAppSessionFromEmail } from "@/lib/client/fixed-accounts";
  */
 export function AuthGate({ children }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [state, setState] = useState({ phase: "loading" });
+  // La validacion de una OC la abre el proveedor desde el QR del documento, sin
+  // cuenta en la app. Ver lib/rutas-publicas.js.
+  const publica = esRutaPublica(pathname);
 
   useEffect(() => {
+    if (publica) return;
     fetch("/api/auth/status")
       .then((res) => res.json())
       .then((json) => {
@@ -35,7 +41,7 @@ export function AuthGate({ children }) {
         setState(json.status === "ready" ? { phase: "ready" } : { phase: "login" });
       })
       .catch(() => setState({ phase: "error" }));
-  }, []);
+  }, [publica]);
 
   // Login recien completado (email + 2FA, o sin 2FA si MFA_REQUIRED=false): el
   // servidor ya resolvio a que app pertenece esta cuenta y que rol tiene ahi
@@ -47,6 +53,8 @@ export function AuthGate({ children }) {
     setState({ phase: "ready" });
     if (seeded) router.push(seeded.dashboardPath);
   };
+
+  if (publica) return children;
 
   if (state.phase === "loading") {
     return (

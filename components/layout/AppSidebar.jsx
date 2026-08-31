@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut, UserCog, MoreHorizontal } from "lucide-react";
 import { NAV_SECTIONS } from "@/lib/nav-config";
+import { esRutaPublica } from "@/lib/rutas-publicas";
 import { cn } from "@/lib/utils";
 import { useUserRole, ROLES } from "@/hooks/vale-express/useUserRole";
 import { getGlobalEmail, getGlobalApps } from "@/lib/client/fixed-accounts";
@@ -102,6 +103,7 @@ function readSession(key) {
 function useSidebarRoles(pathname) {
   const [veUserId, setVeUserId] = useState(undefined);
   const [ppRole, setPpRole] = useState(undefined);
+  const [ocRole, setOcRole] = useState(undefined);
 
   useEffect(() => {
     const veSession = readSession("ve_session");
@@ -109,6 +111,9 @@ function useSidebarRoles(pathname) {
 
     const ppSession = readSession("pp_session");
     setPpRole(ppSession?.role ?? undefined);
+
+    const ogSession = readSession("og_session");
+    setOcRole(ogSession?.role ?? undefined);
   }, [pathname]);
 
   const { role: veRole } = useUserRole(veUserId);
@@ -116,6 +121,7 @@ function useSidebarRoles(pathname) {
   return {
     "vale-express": veUserId === undefined ? undefined : veRole,
     "portal-proveedor": ppRole,
+    "generador-oc": ocRole,
   };
 }
 
@@ -147,7 +153,9 @@ function useHomeApps(pathname) {
  * entrar. El servidor decide ahi adentro si puede editar o solo ver.
  */
 function canSeeWhitelist(roles) {
-  return ["vale-express", "portal-proveedor"].some((app) => roles[app] === "admin" || roles[app] === "super_admin");
+  return ["vale-express", "portal-proveedor", "generador-oc"].some(
+    (app) => roles[app] === "admin" || roles[app] === "super_admin",
+  );
 }
 
 /**
@@ -204,6 +212,9 @@ export function AppSidebar() {
   const { collapsed, toggleCollapsed, expand } = useSidebarCollapse();
   const currentUser = useCurrentUser(pathname, roles["vale-express"]);
   const [moreOpen, setMoreOpen] = useState(false);
+  // En una ruta publica (el QR de una OC) quien mira es un proveedor: no tiene
+  // por que ver el menu interno ni los nombres de los modulos.
+  const publica = esRutaPublica(pathname);
 
   // OC Tracker no tiene dueño (cualquier cuenta lo puede ver); Vale Express y
   // Portal Proveedor solo se muestran si estan entre las apps asignadas a la
@@ -253,12 +264,15 @@ export function AppSidebar() {
     try {
       localStorage.removeItem("ve_session");
       localStorage.removeItem("pp_session");
+      localStorage.removeItem("og_session");
       localStorage.removeItem("vdv_global_email");
     } catch {
       // localStorage no disponible (modo privado) - igual redirige.
     }
     window.location.href = "/";
   };
+
+  if (publica) return null;
 
   return (
     <>
