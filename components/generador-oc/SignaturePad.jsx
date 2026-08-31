@@ -13,6 +13,22 @@ const RELACION_ASPECTO = 130 / 320;
 const COLOR_TINTA = "#1a2233";
 
 /**
+ * El lienzo se dibuja por software, no con la placa de video.
+ *
+ * POR QUE: un canvas acelerado es una capa aparte de la placa. Comprobado en
+ * Chrome sobre esta misma app: con el cuadro de dialogo de archivos de Windows
+ * abierto, la pagina que queda atras deja de dibujarse y se ve negra - pero
+ * solo si hay un canvas en pantalla. Sacando los canvas, la pagina se sigue
+ * viendo bien con el mismo dialogo abierto.
+ *
+ * `willReadFrequently` le pide a Chrome que use el camino por software. Una
+ * firma son cuatro trazos en un recuadro de 320x130: no necesita placa de
+ * video, y ademas el trazo se lee de vuelta con toDataURL, que es justo lo que
+ * esta opcion optimiza.
+ */
+const OPCIONES_LIENZO = { willReadFrequently: true };
+
+/**
  * Recuadro de firma: se puede dibujar con el mouse o el dedo, o subir una
  * imagen de la firma escaneada. El resultado sale siempre como data URL PNG,
  * lista para estamparse en el PDF.
@@ -54,13 +70,13 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
     canvas.height = alto * dpr;
     canvas.style.width = `${ancho}px`;
     canvas.style.height = `${alto}px`;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", OPCIONES_LIENZO);
     if (ctx) ctx.scale(dpr, dpr);
   }, [modo, ancho, alto]);
 
   const limpiarLienzo = () => {
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
+    const ctx = canvas?.getContext("2d", OPCIONES_LIENZO);
     if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHaTrazo(false);
     onChange(null);
@@ -82,7 +98,7 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
   const handlePointerMove = (e) => {
     if (!dibujandoRef.current) return;
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
+    const ctx = canvas?.getContext("2d", OPCIONES_LIENZO);
     if (!canvas || !ctx || !ultimaPosRef.current) return;
     const pos = posicionDesdeEvento(e);
     ctx.strokeStyle = COLOR_TINTA;
