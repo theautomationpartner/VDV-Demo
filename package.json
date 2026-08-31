@@ -11,7 +11,8 @@
     "migrate-asignaciones": "node scripts/migrate-asignaciones.js",
     "seed-admin": "node scripts/seed-admin.js",
     "seed-whitelist": "node scripts/seed-whitelist.js",
-    "reset-mfa": "node scripts/reset-mfa.js"
+    "reset-mfa": "node scripts/reset-mfa.js",
+    "validar-schemas": "node scripts/validar-schemas.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -24,6 +25,8 @@
     "next": "^16.3.3",
     "next-themes": "^0.4.6",
     "otpauth": "^9.5.1",
+    "pdfjs-dist": "^6.3.289",
+    "pdfmake": "^0.3.11",
     "qrcode": "^1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -32,7 +35,8 @@
     "shadcn": "^4.19.0",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.6.0",
-    "tw-animate-css": "^1.4.0"
+    "tw-animate-css": "^1.4.0",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
