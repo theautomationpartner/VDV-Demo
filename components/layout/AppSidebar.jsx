@@ -102,6 +102,7 @@ function readSession(key) {
 function useSidebarRoles(pathname) {
   const [veUserId, setVeUserId] = useState(undefined);
   const [ppRole, setPpRole] = useState(undefined);
+  const [ocRole, setOcRole] = useState(undefined);
 
   useEffect(() => {
     const veSession = readSession("ve_session");
@@ -109,6 +110,9 @@ function useSidebarRoles(pathname) {
 
     const ppSession = readSession("pp_session");
     setPpRole(ppSession?.role ?? undefined);
+
+    const ogSession = readSession("og_session");
+    setOcRole(ogSession?.role ?? undefined);
   }, [pathname]);
 
   const { role: veRole } = useUserRole(veUserId);
@@ -116,6 +120,7 @@ function useSidebarRoles(pathname) {
   return {
     "vale-express": veUserId === undefined ? undefined : veRole,
     "portal-proveedor": ppRole,
+    "generador-oc": ocRole,
   };
 }
 
@@ -147,7 +152,9 @@ function useHomeApps(pathname) {
  * entrar. El servidor decide ahi adentro si puede editar o solo ver.
  */
 function canSeeWhitelist(roles) {
-  return ["vale-express", "portal-proveedor"].some((app) => roles[app] === "admin" || roles[app] === "super_admin");
+  return ["vale-express", "portal-proveedor", "generador-oc"].some(
+    (app) => roles[app] === "admin" || roles[app] === "super_admin",
+  );
 }
 
 /**
@@ -253,6 +260,7 @@ export function AppSidebar() {
     try {
       localStorage.removeItem("ve_session");
       localStorage.removeItem("pp_session");
+      localStorage.removeItem("og_session");
       localStorage.removeItem("vdv_global_email");
     } catch {
       // localStorage no disponible (modo privado) - igual redirige.
