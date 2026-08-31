@@ -30,10 +30,16 @@ export default function RootLayout({ children }) {
           pasaba al abrir un desplegable cerca del fondo, porque esos menus se
           montan como hijos de <body> y estiraban el documento.
 
-          h-dvh y no h-full: en mobile "100vh" cuenta el alto con la barra de
-          direcciones escondida, asi que parte del contenido quedaba tapada.
-          dvh es el alto visible real en cada momento. */}
-      <body data-app="shell" className="flex h-dvh overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
+          svh y no vh ni dvh:
+          - "vh" cuenta el alto con la barra de direcciones escondida, asi que
+            en mobile tapaba parte del contenido.
+          - "dvh" es el alto visible en cada momento, y el navegador lo recalcula
+            solo: lo achica cuando aparece el teclado en pantalla o una ventana
+            del sistema, y ahi el shell se encoge de golpe. Es lo que se veia al
+            abrir el selector de archivos de Windows.
+          - "svh" es el alto util y NO se mueve nunca. Es lo que necesita una
+            aplicacion que ocupa la pantalla entera. */}
+      <body data-app="shell" className="flex h-svh overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
         <AuthGate>
           <AppSidebar />
           {/* pb-28 en mobile reserva espacio para el bottom nav fijo (h-16) + la
