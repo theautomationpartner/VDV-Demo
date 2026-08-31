@@ -381,7 +381,14 @@ function valorComplejo(value) {
     return desde || hasta ? { from: desde || hasta, to: hasta || desde } : {};
   }
   if (esTelefono(value)) {
-    return { phone: String(value.phone ?? ""), countryShortName: value.country ?? "CL" };
+    // Solo digitos. La columna telefono de monday rechaza el "+" y los espacios
+    // con "invalid value, please check our API documentation" - y el propio
+    // formulario sugiere "+56 9 1234 5678" en su placeholder, o sea que guiaba
+    // al usuario justo al formato que falla. Verificado contra la API:
+    // "+56 9 0000 0000" rechaza, "56900000000" y "900000000" pasan.
+    // El pais viaja aparte, en countryShortName.
+    const soloDigitos = String(value.phone ?? "").replace(/\D/g, "");
+    return { phone: soloDigitos, countryShortName: value.country ?? "CL" };
   }
   if (esEmail(value)) {
     return { email: String(value.email ?? ""), text: value.text ?? String(value.email ?? "") };
