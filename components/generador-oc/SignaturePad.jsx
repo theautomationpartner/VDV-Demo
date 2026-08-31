@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Eraser, Pen, Upload, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { repintarAlVolverElFoco, repintarPagina } from "@/lib/repintar";
 
 const ANCHO_MAX = 320;
 const ANCHO_MIN = 220;
@@ -118,7 +119,10 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
     }
 
     const lector = new FileReader();
-    lector.onload = () => onChange(String(lector.result));
+    lector.onload = () => {
+      onChange(String(lector.result));
+      repintarPagina();
+    };
     lector.onerror = () => setErrorSubida("No se pudo leer la imagen");
     lector.readAsDataURL(file);
   };
@@ -231,6 +235,10 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
                 accept="image/*"
                 className="sr-only"
                 disabled={disabled}
+                // Mientras el dialogo de archivos de Windows esta abierto,
+                // Chrome deja de dibujar la pagina y se ve negra. Al volver el
+                // foco se la obliga a repintarse. Ver lib/repintar.js.
+                onClick={repintarAlVolverElFoco}
                 onChange={handleUpload}
               />
             </label>
