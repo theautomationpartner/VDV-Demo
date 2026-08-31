@@ -31,7 +31,10 @@ export async function GET(request) {
     }
   }
 
-  const itemId = new URL(request.url).searchParams.get("itemId");
+  const params = new URL(request.url).searchParams;
+  const itemId = params.get("itemId");
+  // Por defecto se muestra en pantalla; con ?descargar=1 el navegador lo baja.
+  const descargar = params.get("descargar") === "1";
   if (!itemId) return Response.json({ error: "Falta itemId" }, { status: 400 });
 
   try {
@@ -73,7 +76,7 @@ export async function GET(request) {
     return new Response(archivo.body, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${(asset.name || "orden.pdf").replace(/"/g, "")}"`,
+        "Content-Disposition": `${descargar ? "attachment" : "inline"}; filename="${(asset.name || "orden.pdf").replace(/"/g, "")}"`,
         "Cache-Control": "private, max-age=60",
       },
     });

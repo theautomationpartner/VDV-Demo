@@ -36,10 +36,33 @@ const SECURITY_HEADERS = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
 ];
 
+// El PDF de una Orden de Compra se muestra dentro de la app en un <iframe>, y
+// para eso ESA RUTA -y solo esa- tiene que permitir que la enmarque nuestro
+// propio origen. Con el DENY general el navegador la bloquea aunque el marco
+// sea de la misma pagina.
+//
+// Lo demas sigue igual de cerrado: 'self' permite que la enmarquemos nosotros,
+// nadie mas. Es el mismo archivo que ya servimos, sin cambiar quien lo puede
+// pedir (la ruta exige sesion).
+const RUTA_PDF = "/api/generador-oc/documento";
+
+const HEADERS_PDF = SECURITY_HEADERS.map((h) => {
+  if (h.key === "X-Frame-Options") return { key: h.key, value: "SAMEORIGIN" };
+  if (h.key === "Content-Security-Policy") {
+    return { key: h.key, value: CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self'") };
+  }
+  return h;
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async headers() {
-    return [{ source: "/(.*)", headers: SECURITY_HEADERS }];
+    return [
+      { source: RUTA_PDF, headers: HEADERS_PDF },
+      // Todo lo demas. La ruta del PDF se excluye a proposito: si coincidiera
+      // con las dos reglas, las cabeceras duplicadas quedarian indefinidas.
+      { source: "/((?!api/generador-oc/documento).*)", headers: SECURITY_HEADERS },
+    ];
   },
 };
 
