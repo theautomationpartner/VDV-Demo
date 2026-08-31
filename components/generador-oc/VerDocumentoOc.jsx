@@ -11,9 +11,14 @@ const BOARD_ID = "18409929921";
  * Abre el PDF de la orden en un visor dentro de la app. Si esa orden todavia no
  * tiene documento adjunto, deja abrirla en monday.
  */
-export default function VerDocumentoOc({ itemId, numeroOc, tieneDocumento, nombreDocumento }) {
+export default function VerDocumentoOc({ itemId, numeroOc, tieneDocumento }) {
   const [abierto, setAbierto] = useState(false);
   const etiqueta = numeroOc ? `OC ${numeroOc}` : "la orden";
+  // El nombre se arma con el numero de orden y no con lo que trae la columna de
+  // archivo: monday devuelve ahi la URL entera del adjunto
+  // (https://vergaradelvalle.monday.com/protected_static/...), que quedaba como
+  // titulo del visor y como nombre al descargar.
+  const nombreArchivo = numeroOc ? `OC ${numeroOc}.pdf` : "orden-de-compra.pdf";
 
   const abrirEnMonday = () =>
     window.open(`https://view.monday.com/${BOARD_ID}-${itemId}`, "_blank", "noopener,noreferrer");
@@ -56,7 +61,7 @@ export default function VerDocumentoOc({ itemId, numeroOc, tieneDocumento, nombr
       {abierto && (
         <VisorPdfDialog
           itemId={itemId}
-          nombre={nombreDocumento || `${etiqueta}.pdf`}
+          nombre={nombreArchivo}
           abierto={abierto}
           onOpenChange={setAbierto}
         />

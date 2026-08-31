@@ -17,6 +17,10 @@ import { Download, AlertTriangle, ZoomIn, ZoomOut } from "lucide-react";
  * pdf.js se carga con import() dinamico: son ~1,5 MB que solo paga quien abre
  * un documento.
  */
+
+/** Cambios de ancho menores a esto se ignoran. Ver el ResizeObserver de abajo. */
+const CAMBIO_DE_ANCHO_RELEVANTE = 32;
+
 export default function VisorPdfDialog({ itemId, nombre, abierto, onOpenChange }) {
   const [estado, setEstado] = useState("cargando");
   const [numPaginas, setNumPaginas] = useState(0);
@@ -25,35 +29,45 @@ export default function VisorPdfDialog({ itemId, nombre, abierto, onOpenChange }
   const contenedorRef = useRef(null);
   const pdfRef = useRef(null);
   const bytesRef = useRef(null);
+  // Con que ancho se dibujo la ultima vez, y si hay un dibujado en curso. Los
+  // dos existen para cortar el bucle del ResizeObserver de mas abajo.
+  const anchoDibujadoRef = useRef(0);
+  const dibujandoRef = useRef(false);
 
   const dibujar = useCallback(async (pdf, zoom) => {
     const contenedor = contenedorRef.current;
-    if (!contenedor) return;
+    if (!contenedor || dibujandoRef.current) return;
+    dibujandoRef.current = true;
     contenedor.replaceChildren();
 
     const ratio = window.devicePixelRatio || 1;
     // clientWidth puede leer 0 justo al abrir el dialogo, antes de que el
     // layout se asiente: ahi se usa el ancho de la ventana como referencia.
     const anchoDisponible = contenedor.clientWidth || Math.min(window.innerWidth - 32, 1000);
+    anchoDibujadoRef.current = anchoDisponible;
 
-    for (let n = 1; n <= pdf.numPages; n++) {
+    try {
+      for (let n = 1; n <= pdf.numPages; n++) {
        
-      const page = await pdf.getPage(n);
+        const page = await pdf.getPage(n);
 
-      const original = page.getViewport({ scale: 1 });
-      const escalaAjuste = (anchoDisponible / original.width) * zoom;
-      const viewport = page.getViewport({ scale: escalaAjuste * ratio });
+        const original = page.getViewport({ scale: 1 });
+        const escalaAjuste = (anchoDisponible / original.width) * zoom;
+        const viewport = page.getViewport({ scale: escalaAjuste * ratio });
 
-      const canvas = document.createElement("canvas");
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      canvas.style.width = `${viewport.width / ratio}px`;
-      canvas.style.height = "auto";
-      canvas.className = "mx-auto mb-5 block rounded-md border border-border bg-card shadow-sm";
-      contenedor.appendChild(canvas);
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        canvas.style.width = `${viewport.width / ratio}px`;
+        canvas.style.height = "auto";
+        canvas.className = "mx-auto mb-5 block rounded-md border border-border bg-card shadow-sm";
+        contenedor.appendChild(canvas);
 
        
-      await page.render({ canvas, canvasContext: canvas.getContext("2d"), viewport }).promise;
+        await page.render({ canvas, canvasContext: canvas.getContext("2d"), viewport }).promise;
+      }
+    } finally {
+      dibujandoRef.current = false;
     }
   }, []);
 
@@ -121,24 +135,46 @@ export default function VisorPdfDialog({ itemId, nombre, abierto, onOpenChange }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [escala]);
 
-  // Reajusta el ancho si cambia el tamano del contenedor (rotar el telefono,
-  // redimensionar la ventana).
+  /**
+   * Reajusta el ancho de las paginas al rotar el telefono o redimensionar la
+   * ventana.
+   *
+   * ACA HABIA UN BUCLE QUE CRASHEABA LA PESTANA: al dibujar, el contenedor
+   * crece, aparece la barra de scroll, el ancho cambia ~15 px, el observer
+   * mandaba a redibujar, se borraban las paginas, desaparecia la barra, el
+   * ancho volvia a cambiar... y asi. Cada vuelta reservaba decenas de MB en
+   * canvas hasta que Chrome mataba la pestana ("This page couldn't load").
+   *
+   * Se corta por tres lados: se compara contra el ancho REALMENTE usado en el
+   * ultimo dibujado (no contra el anterior del observer), se ignora todo cambio
+   * menor a 32 px -mas ancho que cualquier barra de scroll-, y no se encima un
+   * dibujado sobre otro.
+   */
   useEffect(() => {
     const contenedor = contenedorRef.current;
     if (!contenedor || typeof ResizeObserver === "undefined") return undefined;
-    let anchoPrevio = contenedor.clientWidth;
+
+    let pendiente = null;
     const observer = new ResizeObserver(() => {
-      const anchoActual = contenedor.clientWidth;
-      if (Math.abs(anchoActual - anchoPrevio) < 4) return;
-      anchoPrevio = anchoActual;
-      if (estado === "listo" && pdfRef.current) {
+      if (estado !== "listo" || !pdfRef.current || dibujandoRef.current) return;
+
+      const ancho = contenedor.clientWidth;
+      if (!ancho || Math.abs(ancho - anchoDibujadoRef.current) < CAMBIO_DE_ANCHO_RELEVANTE) return;
+
+      clearTimeout(pendiente);
+      pendiente = setTimeout(() => {
+        if (!pdfRef.current) return;
         dibujar(pdfRef.current, escala).catch((e) =>
           console.error("[generador-oc] No se pudo reajustar el PDF:", e),
         );
-      }
+      }, 200);
     });
+
     observer.observe(contenedor);
-    return () => observer.disconnect();
+    return () => {
+      clearTimeout(pendiente);
+      observer.disconnect();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
 
