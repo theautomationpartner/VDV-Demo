@@ -5,6 +5,7 @@
 @import "../styles/theme-oc-tracker.css";
 @import "../styles/theme-vale-express.css";
 @import "../styles/theme-portal-proveedor.css";
+@import "../styles/theme-generador-oc.css";
 
 @custom-variant dark (&:is(.dark *));
 

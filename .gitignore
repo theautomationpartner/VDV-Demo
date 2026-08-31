@@ -46,3 +46,7 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Lo copia scripts/copiar-worker-pdf.js en cada build, para que no se
+# desincronice de la version de pdfjs-dist instalada.
+public/pdf.worker.min.mjs

@@ -23,12 +23,21 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Package, Handshake, UserX, MapPin, ChevronDown } from "lucide-react";
+import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Package, Handshake, UserX, MapPin, ChevronDown, FileSignature } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useObrasVales } from "@/hooks/useObras";
+import { OrdenesDeCompraMaxxaBoard } from "@/lib/board-sdk";
 
-const APP_LABELS = { "vale-express": "Vale Express", "portal-proveedor": "Portal Proveedor" };
-const APP_ICONS = { "vale-express": Package, "portal-proveedor": Handshake };
+const APP_LABELS = {
+  "vale-express": "Vale Express",
+  "portal-proveedor": "Portal Proveedor",
+  "generador-oc": "Generador de OC",
+};
+const APP_ICONS = {
+  "vale-express": Package,
+  "portal-proveedor": Handshake,
+  "generador-oc": FileSignature,
+};
 
 // Paso del circuito de contratos que esta persona puede aprobar. Va aparte del
 // appRol porque son dos ejes distintos: el appRol dice que ve en el Portal, y
@@ -58,6 +67,15 @@ const APP_ROLES = {
     { value: "super_admin", label: "Super Admin" },
     { value: "admin", label: "Administrador" },
     { value: "subcontratista", label: "Subcontratista" },
+  ],
+  // En el Generador de OC los tres roles hacen exactamente lo mismo: emitir
+  // ordenes. Quien puede APROBAR una orden no se decide aca sino orden por
+  // orden (el aprobador designado, o el Gerente General), igual que en la Vibe.
+  // Los roles existen solo para administrar la app desde esta pantalla.
+  "generador-oc": [
+    { value: "super_admin", label: "Super Admin" },
+    { value: "admin", label: "Administrador" },
+    { value: "comprador", label: "Comprador" },
   ],
 };
 
@@ -114,7 +132,15 @@ function initialsFor(text) {
 }
 
 function nuevaAsignacion(app) {
-  return { app, appRol: APP_ROLES[app][0].value, obras: "", restrictObras: false, proveedorName: "", rolContrato: "" };
+  return {
+    app,
+    appRol: APP_ROLES[app][0].value,
+    obras: "",
+    restrictObras: false,
+    proveedorName: "",
+    rolContrato: "",
+    mondayUserId: "",
+  };
 }
 
 // Resumen de obras permitidas para la asignacion de Vale Express de un
@@ -126,6 +152,95 @@ function obrasSummary(asignaciones) {
   const obras = ve.appConfig?.obras ?? [];
   const restringido = ve.appConfig?.restrictObras === true && obras.length > 0;
   return restringido ? { esTodas: false, count: obras.length, obras } : { esTodas: true, count: null, obras: [] };
+}
+
+/**
+ * A que usuario de monday corresponde esta persona.
+ *
+ * El Generador de OC lo necesita porque la Orden de Compra escribe columnas de
+ * PERSONA en monday - Responsable y APROBADOR - y esas columnas guardan el id
+ * de monday, no un email. Sin esto la orden se emitiria sin responsable y el
+ * aprobador no recibiria la notificacion.
+ *
+ * Es lo unico que hay que configurar para el Generador de OC.
+ */
+function UsuarioMondayPicker({ value, onChange }) {
+  const [usuarios, setUsuarios] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let activo = true;
+    new OrdenesDeCompraMaxxaBoard().users
+      .withPagination({ limit: 500 })
+      .execute()
+      .then((lista) => {
+        if (!activo) return;
+        setUsuarios(
+          (lista ?? [])
+            .filter((u) => u.name && u.email)
+            .sort((a, b) => a.name.localeCompare(b.name, "es"))
+        );
+      })
+      .catch((err) => console.error("[whitelist] No se pudo cargar la lista de monday:", err))
+      .finally(() => activo && setCargando(false));
+    return () => {
+      activo = false;
+    };
+  }, []);
+
+  const elegido = usuarios.find((u) => String(u.id) === String(value));
+
+  return (
+    <div className="space-y-1">
+      <Label className="text-[11px] text-muted-foreground">Usuario de monday</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          render={
+            <Button variant="outline" className="h-9 w-full justify-between text-xs font-normal" />
+          }
+        >
+          <span className="truncate">
+            {elegido ? elegido.name : cargando ? "Cargando…" : "Sin vincular"}
+          </span>
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+        </PopoverTrigger>
+        <PopoverContent className="w-[min(92vw,340px)] p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Buscar en monday…" />
+            <CommandList>
+              <CommandEmpty>Sin resultados</CommandEmpty>
+              <CommandGroup>
+                {usuarios.map((u) => (
+                  <CommandItem
+                    key={u.id}
+                    value={`${u.name} ${u.email}`}
+                    onSelect={() => {
+                      onChange(String(u.id));
+                      setOpen(false);
+                    }}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm">{u.name}</span>
+                      <span className="block truncate text-[11px] text-muted-foreground">
+                        {u.email}
+                        {u.title ? ` · ${u.title}` : ""}
+                      </span>
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      <p className="text-[11px] text-muted-foreground">
+        {elegido
+          ? "Las órdenes que emita quedan a su nombre en monday."
+          : "Sin vincular no puede emitir órdenes de compra."}
+      </p>
+    </div>
+  );
 }
 
 function SectionLabel({ children }) {
@@ -457,6 +572,7 @@ export default function WhitelistAdminPage() {
         restrictObras: a.appConfig?.restrictObras === true,
         proveedorName: a.appConfig?.proveedorName ?? "",
         rolContrato: a.appConfig?.rolContrato ?? "",
+        mondayUserId: a.appConfig?.mondayUserId ? String(a.appConfig.mondayUserId) : "",
       }));
     const tieneAppsOcultas = (u.asignaciones ?? []).length > asignaciones.length;
     setForm({
@@ -500,7 +616,9 @@ export default function WhitelistAdminPage() {
         appConfig:
           a.app === "vale-express"
             ? { obras: a.obras.split(",").map((s) => s.trim()).filter(Boolean), restrictObras: a.restrictObras }
-            : { proveedorName: a.proveedorName.trim() || null, rolContrato: a.rolContrato || null },
+            : a.app === "generador-oc"
+              ? { mondayUserId: a.mondayUserId ? Number(a.mondayUserId) : null }
+              : { proveedorName: a.proveedorName.trim() || null, rolContrato: a.rolContrato || null },
       }));
 
       const payload = { email: form.email.trim(), asignaciones };
@@ -820,6 +938,13 @@ export default function WhitelistAdminPage() {
                           </SelectContent>
                         </Select>
                       </div>
+                    )}
+
+                    {a.app === "generador-oc" && (
+                      <UsuarioMondayPicker
+                        value={a.mondayUserId}
+                        onChange={(id) => updateAsignacion(index, { mondayUserId: id })}
+                      />
                     )}
 
                     {a.app === "portal-proveedor" && a.appRol === "subcontratista" && (
