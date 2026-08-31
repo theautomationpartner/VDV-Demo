@@ -36,6 +36,10 @@ function DatoProveedor({ label, valor, className }) {
 export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
   const [emitting, setEmitting] = useState(false);
   const [error, setError] = useState(null);
+  // Si el item ya se creo en monday, se guarda aca. Sirve para que un fallo
+  // posterior (el PDF, por ejemplo) no invite a emitir de nuevo y duplicar la
+  // orden.
+  const [ocCreada, setOcCreada] = useState(null);
   const [firmaEmisor, setFirmaEmisor] = useState(null);
   const [firmaAprobador, setFirmaAprobador] = useState(null);
 
@@ -100,6 +104,7 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
         comentarios: data.comentarios,
         items: data.items,
       });
+      setOcCreada({ itemId: result.itemId, numeroOc: result.numeroOc });
 
       // 2. El PDF, ya con el numero definitivo y las dos firmas.
       const pdfBlob = await generateOcPdf({
@@ -156,7 +161,15 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
       onSuccess(result.itemId, result.numeroOc);
     } catch (err) {
       console.error("[generador-oc] Error al emitir OC:", err);
-      setError(err?.message || "Ocurrió un error al crear la Orden de Compra");
+      if (ocCreada) {
+        // El item ya existe: lo que fallo es el PDF o su adjunto. Decirlo tal
+        // cual, porque volver a emitir crearia una segunda orden.
+        setError(
+          `La orden ${ocCreada.numeroOc} se creó en monday, pero no se pudo adjuntar el PDF: ${err?.message || "error desconocido"}. No vuelvas a emitir: se duplicaría. Avisá al equipo para adjuntarlo.`,
+        );
+      } else {
+        setError(err?.message || "Ocurrió un error al crear la Orden de Compra");
+      }
     } finally {
       setEmitting(false);
     }
@@ -427,7 +440,7 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
         <Button
           size="lg"
           onClick={handleEmit}
-          disabled={emitting || !firmaEmisor || !firmaAprobador}
+          disabled={emitting || !!ocCreada || !firmaEmisor || !firmaAprobador}
           className="w-full sm:w-auto"
         >
           {emitting ? (
