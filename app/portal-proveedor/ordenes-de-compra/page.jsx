@@ -29,7 +29,7 @@ export default function OrdenesDeCompraPage() {
   }, [router]);
 
   const { items, loading } = useOrdenesCompra(userContext);
-  const { facturacionMap, loading: factLoading, facturaStats } = useFacturacion();
+  const { facturacionMap, loading: factLoading, facturaStats } = useFacturacion(userContext);
   const { stats: pagosStats, loading: pagosLoading } = useFacturasPendientes(userContext);
 
   const obraCards = useMemo(() => {
