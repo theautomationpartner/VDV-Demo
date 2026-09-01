@@ -36,7 +36,7 @@ export function OCsSobreconsumidas({ ordenes }) {
     });
   }, [ordenes, sortConfig]);
 
-  const SortableHeader = ({ column, label, align = "left" }) => {
+  const SortableHeader = ({ column, label, align = "left", className }) => {
     const isSorted = sortConfig.key === column;
     const isAsc = sortConfig.direction === "asc";
 
@@ -44,6 +44,7 @@ export function OCsSobreconsumidas({ ordenes }) {
       <TableHead
         className={cn(
           "text-foreground font-semibold h-9 cursor-pointer select-none hover:bg-muted/50 transition-colors",
+          className,
           align === "right" && "text-right",
           align === "center" && "text-center"
         )}

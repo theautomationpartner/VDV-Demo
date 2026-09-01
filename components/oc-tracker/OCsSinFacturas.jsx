@@ -34,13 +34,14 @@ export function OCsSinFacturas({ ordenes }) {
     });
   }, [ordenes, sortConfig]);
 
-  const SortableHeader = ({ column, label, align = "left" }) => {
+  const SortableHeader = ({ column, label, align = "left", className }) => {
     const isSorted = sortConfig.key === column;
     const isAsc = sortConfig.direction === "asc";
 
     return (
       <TableHead
-        className={cn("text-foreground font-semibold h-9 cursor-pointer select-none hover:bg-muted/50 transition-colors", align === "right" && "text-right")}
+        className={cn("text-foreground font-semibold h-9 cursor-pointer select-none hover:bg-muted/50 transition-colors",
+          className, align === "right" && "text-right")}
         onClick={() => handleSort(column)}
       >
         <div className={cn("flex items-center gap-1.5", align === "right" && "justify-end")}>
@@ -90,18 +91,22 @@ export function OCsSinFacturas({ ordenes }) {
                 <SortableHeader column="numeroOc" label="OC" />
                 <SortableHeader column="obra" label="Obra" />
                 <SortableHeader column="monto" label="Monto OC" align="right" />
-                <SortableHeader column="responsable" label="Responsable" />
-                <SortableHeader column="estadoDocumento" label="Estado" />
+                {/* Igual que en las demas tablas: primero entra lo que identifica la
+                    orden, y el resto aparece cuando hay ancho. */}
+                <SortableHeader column="responsable" label="Responsable" className="hidden lg:table-cell" />
+                <SortableHeader column="estadoDocumento" label="Estado" className="hidden sm:table-cell" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {sortedOrdenes.map((oc) => (
                 <TableRow key={oc.id} className="h-8">
                   <TableCell className="font-medium">{oc.numeroOc || "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{oc.obra || "—"}</TableCell>
+                  <TableCell className="max-w-[150px] text-muted-foreground">
+                    <div className="truncate" title={oc.obra || ""}>{oc.obra || "—"}</div>
+                  </TableCell>
                   <TableCell className="text-right font-mono text-sm">{formatCurrency(oc.monto, oc.moneda)}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{oc.responsable || "—"}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{oc.estadoDocumento || "—"}</TableCell>
+                  <TableCell className="hidden text-muted-foreground text-sm lg:table-cell">{oc.responsable || "—"}</TableCell>
+                  <TableCell className="hidden text-muted-foreground text-sm sm:table-cell">{oc.estadoDocumento || "—"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

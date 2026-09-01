@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,6 +22,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Loader2, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { getOcs, getObrasOc, actualizarEstadoOc } from "@/lib/generador-oc/datos";
 import EstadoOcCell from "./EstadoOcCell";
 import VerDocumentoOc from "./VerDocumentoOc";
@@ -115,6 +116,21 @@ export default function OcHistorial({ currentUser }) {
       .catch((e) => console.error("[generador-oc] Error al cargar obras:", e));
   }, []);
 
+  // La columna Acciones va pegada a la derecha, y por eso tapa lo que pase por
+  // debajo. Con la tabla entera a la vista no hay nada tapado, asi que la
+  // sombra que avisa "aca sigue" solo se dibuja cuando de verdad sobra tabla.
+  const contenedorTabla = useRef(null);
+  const [tablaDesbordada, setTablaDesbordada] = useState(false);
+  useEffect(() => {
+    const caja = contenedorTabla.current;
+    if (!caja) return undefined;
+    const medir = () => setTablaDesbordada(caja.scrollWidth > caja.clientWidth + 1);
+    medir();
+    const observador = new ResizeObserver(medir);
+    observador.observe(caja);
+    return () => observador.disconnect();
+  }, [items]);
+
   // Un respiro de 300 ms para no consultar en cada tecla del buscador.
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -168,7 +184,7 @@ export default function OcHistorial({ currentUser }) {
   return (
     <div className="space-y-6">
       <Card className="p-4">
-        <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="md:col-span-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -181,7 +197,7 @@ export default function OcHistorial({ currentUser }) {
             </div>
           </div>
           <Select value={obraFilter} onValueChange={setObraFilter}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Todas las obras" />
             </SelectTrigger>
             <SelectContent>
@@ -194,7 +210,7 @@ export default function OcHistorial({ currentUser }) {
             </SelectContent>
           </Select>
           <Select value={estadoFilter} onValueChange={setEstadoFilter}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Todos los estados" />
             </SelectTrigger>
             <SelectContent>
@@ -220,8 +236,8 @@ export default function OcHistorial({ currentUser }) {
         </Card>
       ) : (
         <>
-          {/* Tarjetas — pantallas angostas */}
-          <div className="space-y-3 md:hidden">
+          {/* Tarjetas — celular y pantallas de hasta 1024 px */}
+          <div className="space-y-3 lg:hidden">
             {items.map((item) => {
               const { puedeGestionar, esAprobador, puedeEditar } = permisos(item);
               return (
@@ -238,7 +254,7 @@ export default function OcHistorial({ currentUser }) {
                     </p>
                   </div>
 
-                  <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
                     <div className="min-w-0">
                       <dt className="text-xs text-muted-foreground">Fecha</dt>
                       <dd className="truncate">{formatDate(item.createdAt)}</dd>
@@ -247,12 +263,12 @@ export default function OcHistorial({ currentUser }) {
                       <dt className="text-xs text-muted-foreground">Responsable</dt>
                       <dd className="truncate">{personas(item.responsable)}</dd>
                     </div>
-                    <div className="col-span-2 min-w-0">
+                    <div className="col-span-2 min-w-0 sm:col-span-1">
                       <dt className="text-xs text-muted-foreground">Aprobador</dt>
                       <dd className="truncate">{personas(item.aprobador)}</dd>
                     </div>
                     {item.comentariosInternos && (
-                      <div className="col-span-2 min-w-0">
+                      <div className="col-span-2 min-w-0 sm:col-span-3">
                         <dt className="text-xs text-muted-foreground">Notas internas</dt>
                         <dd className="line-clamp-2 text-xs italic text-muted-foreground">
                           {item.comentariosInternos}
@@ -295,30 +311,40 @@ export default function OcHistorial({ currentUser }) {
             })}
           </div>
 
-          {/* Tabla — pantallas medianas y grandes */}
-          <Card className="hidden md:block">
-            <div className="overflow-x-auto">
+          {/* Tabla — solo cuando la pantalla da para una tabla de verdad.
+              Debajo de 1024 px el menu lateral se queda con 300 px y a la
+              tabla le sobraban columnas por todos lados: ahi mandan las
+              tarjetas de arriba, que muestran los mismos datos completos. */}
+          <Card className="hidden lg:block">
+            <div ref={contenedorTabla} className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    {/* Las seis columnas de siempre: numero, proveedor, obra,
+                        monto, estado y acciones. Entran en cualquier monitor. */}
                     <TableHead>N° OC</TableHead>
                     <TableHead>Proveedor</TableHead>
                     <TableHead>Obra</TableHead>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Responsable</TableHead>
-                    <TableHead>Aprobador</TableHead>
+                    {/* Las demas aparecen a medida que hay lugar, de la mas
+                        util a la menos: asi la tabla nunca es mas ancha que la
+                        pantalla y no queda ningun dato cortado a la mitad. Lo
+                        que no se muestra sigue completo en las tarjetas de
+                        pantalla angosta y en el detalle de la orden. */}
+                    <TableHead className="hidden xl:table-cell">Fecha</TableHead>
+                    <TableHead className="hidden xl:table-cell">Responsable</TableHead>
+                    <TableHead className="hidden 2xl:table-cell">Aprobador</TableHead>
                     <TableHead className="text-right">Monto</TableHead>
                     <TableHead>Estado</TableHead>
-                    {/* Notas internas es lo menos urgente de la fila: se
-                        esconde en pantallas medianas para que la tabla entre
-                        entera y el monto no quede tapado. Sigue estando en la
-                        vista de tarjetas del celular. */}
-                    <TableHead className="hidden max-w-[200px] xl:table-cell">Notas internas</TableHead>
-                    {/* Acciones queda pegada a la derecha: la tabla es mas
-                        ancha que la pantalla en monitores comunes, y si esta
-                        columna se va de cuadro no hay forma de ver el documento
-                        ni de editar sin arrastrar la tabla de costado. */}
-                    <TableHead className="sticky right-0 z-10 bg-card text-right shadow-[-8px_0_8px_-8px_rgba(0,0,0,.45)]">
+                    <TableHead className="hidden max-w-[200px] 2xl:table-cell">Notas internas</TableHead>
+                    {/* Acciones queda pegada a la derecha para que ver el
+                        documento y editar esten siempre a mano, aunque la
+                        tabla se tenga que arrastrar de costado. */}
+                    <TableHead
+                      className={cn(
+                        "sticky right-0 z-10 bg-card text-right",
+                        tablaDesbordada && "shadow-[-8px_0_8px_-8px_rgba(0,0,0,.45)]",
+                      )}
+                    >
                       Acciones
                     </TableHead>
                   </TableRow>
@@ -341,11 +367,15 @@ export default function OcHistorial({ currentUser }) {
                         <TableCell className="max-w-[130px]">
                           <div className="truncate" title={item.obra || ""}>{item.obra || "—"}</div>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
+                        <TableCell className="hidden text-sm text-muted-foreground xl:table-cell">
                           {formatDate(item.createdAt)}
                         </TableCell>
-                        <TableCell className="text-sm">{personas(item.responsable)}</TableCell>
-                        <TableCell className="text-sm">{personas(item.aprobador)}</TableCell>
+                        <TableCell className="hidden text-sm xl:table-cell">
+                          {personas(item.responsable)}
+                        </TableCell>
+                        <TableCell className="hidden text-sm 2xl:table-cell">
+                          {personas(item.aprobador)}
+                        </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {formatCurrency(item.monto, item.moneda)}
                         </TableCell>
@@ -360,7 +390,7 @@ export default function OcHistorial({ currentUser }) {
                             onReabrir={() => cambiarEstado(item.id, "PENDIENTE")}
                           />
                         </TableCell>
-                        <TableCell className="hidden max-w-[200px] xl:table-cell">
+                        <TableCell className="hidden max-w-[200px] 2xl:table-cell">
                           {item.comentariosInternos ? (
                             <p className="line-clamp-2 text-xs italic text-muted-foreground">
                               {item.comentariosInternos}
@@ -369,7 +399,12 @@ export default function OcHistorial({ currentUser }) {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
-                        <TableCell className="sticky right-0 z-10 bg-card shadow-[-8px_0_8px_-8px_rgba(0,0,0,.45)]">
+                        <TableCell
+                          className={cn(
+                            "sticky right-0 z-10 bg-card",
+                            tablaDesbordada && "shadow-[-8px_0_8px_-8px_rgba(0,0,0,.45)]",
+                          )}
+                        >
                           <div className="flex items-center justify-end gap-0.5">
                             {puedeEditar && (
                               <Button

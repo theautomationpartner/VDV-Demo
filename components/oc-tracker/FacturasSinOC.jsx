@@ -97,13 +97,14 @@ export function FacturasSinOC({ facturas }) {
     });
   }, [facturas, sortConfig]);
 
-  const SortableHeader = ({ column, label, align = "left" }) => {
+  const SortableHeader = ({ column, label, align = "left", className }) => {
     const isSorted = sortConfig.key === column;
     const isAsc = sortConfig.direction === "asc";
 
     return (
       <TableHead
-        className={cn("text-foreground font-semibold h-11 cursor-pointer select-none hover:bg-muted/50 transition-colors text-sm", align === "right" && "text-right")}
+        className={cn("text-foreground font-semibold h-11 cursor-pointer select-none hover:bg-muted/50 transition-colors text-sm",
+          className, align === "right" && "text-right")}
         onClick={() => handleSort(column)}
       >
         <div className={cn("flex items-center gap-1.5", align === "right" && "justify-end")}>
@@ -157,8 +158,10 @@ export function FacturasSinOC({ facturas }) {
                   <SortableHeader column="numeroFactura" label="Factura" />
                   <SortableHeader column="obra" label="Obra" />
                   <SortableHeader column="montoConIva" label="Monto" align="right" />
-                  <SortableHeader column="fechaFactura" label="Fecha" />
-                  <SortableHeader column="estado" label="Estado" />
+                  {/* En pantallas chicas se dejan las tres columnas que identifican la
+                      factura; fecha y estado vuelven al abrir la fila. */}
+                  <SortableHeader column="fechaFactura" label="Fecha" className="hidden lg:table-cell" />
+                  <SortableHeader column="estado" label="Estado" className="hidden sm:table-cell" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -181,12 +184,14 @@ export function FacturasSinOC({ facturas }) {
                           {factura.numeroFactura || factura.name}
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{factura.obra || "—"}</TableCell>
+                      <TableCell className="max-w-[150px] text-muted-foreground text-sm">
+                        <div className="truncate" title={factura.obra || ""}>{factura.obra || "—"}</div>
+                      </TableCell>
                       <TableCell className="text-right font-mono text-sm">{formatCurrency(factura.montoConIva)}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
+                      <TableCell className="hidden text-muted-foreground text-sm lg:table-cell">
                         {factura.fechaFactura ? factura.fechaFactura.toLocaleDateString("es-CL") : "—"}
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{factura.estado || "—"}</TableCell>
+                      <TableCell className="hidden text-muted-foreground text-sm sm:table-cell">{factura.estado || "—"}</TableCell>
                     </TableRow>
                     {selectedFactura === factura.id && (
                       <TableRow className="hover:bg-transparent">

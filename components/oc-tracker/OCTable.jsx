@@ -123,7 +123,7 @@ export function OCTable({ ordenes, sortConfig, onSort }) {
     });
   };
 
-  const SortableHeader = ({ column, label, align = "left" }) => {
+  const SortableHeader = ({ column, label, align = "left", className }) => {
     const isSorted = sortConfig?.key === column;
     const isAsc = sortConfig?.direction === "asc";
 
@@ -131,6 +131,7 @@ export function OCTable({ ordenes, sortConfig, onSort }) {
       <TableHead
         className={cn(
           "text-foreground font-semibold h-9 cursor-pointer select-none hover:bg-muted/50 transition-colors",
+          className,
           align === "right" && "text-right",
           align === "center" && "text-center"
         )}
@@ -162,15 +163,15 @@ export function OCTable({ ordenes, sortConfig, onSort }) {
 
   return (
     <>
-      {/* Mobile (<md): tarjetas apiladas, sin tabla ancha que fuerce scroll horizontal */}
-      <div className="space-y-2 md:hidden">
+      {/* Tarjetas hasta 1024 px: con el menu lateral puesto, a esa altura a la
+          tabla le quedan 700 px y ocho columnas no entran de ninguna forma. */}
+      <div className="space-y-2 lg:hidden">
         {ordenes.map((oc) => (
           <OCCardMobile key={oc.id} oc={oc} isExpanded={expandedRows.has(oc.id)} onToggle={toggleRow} />
         ))}
       </div>
 
-      {/* Desktop (md+): tabla original, sin cambios */}
-      <div className="hidden overflow-hidden rounded-[var(--radius)] border border-border bg-card md:block">
+      <div className="hidden overflow-hidden rounded-[var(--radius)] border border-border bg-card lg:block">
         <Table>
           <TableHeader>
             <TableRow className="bg-secondary hover:bg-secondary group">
@@ -179,9 +180,12 @@ export function OCTable({ ordenes, sortConfig, onSort }) {
               <SortableHeader column="monto" label="Monto OC" align="right" />
               <SortableHeader column="totalFacturado" label="Total Facturado" align="right" />
               <SortableHeader column="saldoDisponible" label="Saldo Disponible" align="right" />
-              <SortableHeader column="porcentajeConsumido" label="% Consumido" align="right" />
+              {/* Estas dos se esconden en pantallas medianas: el porcentaje ya lo
+                  resume la columna Estado, y el numero de facturas se ve al
+                  abrir la fila. Asi la tabla entra entera desde 1024 px. */}
+              <SortableHeader column="porcentajeConsumido" label="% Consumido" align="right" className="hidden xl:table-cell" />
               <SortableHeader column="semaforo" label="Estado" />
-              <TableHead className="text-foreground font-semibold h-9 text-center">Facturas</TableHead>
+              <TableHead className="hidden text-foreground font-semibold h-9 text-center xl:table-cell">Facturas</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -206,15 +210,17 @@ export function OCTable({ ordenes, sortConfig, onSort }) {
                         {oc.numeroOc || "—"}
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{oc.obra || "—"}</TableCell>
+                    <TableCell className="max-w-[150px] text-muted-foreground">
+                      <div className="truncate" title={oc.obra || ""}>{oc.obra || "—"}</div>
+                    </TableCell>
                     <TableCell className="text-right font-mono text-sm">{formatCurrency(oc.monto, oc.moneda)}</TableCell>
                     <TableCell className="text-right font-mono text-sm">{formatCurrency(oc.totalFacturado, oc.moneda)}</TableCell>
                     <TableCell className="text-right font-mono text-sm">{formatCurrency(oc.saldoDisponible, oc.moneda)}</TableCell>
-                    <TableCell className="text-right font-mono text-sm">{oc.porcentajeConsumido.toFixed(1)}%</TableCell>
+                    <TableCell className="hidden text-right font-mono text-sm xl:table-cell">{oc.porcentajeConsumido.toFixed(1)}%</TableCell>
                     <TableCell>
                       <SemaforoIndicator semaforo={oc.semaforo} />
                     </TableCell>
-                    <TableCell className="text-center text-muted-foreground">{oc.facturasVinculadas?.length || 0}</TableCell>
+                    <TableCell className="hidden text-center text-muted-foreground xl:table-cell">{oc.facturasVinculadas?.length || 0}</TableCell>
                   </TableRow>
 
                   {isExpanded && hasFacturas && (
