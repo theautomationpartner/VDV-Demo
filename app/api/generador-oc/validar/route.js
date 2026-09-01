@@ -34,12 +34,26 @@ const CAMPOS_PUBLICOS = [
  *
  * Como no hay login, hay dos limites deliberados:
  *
- *  1. Sin un codigo con la forma correcta no se responde nada. El id de item de
- *     monday es un numero de 11 digitos y sin esto se podrian ir probando ids
- *     al azar para leer montos y proveedores de todas las ordenes de la cuenta.
- *     Quien viene del QR siempre trae el codigo en el enlace.
+ *  1. Solo se responde si el codigo del enlace es EXACTAMENTE el que quedo
+ *     guardado en la orden al emitirla. Antes alcanzaba con que el codigo
+ *     tuviera la forma correcta (la regex de abajo), y la comparacion contra el
+ *     codigo real solo decidia el cartel "autentica" - pero los datos se
+ *     devolvian igual. Como la forma es trivial de fabricar
+ *     (VDV-1-AAAAAAAA-BBBBBBBB la cumple) y el id de item es un numero
+ *     secuencial, se podian ir probando ids al azar y leer monto, proveedor y
+ *     obra de todas las ordenes de la cuenta, que es justo lo que este limite
+ *     queria evitar.
  *  2. Solo se devuelven los campos que ya estan impresos en el documento que el
  *     proveedor tiene en la mano. Nada de comentarios internos ni de lineas.
+ *
+ * Que NO cambia con esto: un PDF adulterado sigue quedando en evidencia. Quien
+ * altera el documento (por ejemplo el monto) no rehace el QR, asi que el codigo
+ * que llega es el original, coincide con el guardado, y la pagina muestra los
+ * datos reales de monday para comparar contra el papel.
+ *
+ * Cuando el codigo no coincide se responde lo mismo que cuando la orden no
+ * existe: sin distinguir los dos casos, no queda forma de usar el endpoint para
+ * confirmar que un id existe.
  */
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -79,13 +93,15 @@ export async function GET(request) {
     };
 
     const codigoGuardado = extraerCodigoDeComentarios(valor("comentarios"));
+    if (!codigoGuardado || codigo !== codigoGuardado) return Response.json({ encontrada: false });
+
     const monto = parseFloat(valor("monto"));
     // "2026-08-31 - 2026-09-30" -> la fecha de emision es la primera.
     const emision = valor("validezDocumento").split(" - ")[0] || null;
 
     return Response.json({
       encontrada: true,
-      autentica: Boolean(codigoGuardado) && codigo === codigoGuardado,
+      autentica: true,
       numeroOc: valor("numeroOc"),
       obra: valor("obra"),
       monto: Number.isFinite(monto) ? monto : 0,
