@@ -49,6 +49,20 @@ import {
   limpiarBorradorAutomatico,
 } from "@/lib/generador-oc/borradores";
 
+/**
+ * Lee un input de numero sacando el cero de adelante.
+ *
+ * React no lo saca solo: para decidir si reescribe el texto compara el valor
+ * del DOM con el del estado con ==, y "010000" == 10000 da verdadero, asi que
+ * deja el "0" pegado adelante. El total salia bien pero en pantalla se leia
+ * "010000". Se limpia a mano, en el momento de tipear.
+ */
+function leerNumero(e) {
+  const limpio = e.target.value.replace(/^0+(?=\d)/, "");
+  if (limpio !== e.target.value) e.target.value = limpio;
+  return parseFloat(limpio) || 0;
+}
+
 const LINEA_VACIA = {
   codigo: "",
   descripcion: "",
@@ -744,9 +758,7 @@ export default function NuevaOcForm({ onPreview, currentUser, borrador = null, o
                       min="0"
                       aria-label="Cantidad"
                       value={item.cantidad}
-                      onChange={(e) =>
-                        updateItem(index, "cantidad", parseFloat(e.target.value) || 0)
-                      }
+                      onChange={(e) => updateItem(index, "cantidad", leerNumero(e))}
                     />
                   </div>
 
@@ -771,9 +783,7 @@ export default function NuevaOcForm({ onPreview, currentUser, borrador = null, o
                       min="0"
                       aria-label="Precio unitario"
                       value={item.precioUnitario}
-                      onChange={(e) =>
-                        updateItem(index, "precioUnitario", parseFloat(e.target.value) || 0)
-                      }
+                      onChange={(e) => updateItem(index, "precioUnitario", leerNumero(e))}
                     />
                   </div>
 
@@ -792,7 +802,7 @@ export default function NuevaOcForm({ onPreview, currentUser, borrador = null, o
                         updateItem(
                           index,
                           "descuento",
-                          e.target.value === "" ? undefined : parseFloat(e.target.value) || 0,
+                          e.target.value === "" ? undefined : leerNumero(e),
                         )
                       }
                     />
