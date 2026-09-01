@@ -1,5 +1,10 @@
 import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
 import { verificarAccesoMoveGroup, accesoBoardErrorToResponse, BoardAccessError } from "@/lib/server/board-access-policy";
+import {
+  verificarQueryPermitida,
+  graphqlNoPermitidoToResponse,
+  GraphQLNoPermitidoError,
+} from "@/lib/server/graphql-allowlist";
 import { demoMoveItemToGroup } from "@/lib/server/demo-data";
 
 const MONDAY_API_URL = "https://api.monday.com/v2";
@@ -55,6 +60,17 @@ export async function POST(request) {
   const { query, variables, boardKey } = body ?? {};
   if (!query || typeof query !== "string") {
     return Response.json({ errors: [{ message: "Falta 'query' (string GraphQL)" }] }, { status: 400 });
+  }
+
+  // Lista blanca de operaciones (ver lib/server/graphql-allowlist.js). Va ANTES
+  // del chequeo de rol y no depende de AUTH_LAYERS_ENABLED: este proxy corre con
+  // el token de la cuenta entera de monday, asi que la superficie tiene que
+  // estar acotada aun cuando las capas de sesion esten apagadas.
+  try {
+    verificarQueryPermitida(query, { boardKey, variables });
+  } catch (err) {
+    if (err instanceof GraphQLNoPermitidoError) return graphqlNoPermitidoToResponse(err);
+    throw err;
   }
 
   if (AUTH_LAYERS_ENABLED && query.includes("move_item_to_group")) {
