@@ -254,13 +254,14 @@ export function ConsumoPorObra({ consumoPorObra, onUpdateStatus }) {
     });
   }, [consumoPorObra, sortConfig]);
 
-  const SortableHeader = ({ column, label, align = "left" }) => {
+  const SortableHeader = ({ column, label, align = "left", className }) => {
     const isSorted = sortConfig.key === column;
     const isAsc = sortConfig.direction === "asc";
     return (
       <TableHead
         className={cn(
           "text-foreground font-semibold h-11 cursor-pointer select-none hover:bg-muted/50 transition-colors text-sm",
+          className,
           align === "right" && "text-right",
           align === "center" && "text-center"
         )}
@@ -295,15 +296,18 @@ export function ConsumoPorObra({ consumoPorObra, onUpdateStatus }) {
       </div>
 
       <div className="border border-border rounded-[var(--radius)] overflow-hidden bg-card overflow-x-auto">
-        <Table className="min-w-[900px]">
+        {/* Antes esta tabla exigia 900 px si o si y se salia de cuadro en
+            cualquier monitor de 1180. Ahora pide lo justo y las columnas que
+            se pueden deducir aparecen recien cuando hay lugar. */}
+        <Table className="min-w-[640px]">
           <TableHeader>
             <TableRow className="bg-secondary hover:bg-secondary group">
               <TableHead className="w-10 h-11"></TableHead>
               <SortableHeader column="obra" label="Obra" />
-              <SortableHeader column="count" label="OCs" align="center" />
+              <SortableHeader column="count" label="OCs" align="center" className="hidden xl:table-cell" />
               <SortableHeader column="totalMontoOC" label="Monto OC" align="right" />
               <SortableHeader column="totalFacturado" label="Facturado" align="right" />
-              <SortableHeader column="saldoDisponible" label="Saldo" align="right" />
+              <SortableHeader column="saldoDisponible" label="Saldo" align="right" className="hidden xl:table-cell" />
               <SortableHeader column="porcentajeConsumido" label="Consumo" />
               <TableHead className="text-foreground font-semibold h-11 text-sm">Estado OC</TableHead>
             </TableRow>
@@ -331,11 +335,13 @@ export function ConsumoPorObra({ consumoPorObra, onUpdateStatus }) {
                           <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         )}
                       </TableCell>
-                      <TableCell className="font-semibold text-sm">{item.obra}</TableCell>
-                      <TableCell className="text-center text-muted-foreground text-sm">{item.count}</TableCell>
+                      <TableCell className="max-w-[200px] font-semibold text-sm">
+                        <div className="truncate" title={item.obra}>{item.obra}</div>
+                      </TableCell>
+                      <TableCell className="hidden text-center text-muted-foreground text-sm xl:table-cell">{item.count}</TableCell>
                       <TableCell className="text-right font-mono text-sm">{formatCurrency(item.totalMontoOC)}</TableCell>
                       <TableCell className="text-right font-mono text-sm">{formatCurrency(item.totalFacturado)}</TableCell>
-                      <TableCell className="text-right font-mono text-sm">{formatCurrency(item.saldoDisponible)}</TableCell>
+                      <TableCell className="hidden text-right font-mono text-sm xl:table-cell">{formatCurrency(item.saldoDisponible)}</TableCell>
                       <TableCell>
                         <ConsumptionBar percentage={item.porcentajeConsumido} />
                       </TableCell>
@@ -362,10 +368,10 @@ export function ConsumoPorObra({ consumoPorObra, onUpdateStatus }) {
                                 <span className="text-muted-foreground">OC</span> <span className="font-medium">{oc.numeroOc}</span>
                               </div>
                             </TableCell>
-                            <TableCell></TableCell>
+                            <TableCell className="hidden xl:table-cell"></TableCell>
                             <TableCell className="text-right font-mono text-sm text-muted-foreground">{formatCurrency(oc.monto || 0)}</TableCell>
                             <TableCell className="text-right font-mono text-sm text-muted-foreground">{formatCurrency(oc.totalFacturado)}</TableCell>
-                            <TableCell className="text-right font-mono text-sm text-muted-foreground">{formatCurrency(oc.saldoDisponible)}</TableCell>
+                            <TableCell className="hidden text-right font-mono text-sm text-muted-foreground xl:table-cell">{formatCurrency(oc.saldoDisponible)}</TableCell>
                             <TableCell>
                               <ConsumptionBar percentage={oc.porcentajeConsumido} />
                             </TableCell>

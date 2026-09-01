@@ -190,7 +190,7 @@ export default function EditarOcDialog({
               <div className="space-y-2">
                 <Label>Obra</Label>
                 <Select value={obra} onValueChange={setObra}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Seleccionar obra" />
                   </SelectTrigger>
                   <SelectContent>
