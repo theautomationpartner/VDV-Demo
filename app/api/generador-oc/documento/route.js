@@ -3,6 +3,11 @@ import {
   accesoErrorToResponse,
   AccesoError,
 } from "@/lib/server/auth-guard";
+import {
+  verificarAccesoDocumentoOc,
+  accesoBoardErrorToResponse,
+  BoardAccessError,
+} from "@/lib/server/board-access-policy";
 import { resolveColumnId } from "@/lib/board-schemas";
 import { mondayFetch } from "@/lib/server/monday-client";
 
@@ -23,10 +28,17 @@ const DEMO_MODE = process.env.DEMO_MODE === "true";
  */
 export async function GET(request) {
   if (!DEMO_MODE && AUTH_LAYERS_ENABLED) {
+    let sesion;
     try {
-      verificarAcceso(request);
+      sesion = verificarAcceso(request);
     } catch (err) {
       if (err instanceof AccesoError) return accesoErrorToResponse(err);
+      throw err;
+    }
+    try {
+      verificarAccesoDocumentoOc(sesion);
+    } catch (err) {
+      if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
       throw err;
     }
   }
