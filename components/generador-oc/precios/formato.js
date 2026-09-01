@@ -14,16 +14,29 @@ export function formatoPorcentaje(valor) {
   return `${signo}${valor.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 }
 
+/**
+ * Una fecha sin hora ("2026-08-25") la lee JavaScript como medianoche UTC, y al
+ * mostrarla en Chile o Argentina retrocede al dia anterior. Agregarle la hora la
+ * deja en la zona de quien mira.
+ *
+ * Hoy al historial de precios le llega la fecha CON hora, asi que no se rompe;
+ * esto es para que siga sin romperse si algun dia le llega una fecha pelada.
+ */
+function aFecha(iso) {
+  const texto = String(iso);
+  return new Date(/^\d{4}-\d{2}-\d{2}$/.test(texto) ? `${texto}T00:00:00` : texto);
+}
+
 export function formatoFecha(iso) {
   if (!iso) return "—";
-  const fecha = new Date(iso);
+  const fecha = aFecha(iso);
   if (!Number.isFinite(fecha.getTime())) return "—";
   return fecha.toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 export function formatoFechaCorta(iso) {
   if (!iso) return "—";
-  const fecha = new Date(iso);
+  const fecha = aFecha(iso);
   if (!Number.isFinite(fecha.getTime())) return "—";
   return fecha.toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
 }
