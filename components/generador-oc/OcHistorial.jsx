@@ -310,7 +310,13 @@ export default function OcHistorial({ currentUser }) {
                     <TableHead className="text-right">Monto</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead className="max-w-[200px]">Notas internas</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
+                    {/* Acciones queda pegada a la derecha: la tabla es mas
+                        ancha que la pantalla en monitores comunes, y si esta
+                        columna se va de cuadro no hay forma de ver el documento
+                        ni de editar sin arrastrar la tabla de costado. */}
+                    <TableHead className="sticky right-0 z-10 bg-card text-right shadow-[-8px_0_8px_-8px_rgba(0,0,0,.45)]">
+                      Acciones
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -349,7 +355,7 @@ export default function OcHistorial({ currentUser }) {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="sticky right-0 z-10 bg-card shadow-[-8px_0_8px_-8px_rgba(0,0,0,.45)]">
                           <div className="flex items-center justify-end gap-0.5">
                             {puedeEditar && (
                               <Button
