@@ -438,7 +438,12 @@ async function handleItemUpdate(boardKey, schema, params) {
   const simples = [];
   const relaciones = {};
   for (const [friendlyKey, value] of entries) {
-    const columnId = resolveColumnId(boardKey, friendlyKey);
+    // "name" no es una columna del tablero: es el titulo del item. monday lo
+    // renombra con esta misma mutacion usando column_id "name", asi que no hay
+    // que buscarlo en el schema. Buscarlo tiraba "columna no mapeada" y se
+    // perdia el renombre entero: al editar una Orden de Compra el total
+    // cambiaba pero la linea seguia con el precio viejo.
+    const columnId = friendlyKey === "name" ? "name" : resolveColumnId(boardKey, friendlyKey);
     if (esRelacion(value)) {
       relaciones[columnId] = { item_ids: value.linkedItems.map((l) => Number(l.id)) };
       continue;
