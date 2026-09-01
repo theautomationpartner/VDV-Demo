@@ -129,7 +129,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2"><FileText className="w-4 h-4 text-blue-400" /><span className="text-xs font-semibold text-blue-400 uppercase tracking-wide">Contratos</span></div>
               <ChevronRight className="w-4 h-4 text-blue-400/40 group-hover:text-blue-400 transition-colors" />
             </div>
-            {(contractsLoading || deferContracts) ? (
+            {contractsLoading ? (
               <div className="flex gap-3 mt-2">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-8 flex-1 rounded bg-blue-500/10 animate-pulse" />)}</div>
             ) : (
               <div className="flex gap-2 mt-2">
@@ -153,7 +153,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2"><Receipt className="w-4 h-4 text-purple-400" /><span className="text-xs font-semibold text-purple-400 uppercase tracking-wide">Estados de Pago</span></div>
               <ChevronRight className="w-4 h-4 text-purple-400/40 group-hover:text-purple-400 transition-colors" />
             </div>
-            {(epLoading || deferEP) ? (
+            {epLoading ? (
               <div className="flex gap-3 mt-2">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-8 flex-1 rounded bg-purple-500/10 animate-pulse" />)}</div>
             ) : (
               <div className="flex gap-2 mt-2">
@@ -177,7 +177,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-orange-400" /><span className="text-xs font-semibold text-orange-400 uppercase tracking-wide">Órdenes de Compra</span></div>
               <ChevronRight className="w-4 h-4 text-orange-400/40 group-hover:text-orange-400 transition-colors" />
             </div>
-            {(ocLoading || deferOC) ? (
+            {ocLoading ? (
               <div className="flex gap-3 mt-2">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-8 flex-1 rounded bg-orange-500/10 animate-pulse" />)}</div>
             ) : (
               <div className="space-y-2 mt-2">
