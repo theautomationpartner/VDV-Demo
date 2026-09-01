@@ -7,6 +7,10 @@
     {
       "path": "/api/oc-tracker/datos/recalcular",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/portal-proveedor/datos/recalcular",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

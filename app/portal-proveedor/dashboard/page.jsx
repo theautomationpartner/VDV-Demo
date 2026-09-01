@@ -27,23 +27,14 @@ export default function DashboardPage() {
 
   const { items, loading } = usePaymentData(userContext);
 
-  // Stagger contract/EP queries to avoid hitting complexity budget
-  const [deferContracts, setDeferContracts] = useState(true);
-  const [deferEP, setDeferEP] = useState(true);
-  const [deferOC, setDeferOC] = useState(true);
-  useEffect(() => {
-    if (!loading && userContext) {
-      const t1 = setTimeout(() => setDeferContracts(false), 3000);
-      const t2 = setTimeout(() => setDeferEP(false), 6000);
-      const t3 = setTimeout(() => setDeferOC(false), 9000);
-      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-    }
-  }, [loading, userContext]);
-
-  const { items: contractItems, loading: contractsLoading } = useContracts(deferContracts ? null : userContext);
-  const { items: epItems, loading: epLoading } = useEstadosDePago(deferEP ? null : userContext);
-  const { items: ocItems, loading: ocLoading } = useOrdenesCompra(deferOC ? null : userContext);
-  const { facturacionMap, loading: factLoading } = useFacturacion();
+  // Antes esta pantalla esperaba 3, 6 y 9 segundos antes de lanzar tres de sus
+  // cuatro consultas, para no chocar con el limite de complejidad de monday.
+  // Ya no hace falta: los cinco hooks leen del mismo traido que el servidor
+  // tiene resuelto, en una sola llamada.
+  const { items: contractItems, loading: contractsLoading } = useContracts(userContext);
+  const { items: epItems, loading: epLoading } = useEstadosDePago(userContext);
+  const { items: ocItems, loading: ocLoading } = useOrdenesCompra(userContext);
+  const { facturacionMap, loading: factLoading } = useFacturacion(userContext);
   const fmt = (v) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v || 0);
 
   const contractStats = useMemo(() => {

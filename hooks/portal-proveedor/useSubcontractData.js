@@ -1,164 +1,16 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { FlujoContratacionSubcontratoBoard, EstadosDePagoSubcontratosBoard, OrdenesDeCompraMaxxaBoard, fetchAllItems } from '@/lib/board-sdk';
-import { getAllVariants } from '@/hooks/portal-proveedor/providerAliases';
-import { hidratar, guardarCache, borrarCachesDe } from '@/lib/client/cache-persistente';
+import { useState, useEffect, useCallback } from 'react';
+import { claveDe, yaTraido, traerDatosPortal, limpiarDatosPortal } from '@/hooks/portal-proveedor/portalDatos';
 
-// `nombre` es con lo que cada cache se guarda en el navegador para sobrevivir
-// al refresh. Ver lib/client/cache-persistente.js.
-let _contracts = { nombre: 'contratos', items: null, time: 0, key: null, promise: null };
-let _eps = { nombre: 'estados-de-pago', items: null, time: 0, key: null, promise: null };
-let _ocs = { nombre: 'ordenes-compra', items: null, time: 0, key: null, promise: null };
-const CACHE_TTL = 5 * 60 * 1000;
-
-/** Lo que ya se trajo antes, de memoria o del navegador. */
-function yaTraido(cache, key) {
-  return hidratar(cache, key, `${cache.nombre}:${key}`);
-}
-
-function getCacheKey(ctx) {
-  if (!ctx) return '';
-  if (ctx.role === 'super_admin' && ctx.filterMode === 'specific' && ctx.filterProveedorId) {
-    return `superadmin-id:${ctx.filterProveedorId}`;
-  }
-  if (ctx.role === 'super_admin' && ctx.filterMode === 'specific' && ctx.filterProveedor) {
-    return `superadmin:${ctx.filterProveedor}`;
-  }
-  return ctx.role === 'subcontratista' ? `sub:${ctx.proveedorName}` : 'all';
-}
-
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// Paginacion + reintento ante COMPLEXITY_BUDGET_EXHAUSTED: ver fetchAllItems en
-// lib/board-sdk.js (unico lugar donde vive esta logica).
-async function fetchAllPagesForVariant(board, columns, variantName) {
-  return fetchAllItems(board.items().withColumns(columns).where({ proveedores: { contains: variantName } }));
-}
-
-async function fetchBoard(board, columns, userContext, cache) {
-  const key = getCacheKey(userContext);
-
-  if (cache.promise && cache.key === key) return cache.promise;
-  if (cache.items && cache.key === key && (Date.now() - cache.time) < CACHE_TTL) return cache.items;
-
-  cache.key = key;
-  cache.promise = (async () => {
-    try {
-      // Super Admin con filtro especifico - camino rapido por id real del
-      // proveedor (ver usePaymentData.js para el mismo patron comentado).
-      const isSuperAdminFilteredById = userContext?.role === 'super_admin' &&
-        userContext?.filterMode === 'specific' &&
-        userContext?.filterProveedorId;
-
-      const isSuperAdminFiltered = userContext?.role === 'super_admin' &&
-        userContext?.filterMode === 'specific' &&
-        userContext?.filterProveedor &&
-        !userContext?.filterProveedorId;
-
-      const isSubcontratista = userContext?.role === 'subcontratista' && userContext?.proveedorName;
-
-      if (isSuperAdminFilteredById) {
-        cache.items = await fetchAllItems(
-          board.items().withColumns(columns).where({ proveedores: { linkedItemId: userContext.filterProveedorId } })
-        );
-      } else if (isSuperAdminFiltered) {
-        const variants = getAllVariants(userContext.filterProveedor);
-        const seenIds = new Set();
-        let all = [];
-
-        for (let i = 0; i < variants.length; i++) {
-          if (i > 0) await delay(2000);
-          const items = await fetchAllPagesForVariant(board, columns, variants[i]);
-          items.forEach((item) => {
-            if (!seenIds.has(item.id)) {
-              seenIds.add(item.id);
-              all.push(item);
-            }
-          });
-        }
-
-        cache.items = all;
-      } else if (isSubcontratista) {
-        const variants = getAllVariants(userContext.proveedorName);
-        const seenIds = new Set();
-        let all = [];
-
-        // Query each variant SEQUENTIALLY to avoid exhausting complexity budget
-        for (let i = 0; i < variants.length; i++) {
-          if (i > 0) await delay(2000); // Wait 2s between variant queries
-          const items = await fetchAllPagesForVariant(board, columns, variants[i]);
-          items.forEach((item) => {
-            if (!seenIds.has(item.id)) {
-              seenIds.add(item.id);
-              all.push(item);
-            }
-          });
-        }
-
-        cache.items = all;
-      } else {
-        cache.items = await fetchAllItems(board.items().withColumns(columns));
-      }
-
-      cache.time = Date.now();
-      guardarCache(`${cache.nombre}:${key}`, cache.items);
-      return cache.items;
-    } finally {
-      cache.promise = null;
-    }
-  })();
-
-  return cache.promise;
-}
-
-const CONTRACT_COLS = ['obra', 'estadoContrato', 'estadoFirmas', 'proveedores', 'vbOt', 'vpApr', 'vbAdministrador', 'vbAbogado', 'vbRepLegal', 'contratoFirmado', 'contratoParaFirma', 'montoContratoBruto', 'centroCosto'];
-const EP_COLS = ['obra', 'estado', 'proveedores', 'heather', 'vbOt', 'vbJt', 'vbAdm', 'vbApr', 'vbGg', 'firmaCaratula', 'montoPresentado', 'montoCorregido', 'numeroFactura'];
-const OC_COLS = ['numeroOc', 'obra', 'validezDocumento', 'moneda', 'monto', 'proveedores', 'rut', 'estadoDocumento', 'comentarios', 'condicionDeCompra', 'docOc', 'responsable'];
-
-/** `recarga` es un contador: subirlo fuerza a releer despues de un VB. */
-export function useContracts(userContext, recarga = 0) {
-  const key = getCacheKey(userContext);
-  const [items, setItems] = useState(() => yaTraido(_contracts, key) ?? []);
-  const [loading, setLoading] = useState(() => !yaTraido(_contracts, key));
-
-  useEffect(() => {
-    if (!userContext) return;
-    const k = getCacheKey(userContext);
-    // Ver la nota en usePaymentData: el esqueleto de carga solo aparece si no
-    // hay nada para mostrar de ESTE filtro. Un dato vencido se sigue mostrando
-    // mientras se revalida por atras.
-    if (!yaTraido(_contracts, k)) setLoading(true);
-    const board = new FlujoContratacionSubcontratoBoard();
-    fetchBoard(board, CONTRACT_COLS, userContext, _contracts)
-      .then((all) => setItems(all))
-      .catch((e) => console.error('Error contratos:', e))
-      .finally(() => setLoading(false));
-  }, [userContext, recarga]);
-
-  return { items, loading };
-}
-
-export function useEstadosDePago(userContext) {
-  const key = getCacheKey(userContext);
-  const [items, setItems] = useState(() => yaTraido(_eps, key) ?? []);
-  const [loading, setLoading] = useState(() => !yaTraido(_eps, key));
-
-  useEffect(() => {
-    if (!userContext) return;
-    const k = getCacheKey(userContext);
-    if (!yaTraido(_eps, k)) setLoading(true);
-    const board = new EstadosDePagoSubcontratosBoard();
-    fetchBoard(board, EP_COLS, userContext, _eps)
-      .then((all) => setItems(all))
-      .catch((e) => console.error('Error estados de pago:', e))
-      .finally(() => setLoading(false));
-  }, [userContext]);
-
-  return { items, loading };
-}
+/**
+ * Contratos, estados de pago y ordenes de compra del proveedor de esta sesion.
+ *
+ * El filtro por proveedor ya lo aplico el servidor (ver
+ * app/api/portal-proveedor/datos/route.js), y los tres leen del mismo traido:
+ * antes eran tres consultas separadas, cada una repitiendo el recorrido por las
+ * variantes de nombre con 2 segundos de espera entre medio.
+ */
 
 // Solo incluir OC de estos grupos especificos
 const OC_ALLOWED_GROUPS = [
@@ -167,45 +19,59 @@ const OC_ALLOWED_GROUPS = [
 ];
 
 function filterOCByAllowedGroups(items) {
-  return items.filter((item) => {
-    const groupId = item.group?.id || '';
-    return OC_ALLOWED_GROUPS.includes(groupId);
-  });
+  return items.filter((item) => OC_ALLOWED_GROUPS.includes(item.group?.id || ''));
 }
 
-export function useOrdenesCompra(userContext) {
-  const key = getCacheKey(userContext);
+/**
+ * El molde de los tres hooks: elegir una parte del traido y avisar si esta
+ * cargando. `elegir` corre sobre los datos ya filtrados por el servidor.
+ */
+function usePartePortal(userContext, elegir, recarga = 0) {
+  const clave = claveDe(userContext);
   const [items, setItems] = useState(() => {
-    const guardado = yaTraido(_ocs, key);
-    return guardado ? filterOCByAllowedGroups(guardado) : [];
+    const datos = yaTraido(clave);
+    return datos ? elegir(datos) : [];
   });
-  const [loading, setLoading] = useState(() => !yaTraido(_ocs, key));
+  const [loading, setLoading] = useState(() => !yaTraido(clave));
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!userContext) return;
-    const k = getCacheKey(userContext);
-    if (!yaTraido(_ocs, k)) setLoading(true);
-    const board = new OrdenesDeCompraMaxxaBoard();
-    fetchBoard(board, OC_COLS, userContext, _ocs)
-      .then((all) => setItems(filterOCByAllowedGroups(all)))
-      .catch((e) => console.error('Error ordenes de compra:', e))
-      .finally(() => setLoading(false));
-  }, [userContext]);
+    if (!yaTraido(claveDe(userContext))) setLoading(true);
+
+    try {
+      const datos = await traerDatosPortal(userContext);
+      setItems(elegir(datos));
+    } catch (error) {
+      console.error('Error al cargar datos del Portal:', error);
+    } finally {
+      setLoading(false);
+    }
+    // `elegir` se define en cada hook y no cambia entre renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userContext, recarga]);
+
+  useEffect(() => { load(); }, [load]);
 
   return { items, loading };
 }
 
+/** `recarga` es un contador: subirlo fuerza a releer despues de un VB. */
+export function useContracts(userContext, recarga = 0) {
+  return usePartePortal(userContext, (d) => d.contratos, recarga);
+}
+
+export function useEstadosDePago(userContext) {
+  return usePartePortal(userContext, (d) => d.estadosDePago);
+}
+
+export function useOrdenesCompra(userContext) {
+  return usePartePortal(userContext, (d) => filterOCByAllowedGroups(d.ordenes));
+}
+
 /**
- * Se llama despues de dar un visto bueno (contratos/page.jsx). Ademas de los
- * caches de modulo tiene que borrar lo guardado en el navegador: si no, al
- * recargar volvia a aparecer el contrato con el VB viejo, que es justo lo que
- * se acaba de cambiar.
+ * Se llama despues de dar un visto bueno (contratos/page.jsx): la proxima
+ * lectura vuelve a pedirle al servidor en vez de reusar lo que ya tenia.
  */
 export function clearSubcontractCache() {
-  for (const nombre of [_contracts.nombre, _eps.nombre, _ocs.nombre]) {
-    borrarCachesDe(nombre);
-  }
-  _contracts = { nombre: 'contratos', items: null, time: 0, key: null, promise: null };
-  _eps = { nombre: 'estados-de-pago', items: null, time: 0, key: null, promise: null };
-  _ocs = { nombre: 'ordenes-compra', items: null, time: 0, key: null, promise: null };
+  limpiarDatosPortal();
 }
