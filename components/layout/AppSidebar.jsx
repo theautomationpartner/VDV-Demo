@@ -9,6 +9,7 @@ import { esRutaPublica } from "@/lib/rutas-publicas";
 import { cn } from "@/lib/utils";
 import { useUserRole, ROLES } from "@/hooks/vale-express/useUserRole";
 import { getGlobalEmail, getGlobalApps } from "@/lib/client/fixed-accounts";
+import { limpiarCachePersistente } from "@/lib/client/cache-persistente";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 const COLLAPSE_KEY = "sidebar_collapsed";
@@ -297,6 +298,10 @@ export function AppSidebar() {
     } catch {
       // localStorage no disponible (modo privado) - igual redirige.
     }
+    // Los datos cacheados en el navegador (pagos, contratos, OCs) tambien se
+    // van: si no, el proximo que entre en esta pestaña veria de entrada lo que
+    // estaba mirando el anterior.
+    limpiarCachePersistente();
     window.location.href = "/";
   };
 

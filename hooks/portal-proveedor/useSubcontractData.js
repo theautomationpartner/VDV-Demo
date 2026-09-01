@@ -3,11 +3,19 @@
 import { useState, useEffect } from 'react';
 import { FlujoContratacionSubcontratoBoard, EstadosDePagoSubcontratosBoard, OrdenesDeCompraMaxxaBoard, fetchAllItems } from '@/lib/board-sdk';
 import { getAllVariants } from '@/hooks/portal-proveedor/providerAliases';
+import { hidratar, guardarCache, borrarCachesDe } from '@/lib/client/cache-persistente';
 
-let _contracts = { items: null, time: 0, key: null, promise: null };
-let _eps = { items: null, time: 0, key: null, promise: null };
-let _ocs = { items: null, time: 0, key: null, promise: null };
+// `nombre` es con lo que cada cache se guarda en el navegador para sobrevivir
+// al refresh. Ver lib/client/cache-persistente.js.
+let _contracts = { nombre: 'contratos', items: null, time: 0, key: null, promise: null };
+let _eps = { nombre: 'estados-de-pago', items: null, time: 0, key: null, promise: null };
+let _ocs = { nombre: 'ordenes-compra', items: null, time: 0, key: null, promise: null };
 const CACHE_TTL = 5 * 60 * 1000;
+
+/** Lo que ya se trajo antes, de memoria o del navegador. */
+function yaTraido(cache, key) {
+  return hidratar(cache, key, `${cache.nombre}:${key}`);
+}
 
 function getCacheKey(ctx) {
   if (!ctx) return '';
@@ -96,6 +104,7 @@ async function fetchBoard(board, columns, userContext, cache) {
       }
 
       cache.time = Date.now();
+      guardarCache(`${cache.nombre}:${key}`, cache.items);
       return cache.items;
     } finally {
       cache.promise = null;
@@ -112,8 +121,8 @@ const OC_COLS = ['numeroOc', 'obra', 'validezDocumento', 'moneda', 'monto', 'pro
 /** `recarga` es un contador: subirlo fuerza a releer despues de un VB. */
 export function useContracts(userContext, recarga = 0) {
   const key = getCacheKey(userContext);
-  const [items, setItems] = useState(() => (_contracts.items && _contracts.key === key) ? _contracts.items : []);
-  const [loading, setLoading] = useState(() => !(_contracts.items && _contracts.key === key));
+  const [items, setItems] = useState(() => yaTraido(_contracts, key) ?? []);
+  const [loading, setLoading] = useState(() => !yaTraido(_contracts, key));
 
   useEffect(() => {
     if (!userContext) return;
@@ -121,7 +130,7 @@ export function useContracts(userContext, recarga = 0) {
     // Ver la nota en usePaymentData: el esqueleto de carga solo aparece si no
     // hay nada para mostrar de ESTE filtro. Un dato vencido se sigue mostrando
     // mientras se revalida por atras.
-    if (!(_contracts.items && _contracts.key === k)) setLoading(true);
+    if (!yaTraido(_contracts, k)) setLoading(true);
     const board = new FlujoContratacionSubcontratoBoard();
     fetchBoard(board, CONTRACT_COLS, userContext, _contracts)
       .then((all) => setItems(all))
@@ -134,13 +143,13 @@ export function useContracts(userContext, recarga = 0) {
 
 export function useEstadosDePago(userContext) {
   const key = getCacheKey(userContext);
-  const [items, setItems] = useState(() => (_eps.items && _eps.key === key) ? _eps.items : []);
-  const [loading, setLoading] = useState(() => !(_eps.items && _eps.key === key));
+  const [items, setItems] = useState(() => yaTraido(_eps, key) ?? []);
+  const [loading, setLoading] = useState(() => !yaTraido(_eps, key));
 
   useEffect(() => {
     if (!userContext) return;
     const k = getCacheKey(userContext);
-    if (!(_eps.items && _eps.key === k)) setLoading(true);
+    if (!yaTraido(_eps, k)) setLoading(true);
     const board = new EstadosDePagoSubcontratosBoard();
     fetchBoard(board, EP_COLS, userContext, _eps)
       .then((all) => setItems(all))
@@ -167,15 +176,15 @@ function filterOCByAllowedGroups(items) {
 export function useOrdenesCompra(userContext) {
   const key = getCacheKey(userContext);
   const [items, setItems] = useState(() => {
-    if (_ocs.items && _ocs.key === key) return filterOCByAllowedGroups(_ocs.items);
-    return [];
+    const guardado = yaTraido(_ocs, key);
+    return guardado ? filterOCByAllowedGroups(guardado) : [];
   });
-  const [loading, setLoading] = useState(() => !(_ocs.items && _ocs.key === key));
+  const [loading, setLoading] = useState(() => !yaTraido(_ocs, key));
 
   useEffect(() => {
     if (!userContext) return;
     const k = getCacheKey(userContext);
-    if (!(_ocs.items && _ocs.key === k)) setLoading(true);
+    if (!yaTraido(_ocs, k)) setLoading(true);
     const board = new OrdenesDeCompraMaxxaBoard();
     fetchBoard(board, OC_COLS, userContext, _ocs)
       .then((all) => setItems(filterOCByAllowedGroups(all)))
@@ -186,8 +195,17 @@ export function useOrdenesCompra(userContext) {
   return { items, loading };
 }
 
+/**
+ * Se llama despues de dar un visto bueno (contratos/page.jsx). Ademas de los
+ * caches de modulo tiene que borrar lo guardado en el navegador: si no, al
+ * recargar volvia a aparecer el contrato con el VB viejo, que es justo lo que
+ * se acaba de cambiar.
+ */
 export function clearSubcontractCache() {
-  _contracts = { items: null, time: 0, key: null, promise: null };
-  _eps = { items: null, time: 0, key: null, promise: null };
-  _ocs = { items: null, time: 0, key: null, promise: null };
+  for (const nombre of [_contracts.nombre, _eps.nombre, _ocs.nombre]) {
+    borrarCachesDe(nombre);
+  }
+  _contracts = { nombre: 'contratos', items: null, time: 0, key: null, promise: null };
+  _eps = { nombre: 'estados-de-pago', items: null, time: 0, key: null, promise: null };
+  _ocs = { nombre: 'ordenes-compra', items: null, time: 0, key: null, promise: null };
 }

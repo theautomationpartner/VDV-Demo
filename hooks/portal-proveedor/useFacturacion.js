@@ -2,9 +2,29 @@
 
 import { useState, useEffect } from 'react';
 import { FacturasIaBoard, fetchAllItems } from '@/lib/board-sdk';
+import { leerCache, guardarCache, borrarCachesDe } from '@/lib/client/cache-persistente';
 
 let _factCache = { map: null, stats: null, time: 0, promise: null };
 const CACHE_TTL = 5 * 60 * 1000;
+
+// Este cache no depende del usuario: el mapa se arma con TODAS las facturas.
+const CLAVE_STORAGE = 'facturacion:todas';
+
+/**
+ * Lo que ya se armo antes, de memoria o del navegador (sobrevive al refresh).
+ * Un Map no entra en JSON, asi que se guarda como lista de pares y se rearma.
+ */
+function yaTraido() {
+  if (_factCache.map) return _factCache.map;
+
+  const guardado = leerCache(CLAVE_STORAGE);
+  if (!guardado?.datos?.entradas) return null;
+
+  _factCache.map = new Map(guardado.datos.entradas);
+  _factCache.stats = guardado.datos.stats;
+  _factCache.time = guardado.time;
+  return _factCache.map;
+}
 
 // Lista blanca fiel al Portal Proveedor original (code-text/Portal Proveedor.txt) -
 // a proposito distinta del criterio de OC Tracker (que solo excluye el grupo
@@ -92,12 +112,12 @@ async function buildFacturacionMap() {
  *   const facturas = facturacionMap.get(ocNum)?.facturas || [];
  */
 export function useFacturacion() {
-  const [facturacionMap, setFacturacionMap] = useState(() => _factCache.map || new Map());
-  const [facturaStats, setFacturaStats] = useState(() => _factCache.stats || { pendientes: 0, rechazadas: 0, completadas: 0, total: 0 });
-  const [loading, setLoading] = useState(() => !_factCache.map);
+  const [facturacionMap, setFacturacionMap] = useState(() => yaTraido() || new Map());
+  const [facturaStats, setFacturaStats] = useState(() => (yaTraido() && _factCache.stats) || { pendientes: 0, rechazadas: 0, completadas: 0, total: 0 });
+  const [loading, setLoading] = useState(() => !yaTraido());
 
   useEffect(() => {
-    if (_factCache.map && (Date.now() - _factCache.time) < CACHE_TTL) {
+    if (yaTraido() && (Date.now() - _factCache.time) < CACHE_TTL) {
       setFacturacionMap(_factCache.map);
       setFacturaStats(_factCache.stats);
       setLoading(false);
@@ -106,7 +126,7 @@ export function useFacturacion() {
     // Ver la nota en usePaymentData: si ya hay un mapa de una vuelta anterior
     // se sigue mostrando mientras se revalida por atras, en vez de volver a
     // dejar los totales en cero hasta que responda monday.
-    if (!_factCache.map) setLoading(true);
+    if (!yaTraido()) setLoading(true);
     buildFacturacionMap()
       .then((map) => {
         setFacturacionMap(map);
@@ -127,6 +147,7 @@ export function useFacturacion() {
         });
         const stats = { pendientes, rechazadas, completadas, total };
         _factCache.stats = stats;
+        guardarCache(CLAVE_STORAGE, { entradas: [...map], stats });
         setFacturaStats(stats);
       })
       .catch((e) => console.error('Error loading facturacion:', e))
@@ -137,5 +158,6 @@ export function useFacturacion() {
 }
 
 export function clearFacturacionCache() {
+  borrarCachesDe('facturacion');
   _factCache = { map: null, stats: null, time: 0, promise: null };
 }
