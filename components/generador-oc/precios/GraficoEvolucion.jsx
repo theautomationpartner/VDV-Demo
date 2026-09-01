@@ -12,12 +12,16 @@ import {
 } from "recharts";
 import { formatoFecha, formatoFechaCorta, formatoMoneda } from "./formato";
 
+// Los tokens de color ya vienen con su funcion adentro (--chart-1: hsl(...)),
+// asi que se usan tal cual. Envolverlos otra vez en hsl() daba un color
+// invalido y el navegador dibujaba todo NEGRO: el punto del grafico no se veia
+// contra el fondo oscuro, y la grilla tampoco.
 const COLORES = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
 ];
 
 function TooltipPunto({ active, payload, moneda }) {
@@ -74,20 +78,20 @@ export default function GraficoEvolucion({ registros, moneda }) {
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <ScatterChart margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-          <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
+          <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
           <XAxis
             dataKey="x"
             type="number"
             domain={["dataMin", "dataMax"]}
             tickFormatter={(v) => formatoFechaCorta(new Date(v).toISOString())}
-            stroke="hsl(var(--muted-foreground))"
+            stroke="var(--muted-foreground)"
             fontSize={11}
           />
           <YAxis
             dataKey="y"
             type="number"
             tickFormatter={(v) => (moneda === "CLP" ? `${Math.round(v / 1000)}k` : v.toFixed(1))}
-            stroke="hsl(var(--muted-foreground))"
+            stroke="var(--muted-foreground)"
             fontSize={11}
             width={44}
           />
