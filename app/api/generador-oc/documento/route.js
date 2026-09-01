@@ -48,22 +48,34 @@ export async function GET(request) {
       { itemId: [String(itemId)] },
     );
 
-    let assetId = null;
+    // La columna guarda VARIOS archivos: al aprobar una orden se sube el PDF
+    // firmado y el original queda igual, abajo. Antes se agarraba el primero de
+    // la lista, que es el mas viejo: despues de aprobar, "Ver documento" seguia
+    // mostrando el PDF sin la firma y con el monto anterior.
+    let assetIds = [];
     try {
       const crudo = datos.items?.[0]?.column_values?.[0]?.value;
-      assetId = JSON.parse(crudo || "{}")?.files?.[0]?.assetId ?? null;
+      assetIds = (JSON.parse(crudo || "{}")?.files ?? [])
+        .map((f) => (f?.assetId != null ? String(f.assetId) : null))
+        .filter(Boolean);
     } catch {
-      assetId = null;
+      assetIds = [];
     }
-    if (!assetId) return Response.json({ error: "Sin documento" }, { status: 404 });
+    if (!assetIds.length) return Response.json({ error: "Sin documento" }, { status: 404 });
 
     // OJO con el tipo: assets(ids:) espera [ID!]! y no [ID!]. Con el tipo mal,
     // monday rechaza la query entera.
-    const asset = (
-      await mondayFetch(`query ($ids: [ID!]!) { assets(ids: $ids) { public_url name } }`, {
-        ids: [String(assetId)],
-      })
-    ).assets?.[0];
+    const assets =
+      (
+        await mondayFetch(
+          `query ($ids: [ID!]!) { assets(ids: $ids) { id public_url name created_at } }`,
+          { ids: assetIds },
+        )
+      ).assets ?? [];
+    // El vigente es el ultimo que se subio, no el primero de la columna.
+    const asset = [...assets]
+      .filter((a) => a?.public_url)
+      .sort((a, b) => new Date(b.created_at ?? 0) - new Date(a.created_at ?? 0))[0];
     if (!asset?.public_url) {
       return Response.json({ error: "No se pudo resolver el archivo" }, { status: 502 });
     }

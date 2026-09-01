@@ -106,11 +106,12 @@ export default function AprobarOcDialog({
           codigo: datos.codigoValidacion,
           fechaIso: datos.fechaEmisionIso,
         }),
-        firmaAprobador: {
+        firmaAprobador: buildFirmaDigital({
           nombre: currentUser.name,
           cargo: currentUser.cargo ?? undefined,
+          fechaIso: new Date().toISOString(),
           imagen: firma,
-        },
+        }),
         urlValidacion: `${window.location.origin}/validar/${itemId}?codigo=${encodeURIComponent(datos.codigoValidacion)}`,
       });
 
