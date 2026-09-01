@@ -2,8 +2,22 @@
 
 import { useState, useEffect } from 'react';
 import { PagosVdvBoard, fetchAllItems } from '@/lib/board-sdk';
+import { leerCache, guardarCache, borrarCachesDe } from '@/lib/client/cache-persistente';
 
 let _cache = { stats: null, time: 0, key: null, promise: null };
+
+/** Lo que ya se conto antes, de memoria o del navegador (sobrevive al refresh). */
+function yaContado(key) {
+  if (_cache.stats && _cache.key === key) return _cache.stats;
+
+  const guardado = leerCache(`facturas-pendientes:${key}`);
+  if (!guardado) return null;
+
+  _cache.stats = guardado.datos;
+  _cache.time = guardado.time;
+  _cache.key = key;
+  return _cache.stats;
+}
 
 // Misma clave que usePaymentData: las estadisticas dependen de por que proveedor
 // se esta filtrando, asi que el cache no puede ser uno solo para todos.
@@ -90,6 +104,7 @@ async function buildFacturaStats(userContext) {
       const stats = { pendientes, rechazadas, aprobadas, enRevision, total };
       _cache.stats = stats;
       _cache.time = Date.now();
+      guardarCache(`facturas-pendientes:${key}`, stats);
       return stats;
     } finally {
       _cache.promise = null;
@@ -105,19 +120,19 @@ async function buildFacturaStats(userContext) {
  */
 export function useFacturasPendientes(userContext) {
   const key = getCacheKey(userContext);
-  const [stats, setStats] = useState(() => (_cache.key === key && _cache.stats) || { pendientes: 0, rechazadas: 0, aprobadas: 0, enRevision: 0, total: 0 });
-  const [loading, setLoading] = useState(() => !(_cache.key === key && _cache.stats));
+  const [stats, setStats] = useState(() => yaContado(key) || { pendientes: 0, rechazadas: 0, aprobadas: 0, enRevision: 0, total: 0 });
+  const [loading, setLoading] = useState(() => !yaContado(key));
 
   useEffect(() => {
     if (!userContext) return;
-    if (_cache.key === key && _cache.stats && (Date.now() - _cache.time) < CACHE_TTL) {
+    if (yaContado(key) && (Date.now() - _cache.time) < CACHE_TTL) {
       setStats(_cache.stats);
       setLoading(false);
       return;
     }
     // Ver la nota en usePaymentData: con datos de ESTE filtro ya en pantalla se
     // revalida por atras, sin volver a mostrar el contador en cero.
-    if (!(_cache.key === key && _cache.stats)) setLoading(true);
+    if (!yaContado(key)) setLoading(true);
     buildFacturaStats(userContext)
       .then((s) => setStats(s))
       .catch((e) => console.error('Error loading facturas pendientes:', e))
@@ -128,5 +143,6 @@ export function useFacturasPendientes(userContext) {
 }
 
 export function clearFacturasPendientesCache() {
+  borrarCachesDe('facturas-pendientes');
   _cache = { stats: null, time: 0, key: null, promise: null };
 }

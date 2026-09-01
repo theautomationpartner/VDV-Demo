@@ -3,9 +3,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { PagosVdvBoard, fetchAllItems } from '@/lib/board-sdk';
 import { getAllVariants } from '@/hooks/portal-proveedor/providerAliases';
+import { hidratar, guardarCache, borrarCachesDe } from '@/lib/client/cache-persistente';
 
 let _cache = { items: null, time: 0, key: null, promise: null };
 const CACHE_TTL = 5 * 60 * 1000;
+
+// Lo que ya se trajo antes, del cache de modulo o del navegador (sobrevive al
+// refresh). Ver lib/client/cache-persistente.js.
+function yaTraido(key) {
+  return hidratar(_cache, key, `pagos:${key}`);
+}
 
 // Grupo "Pagado" en PagosVdvBoard - unica fuente de esta constante (antes
 // hardcodeada por separado en dashboard/page.jsx, pagados/page.jsx,
@@ -108,6 +115,7 @@ async function fetchItems(userContext) {
       }
 
       _cache.time = Date.now();
+      guardarCache(`pagos:${key}`, _cache.items);
       return _cache.items;
     } finally {
       _cache.promise = null;
@@ -118,14 +126,8 @@ async function fetchItems(userContext) {
 }
 
 export function usePaymentData(userContext) {
-  const [items, setItems] = useState(() => {
-    const key = getCacheKey(userContext);
-    return (_cache.items && _cache.key === key) ? _cache.items : [];
-  });
-  const [loading, setLoading] = useState(() => {
-    const key = getCacheKey(userContext);
-    return !(_cache.items && _cache.key === key);
-  });
+  const [items, setItems] = useState(() => yaTraido(getCacheKey(userContext)) ?? []);
+  const [loading, setLoading] = useState(() => !yaTraido(getCacheKey(userContext)));
 
   const load = useCallback(async () => {
     if (!userContext) return;
@@ -139,8 +141,7 @@ export function usePaymentData(userContext) {
     // atras. La clave sigue en la condicion a proposito: si cambia el
     // proveedor filtrado, lo que hay en pantalla es de OTRO proveedor y ahi si
     // corresponde el esqueleto.
-    const hayAlgoQueMostrar = _cache.items && _cache.key === key;
-    if (!hayAlgoQueMostrar) setLoading(true);
+    if (!yaTraido(key)) setLoading(true);
 
     try {
       const all = await fetchItems(userContext);
@@ -158,5 +159,6 @@ export function usePaymentData(userContext) {
 }
 
 export function clearPaymentCache() {
+  borrarCachesDe('pagos');
   _cache = { items: null, time: 0, key: null, promise: null };
 }

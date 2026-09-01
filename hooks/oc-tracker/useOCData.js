@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { OrdenesDeCompraMaxxaBoard, FacturasIaBoard, fetchAllItemsWithRelations } from "@/lib/board-sdk";
 import { BOARD_SCHEMAS, FACTURAS_GRUPO_DUPLICADAS_ID } from "@/lib/board-schemas";
+import { leerCache, guardarCache, borrarCachesDe } from "@/lib/client/cache-persistente";
 
 const ordenesBoard = new OrdenesDeCompraMaxxaBoard();
 const facturasBoard = new FacturasIaBoard();
@@ -69,6 +70,29 @@ function aplanarProveedor(item) {
  */
 let _cache = { ordenes: null, facturas: null, time: 0, promise: null };
 const CACHE_TTL = 5 * 60 * 1000;
+const CLAVE_STORAGE = "oc-tracker:todo";
+
+/**
+ * Lo que ya se trajo antes, de memoria o del navegador (para que sobreviva a un
+ * refresh). Ver lib/client/cache-persistente.js.
+ *
+ * OJO: este es el cache mas grande de la app (los dos tableros enteros, ~2000
+ * items con muchas columnas). Si no entra en el espacio del navegador,
+ * guardarCache devuelve false y esta pantalla se comporta como antes -vuelve a
+ * esperar despues de un refresh- sin romper nada ni pisar los caches del
+ * Portal, que son chicos y si entran.
+ */
+function yaTraido() {
+  if (_cache.ordenes !== null) return _cache;
+
+  const guardado = leerCache(CLAVE_STORAGE);
+  if (!guardado?.datos) return null;
+
+  _cache.ordenes = guardado.datos.ordenes;
+  _cache.facturas = guardado.datos.facturas;
+  _cache.time = guardado.time;
+  return _cache;
+}
 
 async function traerOcYFacturas() {
   if (_cache.promise) return _cache.promise;
@@ -101,6 +125,7 @@ async function traerOcYFacturas() {
         .filter((f) => f.group?.id !== FACTURAS_GRUPO_DUPLICADAS_ID)
         .map(aplanarProveedor);
       _cache.time = Date.now();
+      guardarCache(CLAVE_STORAGE, { ordenes: _cache.ordenes, facturas: _cache.facturas });
       return { ordenes: _cache.ordenes, facturas: _cache.facturas };
     } finally {
       _cache.promise = null;
@@ -110,23 +135,24 @@ async function traerOcYFacturas() {
   return _cache.promise;
 }
 
-/** Para que un F5 no sea la unica forma de tirar el cache. */
+/** Tira el cache, en memoria y en el navegador. */
 export function clearOCCache() {
+  borrarCachesDe("oc-tracker");
   _cache = { ordenes: null, facturas: null, time: 0, promise: null };
 }
 
 export function useOCData() {
-  const [ordenes, setOrdenes] = useState(() => _cache.ordenes ?? []);
-  const [facturas, setFacturas] = useState(() => _cache.facturas ?? []);
+  const [ordenes, setOrdenes] = useState(() => yaTraido()?.ordenes ?? []);
+  const [facturas, setFacturas] = useState(() => yaTraido()?.facturas ?? []);
   // Solo se muestra el esqueleto de carga si no hay NADA para mostrar. Que el
   // dato este vencido no es motivo para dejar la pantalla en blanco: se sigue
   // mostrando mientras se revalida.
-  const [loading, setLoading] = useState(() => _cache.ordenes === null);
+  const [loading, setLoading] = useState(() => !yaTraido());
   const [refetching, setRefetching] = useState(false);
   const [error, setError] = useState(null);
 
   const fetchData = useCallback(async () => {
-    if (_cache.ordenes === null) setLoading(true);
+    if (!yaTraido()) setLoading(true);
     else setRefetching(true);
     setError(null);
 
@@ -146,7 +172,7 @@ export function useOCData() {
   useEffect(() => {
     // Con datos frescos no se pide nada; con datos viejos se revalida por atras
     // (fetchData deja `loading` en false porque ya hay algo en pantalla).
-    const fresco = _cache.ordenes !== null && Date.now() - _cache.time < CACHE_TTL;
+    const fresco = yaTraido() && Date.now() - _cache.time < CACHE_TTL;
     if (fresco) return;
     fetchData();
   }, [fetchData]);
@@ -251,13 +277,18 @@ export function useOCData() {
       const conNuevoEstado = prev.map((oc) =>
         oc.id === itemId ? { ...oc, estadoDocumento: newStatus } : oc
       );
+      const persistir = () =>
+        guardarCache(CLAVE_STORAGE, { ordenes: _cache.ordenes, facturas: _cache.facturas });
+
       _cache.ordenes = conNuevoEstado;
+      persistir();
       setOrdenes(conNuevoEstado);
       try {
         await ordenesBoard.item(itemId).update({ estadoDocumento: newStatus }).execute();
       } catch (err) {
         console.error("Error updating status:", err);
         _cache.ordenes = prev;
+        persistir();
         setOrdenes(prev);
         throw err;
       }
