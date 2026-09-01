@@ -325,17 +325,19 @@ export default function OcHistorial({ currentUser }) {
                     <TableHead>N° OC</TableHead>
                     <TableHead>Proveedor</TableHead>
                     <TableHead>Obra</TableHead>
-                    {/* Fecha, responsable y aprobador entran desde 1280, y
-                        las notas internas desde 1536: asi la tabla nunca es
-                        mas ancha que la pantalla y no queda ningun dato
-                        cortado a la mitad. Lo que no se muestra sigue completo
-                        en las tarjetas y en el detalle de la orden. */}
-                    <TableHead className="hidden xl:table-cell">Fecha</TableHead>
-                    <TableHead className="hidden xl:table-cell">Responsable</TableHead>
-                    <TableHead className="hidden xl:table-cell">Aprobador</TableHead>
+                    {/* Los cortes no son los de Tailwind (1280 y 1536) sino
+                        los que salieron de medir la tabla: con fecha,
+                        responsable y aprobador necesita 896 px, y con notas
+                        internas 1005. Sumando los 298 px del menu lateral, eso
+                        da 1220 y 1340. Con el corte en 1280 una pantalla de
+                        1920 al 150% quedaba justo en el borde y perdia tres
+                        columnas por un pixel. */}
+                    <TableHead className="hidden min-[1220px]:table-cell">Fecha</TableHead>
+                    <TableHead className="hidden min-[1220px]:table-cell">Responsable</TableHead>
+                    <TableHead className="hidden min-[1220px]:table-cell">Aprobador</TableHead>
                     <TableHead className="text-right">Monto</TableHead>
                     <TableHead>Estado</TableHead>
-                    <TableHead className="hidden max-w-[200px] 2xl:table-cell">Notas internas</TableHead>
+                    <TableHead className="hidden max-w-[200px] min-[1340px]:table-cell">Notas internas</TableHead>
                     {/* Acciones queda pegada a la derecha para que ver el
                         documento y editar esten siempre a mano, aunque la
                         tabla se tenga que arrastrar de costado. */}
@@ -367,18 +369,18 @@ export default function OcHistorial({ currentUser }) {
                         <TableCell className="max-w-[120px]">
                           <div className="truncate" title={item.obra || ""}>{item.obra || "—"}</div>
                         </TableCell>
-                        <TableCell className="hidden text-sm text-muted-foreground xl:table-cell">
+                        <TableCell className="hidden text-sm text-muted-foreground min-[1220px]:table-cell">
                           {formatDate(item.createdAt)}
                         </TableCell>
                         {/* Nombres de persona acotados: sin tope, un nombre
                             largo estiraba la tabla y volvia a sacarla de
                             cuadro. El nombre entero queda en el tooltip. */}
-                        <TableCell className="hidden max-w-[140px] text-sm xl:table-cell">
+                        <TableCell className="hidden max-w-[140px] text-sm min-[1220px]:table-cell">
                           <div className="truncate" title={personas(item.responsable)}>
                             {personas(item.responsable)}
                           </div>
                         </TableCell>
-                        <TableCell className="hidden max-w-[140px] text-sm xl:table-cell">
+                        <TableCell className="hidden max-w-[140px] text-sm min-[1220px]:table-cell">
                           <div className="truncate" title={personas(item.aprobador)}>
                             {personas(item.aprobador)}
                           </div>
@@ -397,7 +399,7 @@ export default function OcHistorial({ currentUser }) {
                             onReabrir={() => cambiarEstado(item.id, "PENDIENTE")}
                           />
                         </TableCell>
-                        <TableCell className="hidden max-w-[200px] 2xl:table-cell">
+                        <TableCell className="hidden max-w-[200px] min-[1340px]:table-cell">
                           {item.comentariosInternos ? (
                             <p className="line-clamp-2 text-xs italic text-muted-foreground">
                               {item.comentariosInternos}
