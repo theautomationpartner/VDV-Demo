@@ -309,7 +309,11 @@ export default function OcHistorial({ currentUser }) {
                     <TableHead>Aprobador</TableHead>
                     <TableHead className="text-right">Monto</TableHead>
                     <TableHead>Estado</TableHead>
-                    <TableHead className="max-w-[200px]">Notas internas</TableHead>
+                    {/* Notas internas es lo menos urgente de la fila: se
+                        esconde en pantallas medianas para que la tabla entre
+                        entera y el monto no quede tapado. Sigue estando en la
+                        vista de tarjetas del celular. */}
+                    <TableHead className="hidden max-w-[200px] xl:table-cell">Notas internas</TableHead>
                     {/* Acciones queda pegada a la derecha: la tabla es mas
                         ancha que la pantalla en monitores comunes, y si esta
                         columna se va de cuadro no hay forma de ver el documento
@@ -325,8 +329,18 @@ export default function OcHistorial({ currentUser }) {
                     return (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.numeroOc || "—"}</TableCell>
-                        <TableCell>{nombreProveedor(item)}</TableCell>
-                        <TableCell>{item.obra || "—"}</TableCell>
+                        {/* Proveedor y obra son las dos columnas que mas
+                            espacio se llevaban y hacian que la tabla no
+                            entrara. Se acotan y se corta con puntos; el nombre
+                            completo queda en el tooltip. */}
+                        <TableCell className="max-w-[190px]">
+                          <div className="truncate" title={nombreProveedor(item)}>
+                            {nombreProveedor(item)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="max-w-[130px]">
+                          <div className="truncate" title={item.obra || ""}>{item.obra || "—"}</div>
+                        </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {formatDate(item.createdAt)}
                         </TableCell>
@@ -346,7 +360,7 @@ export default function OcHistorial({ currentUser }) {
                             onReabrir={() => cambiarEstado(item.id, "PENDIENTE")}
                           />
                         </TableCell>
-                        <TableCell className="max-w-[200px]">
+                        <TableCell className="hidden max-w-[200px] xl:table-cell">
                           {item.comentariosInternos ? (
                             <p className="line-clamp-2 text-xs italic text-muted-foreground">
                               {item.comentariosInternos}
