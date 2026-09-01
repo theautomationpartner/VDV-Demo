@@ -48,6 +48,18 @@ CREATE TABLE IF NOT EXISTS mfa_codigos_recuperacion (
 );
 CREATE INDEX IF NOT EXISTS idx_mfa_codigos_recuperacion_user ON mfa_codigos_recuperacion (usuario_id);
 
+-- El stock por obra YA CALCULADO (ver lib/server/stock-snapshot.js). No son
+-- datos propios: es el resultado de una cuenta sobre los tableros de monday,
+-- que se puede tirar y recalcular cuando sea. Antes esa cuenta la hacia el
+-- navegador bajandose los tres tableros enteros (5,6 MB, ~66 s medidos).
+--   clave = nombre de la obra, o '*por-material*' para el cruce que usa el
+--           dialogo "Stock en todas las obras"
+CREATE TABLE IF NOT EXISTS stock_snapshot (
+  clave             TEXT PRIMARY KEY,
+  datos             JSONB NOT NULL,
+  calculado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS auditoria (
   id                SERIAL PRIMARY KEY,
   usuario_id        INTEGER,
