@@ -42,7 +42,7 @@ function OCCardMobile({ oc, isExpanded, onToggle }) {
               ))}
             <span className="font-semibold">{oc.numeroOc || "—"}</span>
           </div>
-          <div className="mt-0.5 truncate text-sm text-muted-foreground">{oc.obra || "—"}</div>
+          <div className="mt-0.5 text-sm text-muted-foreground break-words">{oc.obra || "—"}</div>
         </div>
         <SemaforoIndicator semaforo={oc.semaforo} className="shrink-0" />
       </button>
@@ -210,8 +210,8 @@ export function OCTable({ ordenes, sortConfig, onSort }) {
                         {oc.numeroOc || "—"}
                       </div>
                     </TableCell>
-                    <TableCell className="max-w-[150px] text-muted-foreground">
-                      <div className="truncate" title={oc.obra || ""}>{oc.obra || "—"}</div>
+                    <TableCell className="text-muted-foreground">
+                      <div className="max-w-[150px] whitespace-normal break-words">{oc.obra || "—"}</div>
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm">{formatCurrency(oc.monto, oc.moneda)}</TableCell>
                     <TableCell className="text-right font-mono text-sm">{formatCurrency(oc.totalFacturado, oc.moneda)}</TableCell>

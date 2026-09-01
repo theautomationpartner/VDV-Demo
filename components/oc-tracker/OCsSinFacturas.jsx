@@ -101,8 +101,8 @@ export function OCsSinFacturas({ ordenes }) {
               {sortedOrdenes.map((oc) => (
                 <TableRow key={oc.id} className="h-8">
                   <TableCell className="font-medium">{oc.numeroOc || "—"}</TableCell>
-                  <TableCell className="max-w-[150px] text-muted-foreground">
-                    <div className="truncate" title={oc.obra || ""}>{oc.obra || "—"}</div>
+                  <TableCell className="text-muted-foreground">
+                    <div className="max-w-[150px] whitespace-normal break-words">{oc.obra || "—"}</div>
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">{formatCurrency(oc.monto, oc.moneda)}</TableCell>
                   <TableCell className="hidden text-muted-foreground text-sm lg:table-cell">{oc.responsable || "—"}</TableCell>

@@ -184,8 +184,8 @@ export function FacturasSinOC({ facturas }) {
                           {factura.numeroFactura || factura.name}
                         </div>
                       </TableCell>
-                      <TableCell className="max-w-[150px] text-muted-foreground text-sm">
-                        <div className="truncate" title={factura.obra || ""}>{factura.obra || "—"}</div>
+                      <TableCell className="text-muted-foreground text-sm">
+                        <div className="max-w-[150px] whitespace-normal break-words">{factura.obra || "—"}</div>
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm">{formatCurrency(factura.montoConIva)}</TableCell>
                       <TableCell className="hidden text-muted-foreground text-sm lg:table-cell">
