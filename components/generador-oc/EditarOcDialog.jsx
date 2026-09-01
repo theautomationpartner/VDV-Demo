@@ -36,6 +36,20 @@ import { formatearPago, CREDITO_OPCIONES } from "@/lib/generador-oc/fechas";
  * El proveedor y la condicion de compra quedan bloqueados a proposito: cambiar
  * el proveedor de una orden ya emitida seria otra orden, no una correccion.
  */
+/**
+ * Lee un input de numero sacando el cero de adelante.
+ *
+ * React no lo saca solo: para decidir si reescribe el texto compara el valor
+ * del DOM con el del estado con ==, y "010000" == 10000 da verdadero, asi que
+ * deja el "0" pegado adelante. El total salia bien pero en pantalla se leia
+ * "010000". Se limpia a mano, en el momento de tipear.
+ */
+function leerNumero(e) {
+  const limpio = e.target.value.replace(/^0+(?=\d)/, "");
+  if (limpio !== e.target.value) e.target.value = limpio;
+  return parseFloat(limpio) || 0;
+}
+
 export default function EditarOcDialog({
   itemId,
   numeroOc,
@@ -297,7 +311,7 @@ export default function EditarOcDialog({
                             className="h-8 w-24 text-right"
                             value={linea.cantidad}
                             onChange={(e) =>
-                              actualizarLinea(i, { cantidad: parseFloat(e.target.value) || 0 })
+                              actualizarLinea(i, { cantidad: leerNumero(e) })
                             }
                           />
                         </td>
@@ -310,7 +324,7 @@ export default function EditarOcDialog({
                             className="h-8 w-28 text-right"
                             value={linea.precioUnitario}
                             onChange={(e) =>
-                              actualizarLinea(i, { precioUnitario: parseFloat(e.target.value) || 0 })
+                              actualizarLinea(i, { precioUnitario: leerNumero(e) })
                             }
                           />
                         </td>
