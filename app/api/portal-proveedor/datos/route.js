@@ -5,10 +5,9 @@ import {
   BoardAccessError,
 } from "@/lib/server/board-access-policy";
 import {
+  asegurarDatosPortal,
   calcularDatosPortal,
   filtrarPortal,
-  leerDatosPortal,
-  recalcularDatosPortal,
 } from "@/lib/server/portal-snapshot";
 
 const DEMO_MODE = process.env.DEMO_MODE === "true";
@@ -61,15 +60,19 @@ export async function GET(request) {
       return Response.json({ ...filtrarPortal(datos, filtro), calculadoEn: new Date().toISOString() });
     }
 
-    let datos = await leerDatosPortal();
+    // Si todavia no se calculo nunca, lo calcula UNO solo y el resto espera
+    // (ver asegurarDatosPortal). Pasa una vez para toda la cuenta.
+    const datos = await asegurarDatosPortal();
 
-    // Todavia no se calculo nunca: se calcula ahora. Pasa una sola vez para
-    // toda la cuenta, no una vez por usuario.
+    // No llego a estar listo: la pantalla avisa que se estan preparando los
+    // datos y reintenta, en vez de quedarse colgada o mostrar un error.
     if (!datos) {
-      await recalcularDatosPortal();
-      datos = await leerDatosPortal();
+      return Response.json({
+        preparando: true,
+        pagos: [], contratos: [], estadosDePago: [], ordenes: [], facturas: [],
+        calculadoEn: null,
+      });
     }
-    if (!datos) return Response.json({ error: "No hay datos disponibles" }, { status: 502 });
 
     return Response.json({ ...filtrarPortal(datos, filtro), calculadoEn: datos.calculadoEn });
   } catch (error) {

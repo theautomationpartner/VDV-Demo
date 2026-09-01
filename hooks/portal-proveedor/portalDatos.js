@@ -54,6 +54,32 @@ function parametros(ctx) {
 
 const VACIO = { pagos: [], contratos: [], estadosDePago: [], ordenes: [], facturas: [] };
 
+const REINTENTOS = 8;
+const ENTRE_REINTENTOS_MS = 4000;
+
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * La primera vez que se usa esta pantalla en toda la cuenta, el servidor tiene
+ * que traer los cinco tableros de monday. Mientras tanto responde
+ * `preparando: true` en vez de hacer esperar la conexion abierta, y aca se
+ * reintenta hasta que aparezcan. Pasa una sola vez: despues lo mantiene al dia
+ * la tarea programada.
+ */
+async function pedirConReintentos(query) {
+  for (let intento = 0; ; intento++) {
+    const res = await fetch(`/api/portal-proveedor/datos${query}`);
+    const texto = await res.text();
+    // Mismo reviver que el SDK: sin el, las fechas llegan como texto y las
+    // pantallas que les dan formato se rompen.
+    const json = JSON.parse(texto, reviveDates);
+    if (!res.ok) throw new Error(json?.error || "No se pudieron obtener los datos");
+
+    if (!json?.preparando || intento >= REINTENTOS) return json;
+    await esperar(ENTRE_REINTENTOS_MS);
+  }
+}
+
 /** Lo que ya se trajo, de memoria o del navegador (sobrevive al refresh). */
 export function yaTraido(clave) {
   if (_cache.datos && _cache.clave === clave) return _cache.datos;
@@ -79,13 +105,7 @@ export function traerDatosPortal(ctx) {
   _cache.clave = clave;
   _cache.promise = (async () => {
     try {
-      const res = await fetch(`/api/portal-proveedor/datos${parametros(ctx)}`);
-      const texto = await res.text();
-      // Mismo reviver que el SDK: sin el, las fechas llegan como texto y las
-      // pantallas que les dan formato se rompen.
-      const json = JSON.parse(texto, reviveDates);
-      if (!res.ok) throw new Error(json?.error || "No se pudieron obtener los datos");
-
+      const json = await pedirConReintentos(parametros(ctx));
       _cache.datos = { ...VACIO, ...json };
       _cache.time = Date.now();
       guardarCache(`${NOMBRE_CACHE}:${clave}`, _cache.datos);
