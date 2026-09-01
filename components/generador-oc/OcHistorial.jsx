@@ -325,14 +325,14 @@ export default function OcHistorial({ currentUser }) {
                     <TableHead>N° OC</TableHead>
                     <TableHead>Proveedor</TableHead>
                     <TableHead>Obra</TableHead>
-                    {/* Las demas aparecen a medida que hay lugar, de la mas
-                        util a la menos: asi la tabla nunca es mas ancha que la
-                        pantalla y no queda ningun dato cortado a la mitad. Lo
-                        que no se muestra sigue completo en las tarjetas de
-                        pantalla angosta y en el detalle de la orden. */}
+                    {/* Fecha, responsable y aprobador entran desde 1280, y
+                        las notas internas desde 1536: asi la tabla nunca es
+                        mas ancha que la pantalla y no queda ningun dato
+                        cortado a la mitad. Lo que no se muestra sigue completo
+                        en las tarjetas y en el detalle de la orden. */}
                     <TableHead className="hidden xl:table-cell">Fecha</TableHead>
                     <TableHead className="hidden xl:table-cell">Responsable</TableHead>
-                    <TableHead className="hidden 2xl:table-cell">Aprobador</TableHead>
+                    <TableHead className="hidden xl:table-cell">Aprobador</TableHead>
                     <TableHead className="text-right">Monto</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead className="hidden max-w-[200px] 2xl:table-cell">Notas internas</TableHead>
@@ -359,22 +359,29 @@ export default function OcHistorial({ currentUser }) {
                             espacio se llevaban y hacian que la tabla no
                             entrara. Se acotan y se corta con puntos; el nombre
                             completo queda en el tooltip. */}
-                        <TableCell className="max-w-[190px]">
+                        <TableCell className="max-w-[170px]">
                           <div className="truncate" title={nombreProveedor(item)}>
                             {nombreProveedor(item)}
                           </div>
                         </TableCell>
-                        <TableCell className="max-w-[130px]">
+                        <TableCell className="max-w-[120px]">
                           <div className="truncate" title={item.obra || ""}>{item.obra || "—"}</div>
                         </TableCell>
                         <TableCell className="hidden text-sm text-muted-foreground xl:table-cell">
                           {formatDate(item.createdAt)}
                         </TableCell>
-                        <TableCell className="hidden text-sm xl:table-cell">
-                          {personas(item.responsable)}
+                        {/* Nombres de persona acotados: sin tope, un nombre
+                            largo estiraba la tabla y volvia a sacarla de
+                            cuadro. El nombre entero queda en el tooltip. */}
+                        <TableCell className="hidden max-w-[140px] text-sm xl:table-cell">
+                          <div className="truncate" title={personas(item.responsable)}>
+                            {personas(item.responsable)}
+                          </div>
                         </TableCell>
-                        <TableCell className="hidden text-sm 2xl:table-cell">
-                          {personas(item.aprobador)}
+                        <TableCell className="hidden max-w-[140px] text-sm xl:table-cell">
+                          <div className="truncate" title={personas(item.aprobador)}>
+                            {personas(item.aprobador)}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {formatCurrency(item.monto, item.moneda)}
