@@ -410,7 +410,7 @@ export default function StockPage() {
 
             {/* Cross-obra dialog */}
             <Dialog open={!!selectedMaterial} onOpenChange={(open) => { if (!open) setSelectedMaterial(null); }}>
-                <DialogContent className="max-w-md mx-auto max-h-[85vh] flex flex-col">
+                <DialogContent className="mx-auto flex max-h-[85vh] flex-col sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle className="text-base font-semibold pr-6 leading-tight">
                             {selectedMaterial?.name}

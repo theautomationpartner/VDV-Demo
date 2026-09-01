@@ -247,7 +247,7 @@ export default function AdminUsuariosPage() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) resetForm(); setDialogOpen(v); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingUser ? 'Editar Usuario' : 'Crear Usuario'}</DialogTitle>
             <DialogDescription>{editingUser ? 'Modifica los permisos del usuario.' : 'Vincula un usuario de monday.com y asigna permisos.'}</DialogDescription>

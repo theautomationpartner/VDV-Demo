@@ -276,7 +276,7 @@ export default function OrdenesDeCompraPage() {
 
       {/* Dialog: OC Pendientes */}
       <Dialog open={showPendientes} onOpenChange={setShowPendientes}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-orange-400">
               <AlertCircle className="w-5 h-5" />
