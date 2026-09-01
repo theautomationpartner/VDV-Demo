@@ -309,7 +309,10 @@ export function AppSidebar() {
         data-app="shell"
         data-collapsed={collapsed}
         className={cn(
-          "hidden h-full shrink-0 flex-col overflow-hidden border-r border-[var(--sidebar-border)] bg-[var(--sidebar)] text-[var(--sidebar-foreground)] transition-[width] duration-300 ease-in-out md:flex",
+          // sticky y no fixed: el menu se queda quieto mientras la pagina
+          // scrollea, pero sigue ocupando su lugar en la fila, asi que <main>
+          // no necesita margenes y el ancho puede seguir animandose.
+          "sticky top-0 hidden h-svh shrink-0 flex-col overflow-hidden border-r border-[var(--sidebar-border)] bg-[var(--sidebar)] text-[var(--sidebar-foreground)] transition-[width] duration-300 ease-in-out md:flex",
           collapsed ? "w-[76px]" : "w-64"
         )}
       >
