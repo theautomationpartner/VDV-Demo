@@ -3,6 +3,10 @@
     {
       "path": "/api/vale-express/stock/recalcular",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/oc-tracker/datos/recalcular",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

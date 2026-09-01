@@ -1,58 +1,13 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { OrdenesDeCompraMaxxaBoard, FacturasIaBoard, fetchAllItemsWithRelations } from "@/lib/board-sdk";
-import { BOARD_SCHEMAS, FACTURAS_GRUPO_DUPLICADAS_ID } from "@/lib/board-schemas";
+import { OrdenesDeCompraMaxxaBoard, reviveDates } from "@/lib/board-sdk";
 import { leerCache, guardarCache, borrarCachesDe } from "@/lib/client/cache-persistente";
 
+// Solo para escribir el estado de una orden (updateOCStatus, mas abajo). La
+// LECTURA de los dos tableros ya no pasa por aca: la hace el servidor y llega
+// resuelta por /api/oc-tracker/datos.
 const ordenesBoard = new OrdenesDeCompraMaxxaBoard();
-const facturasBoard = new FacturasIaBoard();
-
-// Grupo "oc duplicadas" en monday - la app original de monday excluye este
-// grupo de todos sus totales (Control General, por obra, etc). Confirmado
-// contra los numeros reales del board: Total OC de la app original
-// ($523.003.159) = suma de "oc emitidas desde maxxa" + "Oc rechazadas",
-// sin el grupo "oc duplicadas" (que solo son OCs re-emitidas, no montos
-// reales adicionales).
-const GRUPO_OC_DUPLICADAS = "group_mm3c59ax";
-
-// El proveedor vive en una columna board_relation, y monday devuelve `text` en
-// null para ese tipo de columna: hay que pedir linked_items. Por eso el OC
-// Tracker mostraba "Sin proveedor" en todos lados, aunque el dato esta cargado
-// en el 99% de las facturas y el 95% de las OCs. Se pide con relaciones y se
-// aplana a string aca, para que el resto de las pantallas lo sigan usando igual.
-const OC_COLUMNAS = [
-  "numeroOc", "obra", "monto", "moneda", "estadoDocumento", "responsable",
-  "validezDocumento", "condicionDeCompra", "rut1", "proveedores", "docOc",
-];
-const FACTURA_COLUMNAS = [
-  "numeroFactura", "oc", "obra", "montoConIva", "fechaFactura", "estado",
-  "proveedores", "fechaVencimiento", "centroDeCosto", "tipoDePago",
-  "correoElectrnico", "archivo", "encargado",
-];
-
-function idsYMapa(boardKey, columnas) {
-  const cols = BOARD_SCHEMAS[boardKey].columns;
-  const ids = columnas.map((c) => cols[c]);
-  const mapa = {};
-  columnas.forEach((c) => {
-    mapa[cols[c]] = c;
-  });
-  return [ids, mapa];
-}
-
-const [OC_IDS, OC_MAPA] = idsYMapa("OrdenesDeCompraMaxxaBoard", OC_COLUMNAS);
-const [FACTURA_IDS, FACTURA_MAPA] = idsYMapa("FacturasIaBoard", FACTURA_COLUMNAS);
-
-// board_relation -> nombre plano, para no cambiarle la forma del dato a las
-// pantallas que ya consumen `proveedores` como string.
-function aplanarProveedor(item) {
-  const rel = item.proveedores;
-  if (rel && Array.isArray(rel.linkedItems)) {
-    return { ...item, proveedores: rel.linkedItems.map((l) => l.name).join(", ") || null };
-  }
-  return item;
-}
 
 /**
  * Cache de modulo, compartido por las cinco pantallas de OC Tracker.
@@ -94,36 +49,30 @@ function yaTraido() {
   return _cache;
 }
 
+/**
+ * Los datos vienen del servidor ya traidos y filtrados
+ * (lib/server/oc-tracker-snapshot.js). Antes esta funcion se bajaba los dos
+ * tableros ENTEROS desde el navegador: 961 items, 2,1 MB y ~14 segundos contra
+ * la API de monday en cada entrada.
+ *
+ * Lo que se movio al servidor es TRAER, no calcular: todo lo que sigue en este
+ * hook -total facturado, saldo, porcentaje, semaforo, consumo por obra- se hace
+ * igual que siempre sobre las mismas dos listas.
+ */
 async function traerOcYFacturas() {
   if (_cache.promise) return _cache.promise;
 
   _cache.promise = (async () => {
     try {
-      const [ordenesItems, facturasItems] = await Promise.all([
-        fetchAllItemsWithRelations(
-          ordenesBoard.items().withColumns(OC_COLUMNAS),
-          OC_IDS,
-          OC_MAPA
-        ),
-        fetchAllItemsWithRelations(
-          facturasBoard.items().withColumns(FACTURA_COLUMNAS),
-          FACTURA_IDS,
-          FACTURA_MAPA
-        ),
-      ]);
+      const res = await fetch("/api/oc-tracker/datos");
+      const texto = await res.text();
+      // Con el mismo reviver que usa el SDK: sin el, las fechas llegan como
+      // texto y las pantallas que les dan formato se rompen.
+      const json = JSON.parse(texto, reviveDates);
+      if (!res.ok) throw new Error(json?.error || "No se pudieron obtener los datos");
 
-      _cache.ordenes = ordenesItems
-        .filter((oc) => oc.group?.id !== GRUPO_OC_DUPLICADAS)
-        .map(aplanarProveedor);
-      // Antes traia TODAS las facturas sin excluir "Duplicadas" - inflaba
-      // Total Facturado/Saldo Disponible/% Consumido, mientras que Total OC
-      // si excluia correctamente su propio grupo de duplicadas. Igual que
-      // GRUPO_OC_DUPLICADAS arriba: se excluye SOLO el grupo de duplicadas,
-      // el resto de los grupos (Pendientes, Revision manual, Enviada a pago,
-      // En revision) cuentan.
-      _cache.facturas = facturasItems
-        .filter((f) => f.group?.id !== FACTURAS_GRUPO_DUPLICADAS_ID)
-        .map(aplanarProveedor);
+      _cache.ordenes = json.ordenes ?? [];
+      _cache.facturas = json.facturas ?? [];
       _cache.time = Date.now();
       guardarCache(CLAVE_STORAGE, { ordenes: _cache.ordenes, facturas: _cache.facturas });
       return { ordenes: _cache.ordenes, facturas: _cache.facturas };
@@ -175,6 +124,24 @@ export function useOCData() {
     const fresco = yaTraido() && Date.now() - _cache.time < CACHE_TTL;
     if (fresco) return;
     fetchData();
+  }, [fetchData]);
+
+  /**
+   * El boton "actualizar" de la pantalla. Le pide al servidor que vuelva a
+   * traer de monday y recien despues relee: sin eso releeria el mismo snapshot
+   * y pareceria que el boton no hace nada. El servidor ignora el pedido si
+   * acaba de recalcular, para que apretarlo repetido no le pegue a monday sin
+   * freno.
+   */
+  const refetch = useCallback(async () => {
+    setRefetching(true);
+    try {
+      await fetch("/api/oc-tracker/datos/recalcular", { method: "POST" });
+    } catch (err) {
+      // Si el recalculo falla igual se relee: puede haber un snapshot util.
+      console.error("[oc-tracker] no se pudo forzar el recalculo:", err);
+    }
+    await fetchData();
   }, [fetchData]);
 
   const facturasPorOc = useMemo(() => {
@@ -268,7 +235,7 @@ export function useOCData() {
     loading,
     refetching,
     error,
-    refetch: fetchData,
+    refetch,
     updateOCStatus: async (itemId, newStatus) => {
       // El cambio optimista tambien va al cache: si no, al cambiar de pantalla
       // y volver reaparecia el estado viejo, que es justamente el que se acaba

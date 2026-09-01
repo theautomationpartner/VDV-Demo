@@ -1,4 +1,5 @@
 import { verificarAcceso, AccesoError } from "@/lib/server/auth-guard";
+import { esLlamadaDeCron } from "@/lib/server/cron-guard";
 import { recalcularStock } from "@/lib/server/stock-snapshot";
 
 const DEMO_MODE = process.env.DEMO_MODE === "true";
@@ -24,11 +25,7 @@ export const maxDuration = 300;
  * de monday todo lo que alguien quiera.
  */
 function autorizado(request) {
-  const secreto = process.env.CRON_SECRET;
-  if (secreto) {
-    const cabecera = request.headers.get("authorization");
-    if (cabecera === `Bearer ${secreto}`) return true;
-  }
+  if (esLlamadaDeCron(request)) return true;
 
   if (DEMO_MODE || !AUTH_LAYERS_ENABLED) return false;
 
