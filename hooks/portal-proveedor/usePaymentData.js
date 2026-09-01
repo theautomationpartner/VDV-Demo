@@ -130,8 +130,17 @@ export function usePaymentData(userContext) {
   const load = useCallback(async () => {
     if (!userContext) return;
     const key = getCacheKey(userContext);
-    const isCached = _cache.items && _cache.key === key && (Date.now() - _cache.time) < CACHE_TTL;
-    if (!isCached) setLoading(true);
+    // Solo se muestra el esqueleto de carga si no hay NADA que mostrar para
+    // ESTE usuario/filtro. Que el dato este vencido no alcanza: antes, al
+    // pasar los 5 minutos, se sacaba de pantalla lo que el usuario estaba
+    // mirando y volvia el "cargando" - con las esperas escalonadas del Portal
+    // (los delay de 2s por variante de proveedor) eso son varios segundos en
+    // blanco cada vez. Ahora se sigue mostrando lo viejo y se revalida por
+    // atras. La clave sigue en la condicion a proposito: si cambia el
+    // proveedor filtrado, lo que hay en pantalla es de OTRO proveedor y ahi si
+    // corresponde el esqueleto.
+    const hayAlgoQueMostrar = _cache.items && _cache.key === key;
+    if (!hayAlgoQueMostrar) setLoading(true);
 
     try {
       const all = await fetchItems(userContext);
