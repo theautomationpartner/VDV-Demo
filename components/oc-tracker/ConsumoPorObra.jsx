@@ -335,8 +335,8 @@ export function ConsumoPorObra({ consumoPorObra, onUpdateStatus }) {
                           <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         )}
                       </TableCell>
-                      <TableCell className="max-w-[200px] font-semibold text-sm">
-                        <div className="truncate" title={item.obra}>{item.obra}</div>
+                      <TableCell className="font-semibold text-sm">
+                        <div className="max-w-[200px] whitespace-normal break-words">{item.obra}</div>
                       </TableCell>
                       <TableCell className="hidden text-center text-muted-foreground text-sm xl:table-cell">{item.count}</TableCell>
                       <TableCell className="text-right font-mono text-sm">{formatCurrency(item.totalMontoOC)}</TableCell>

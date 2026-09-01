@@ -244,10 +244,10 @@ export default function OcHistorial({ currentUser }) {
                 <Card key={item.id} className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate font-medium">
+                      <p className="font-medium break-words">
                         OC {item.numeroOc || "—"} · {nombreProveedor(item)}
                       </p>
-                      <p className="truncate text-sm text-muted-foreground">{item.obra || "—"}</p>
+                      <p className="text-sm text-muted-foreground break-words">{item.obra || "—"}</p>
                     </div>
                     <p className="shrink-0 whitespace-nowrap text-right font-semibold tabular-nums">
                       {formatCurrency(item.monto, item.moneda)}
@@ -257,15 +257,15 @@ export default function OcHistorial({ currentUser }) {
                   <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
                     <div className="min-w-0">
                       <dt className="text-xs text-muted-foreground">Fecha</dt>
-                      <dd className="truncate">{formatDate(item.createdAt)}</dd>
+                      <dd>{formatDate(item.createdAt)}</dd>
                     </div>
                     <div className="min-w-0">
                       <dt className="text-xs text-muted-foreground">Responsable</dt>
-                      <dd className="truncate">{personas(item.responsable)}</dd>
+                      <dd className="break-words">{personas(item.responsable)}</dd>
                     </div>
                     <div className="col-span-2 min-w-0 sm:col-span-1">
                       <dt className="text-xs text-muted-foreground">Aprobador</dt>
-                      <dd className="truncate">{personas(item.aprobador)}</dd>
+                      <dd className="break-words">{personas(item.aprobador)}</dd>
                     </div>
                     {item.comentariosInternos && (
                       <div className="col-span-2 min-w-0 sm:col-span-3">
@@ -329,12 +329,12 @@ export default function OcHistorial({ currentUser }) {
                         los que salieron de medir la tabla: con fecha,
                         responsable y aprobador necesita 896 px, y con notas
                         internas 1005. Sumando los 298 px del menu lateral, eso
-                        da 1220 y 1340. Con el corte en 1280 una pantalla de
+                        da 1240 y 1340. Con el corte en 1280 una pantalla de
                         1920 al 150% quedaba justo en el borde y perdia tres
                         columnas por un pixel. */}
-                    <TableHead className="hidden min-[1220px]:table-cell">Fecha</TableHead>
-                    <TableHead className="hidden min-[1220px]:table-cell">Responsable</TableHead>
-                    <TableHead className="hidden min-[1220px]:table-cell">Aprobador</TableHead>
+                    <TableHead className="hidden min-[1240px]:table-cell">Fecha</TableHead>
+                    <TableHead className="hidden min-[1240px]:table-cell">Responsable</TableHead>
+                    <TableHead className="hidden min-[1240px]:table-cell">Aprobador</TableHead>
                     <TableHead className="text-right">Monto</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead className="hidden max-w-[200px] min-[1340px]:table-cell">Notas internas</TableHead>
@@ -358,32 +358,29 @@ export default function OcHistorial({ currentUser }) {
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.numeroOc || "—"}</TableCell>
                         {/* Proveedor y obra son las dos columnas que mas
-                            espacio se llevaban y hacian que la tabla no
-                            entrara. Se acotan y se corta con puntos; el nombre
-                            completo queda en el tooltip. */}
-                        <TableCell className="max-w-[170px]">
-                          <div className="truncate" title={nombreProveedor(item)}>
-                            {nombreProveedor(item)}
-                          </div>
+                            espacio se llevan. El tope de ancho va en un div y
+                            no en la celda: en una tabla el navegador ignora el
+                            max-width de las celdas, y las celdas vienen con
+                            whitespace-nowrap, asi que hay que devolverles el
+                            permiso de cortar renglon. El nombre NO se corta:
+                            si no entra en un renglon, sigue en el de abajo. */}
+                        <TableCell>
+                          <div className="max-w-[170px] whitespace-normal break-words">{nombreProveedor(item)}</div>
                         </TableCell>
-                        <TableCell className="max-w-[120px]">
-                          <div className="truncate" title={item.obra || ""}>{item.obra || "—"}</div>
+                        <TableCell>
+                          <div className="max-w-[120px] whitespace-normal break-words">{item.obra || "—"}</div>
                         </TableCell>
-                        <TableCell className="hidden text-sm text-muted-foreground min-[1220px]:table-cell">
+                        <TableCell className="hidden text-sm text-muted-foreground min-[1240px]:table-cell">
                           {formatDate(item.createdAt)}
                         </TableCell>
-                        {/* Nombres de persona acotados: sin tope, un nombre
-                            largo estiraba la tabla y volvia a sacarla de
-                            cuadro. El nombre entero queda en el tooltip. */}
-                        <TableCell className="hidden max-w-[140px] text-sm min-[1220px]:table-cell">
-                          <div className="truncate" title={personas(item.responsable)}>
-                            {personas(item.responsable)}
-                          </div>
+                        {/* Igual con los nombres de persona: tope de ancho
+                            para que no estiren la tabla, y si no entran pasan
+                            al renglon de abajo. */}
+                        <TableCell className="hidden text-sm min-[1240px]:table-cell">
+                          <div className="max-w-[140px] whitespace-normal break-words">{personas(item.responsable)}</div>
                         </TableCell>
-                        <TableCell className="hidden max-w-[140px] text-sm min-[1220px]:table-cell">
-                          <div className="truncate" title={personas(item.aprobador)}>
-                            {personas(item.aprobador)}
-                          </div>
+                        <TableCell className="hidden text-sm min-[1240px]:table-cell">
+                          <div className="max-w-[140px] whitespace-normal break-words">{personas(item.aprobador)}</div>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {formatCurrency(item.monto, item.moneda)}
