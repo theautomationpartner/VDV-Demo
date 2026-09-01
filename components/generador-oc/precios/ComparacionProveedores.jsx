@@ -16,7 +16,7 @@ export default function ComparacionProveedores({ registros, moneda }) {
       <h4 className="text-sm font-semibold">Precios anteriores por proveedor</h4>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[420px] text-sm">
+        <table className="w-full min-w-[360px] text-sm">
           <thead>
             <tr className="border-b text-xs uppercase tracking-wide text-muted-foreground">
               <th className="py-2 text-left font-medium">Proveedor</th>
@@ -28,7 +28,7 @@ export default function ComparacionProveedores({ registros, moneda }) {
           <tbody>
             {filas.map((fila) => (
               <tr key={fila.proveedor} className="border-b last:border-0">
-                <td className="py-2 pr-2 font-medium">{fila.proveedor}</td>
+                <td className="py-2 pr-2 font-medium break-words">{fila.proveedor}</td>
                 <td className="py-2 text-right tabular-nums">
                   {formatoMoneda(fila.ultimoPrecio, moneda)}
                 </td>

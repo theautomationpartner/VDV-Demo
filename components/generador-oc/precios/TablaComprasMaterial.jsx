@@ -23,15 +23,15 @@ export default function TablaComprasMaterial({ registros, moneda }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[680px] text-sm">
+      <table className="w-full min-w-[560px] text-sm">
         <thead>
           <tr className="border-b text-xs uppercase tracking-wide text-muted-foreground">
             <th className="py-2 text-left font-medium">Fecha</th>
             <th className="py-2 text-left font-medium">OC</th>
             <th className="py-2 text-left font-medium">Proveedor</th>
-            <th className="py-2 text-left font-medium">Obra</th>
+            <th className="hidden py-2 text-left font-medium lg:table-cell">Obra</th>
             <th className="py-2 text-right font-medium">Cantidad</th>
-            <th className="py-2 text-left font-medium">Unidad</th>
+            <th className="hidden py-2 text-left font-medium lg:table-cell">Unidad</th>
             <th className="py-2 text-right font-medium">Precio unit.</th>
           </tr>
         </thead>
@@ -57,9 +57,9 @@ export default function TablaComprasMaterial({ registros, moneda }) {
                 )}
               </td>
               <td className="py-2 pr-2">{r.proveedor}</td>
-              <td className="py-2 pr-2 text-muted-foreground">{r.obra || "—"}</td>
+              <td className="hidden py-2 pr-2 text-muted-foreground lg:table-cell">{r.obra || "—"}</td>
               <td className="py-2 pr-2 text-right tabular-nums">{r.cantidad}</td>
-              <td className="py-2 pr-2 text-muted-foreground">{r.unidad || "—"}</td>
+              <td className="hidden py-2 pr-2 text-muted-foreground lg:table-cell">{r.unidad || "—"}</td>
               <td className="py-2 text-right font-medium tabular-nums">
                 {formatoMoneda(r.precioComparable, moneda)}
                 {r.nivel === "POSIBLE" && (

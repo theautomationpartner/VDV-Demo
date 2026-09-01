@@ -86,7 +86,14 @@ export default function HistorialMaterialPanel({ abierto, onOpenChange, nombre, 
 
   return (
     <Sheet open={abierto} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
+      {/* El ancho va con la MISMA variante que trae el Sheet
+          (data-[side=right]:sm:max-w-sm): un "sm:max-w-2xl" suelto pierde por
+          especificidad y el panel se quedaba en 384 px, con las dos tablas
+          scrolleando de costado. */}
+      <SheetContent
+        side="right"
+        className="w-full overflow-y-auto data-[side=right]:sm:max-w-3xl"
+      >
         <SheetHeader className="space-y-1 text-left">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">
             Historial de precio
