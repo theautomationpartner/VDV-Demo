@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/vale-express/stock/recalcular",
+      "schedule": "*/10 * * * *"
+    }
+  ]
+}

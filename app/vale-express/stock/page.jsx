@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ValesBoard, IngresosBoard, BaseDeDatosMaterialesBoard, fetchAllItemsWithRelations } from '@/lib/board-sdk';
 import { useObrasVales } from '@/hooks/useObras';
 import { Spinner } from '@/components/ui/spinner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -12,32 +11,10 @@ import {
 } from 'lucide-react';
 import { getAllRoles, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras } from '@/hooks/vale-express/useUserRole';
 
-const valesBoard = new ValesBoard();
-const ingresosBoard = new IngresosBoard();
-const materialesBoard = new BaseDeDatosMaterialesBoard();
-
 // Foco visible (teclado) para los botones nativos de esta pantalla - ninguno usa
 // el componente Button de shadcn/ui (que ya trae su propio focus-visible), asi
 // que cada <button> a mano necesita este anillo para cumplir WCAG 2.1 AA.
 const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
-
-const INGRESOS_COL_MAP = {
-    'board_relation_mm1rk1d6': 'material',
-    'number0avp2tgi': 'cantidadIngresada',
-    'color_mm1r152p': 'estado',
-    'color_mm1rj9sw': 'obrabodega'
-};
-const VALES_COL_MAP = {
-    'board_relation_mm1rxgfv': 'baseDeDatosMateriales',
-    'numeric_mm1rrfjz': 'cantidad',
-    'color_mm1rac2h': 'estado',
-    'color_mm1hh5e5': 'obra'
-};
-const MATERIALES_COL_MAP = {
-    'numeric_mm1hh77p': 'precioLista',
-    'dropdown_mm1hymez': 'unidad',
-    'numeric_mm1sf71w': 'stockCritico'
-};
 
 export default function StockPage() {
     const router = useRouter();
@@ -68,8 +45,6 @@ export default function StockPage() {
     const [loadingObras, setLoadingObras] = useState(false);
     const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'low' | 'negative'
 
-    const rawDataRef = useRef({ ingresos: [], vales: [] });
-
     useEffect(() => {
         const checkAccess = async () => {
             const session = localStorage.getItem('ve_session');
@@ -97,83 +72,20 @@ export default function StockPage() {
         checkAccess();
     }, [router]);
 
+    // La cuenta la hace el servidor y llega hecha (ver lib/server/stock-snapshot.js).
+    // Antes esta pantalla se bajaba los tres tableros ENTEROS para calcularla en
+    // el navegador: 6.864 items, 5,6 MB y ~66 segundos medidos contra la cuenta
+    // real. Ahora son unos KB. La formula es la misma, movida al servidor.
     const calculateStock = useCallback(async () => {
         if (!selectedObra) return;
         setCalculating(true);
         setError(null);
         setActiveFilter('all');
         try {
-            // A diferencia de useObraStock.js, esta pantalla SI necesita todas las
-            // obras (no solo selectedObra): el dialog "Stock en todas las obras"
-            // (handleMaterialClick, mas abajo) lee rawDataRef.current completo para
-            // mostrar el cruce por obra de un material. Por eso NO se filtra por
-            // obra server-side aca - haria desaparecer los datos de las demas obras
-            // que el dialog necesita.
-            const [ingresosItems, valesItems] = await Promise.all([
-                fetchAllItemsWithRelations(
-                    ingresosBoard.items().withColumns(['material', 'cantidadIngresada', 'estado', 'obrabodega']),
-                    Object.keys(INGRESOS_COL_MAP), INGRESOS_COL_MAP
-                ),
-                fetchAllItemsWithRelations(
-                    valesBoard.items().withColumns(['baseDeDatosMateriales', 'cantidad', 'estado', 'obra']),
-                    Object.keys(VALES_COL_MAP), VALES_COL_MAP
-                )
-            ]);
-
-            rawDataRef.current = { ingresos: ingresosItems, vales: valesItems };
-
-            const filteredIngresos = ingresosItems.filter(i => (i.estado || '') === 'PROCESADO' && (i.obrabodega || '') === selectedObra);
-            const filteredVales = valesItems.filter(i => (i.estado || '') === 'ENTREGADA' && (i.obra || '') === selectedObra);
-
-            const stockMap = {};
-            for (const item of filteredIngresos) {
-                const linked = item.material?.linkedItems;
-                if (!linked || linked.length === 0) continue;
-                const matId = String(linked[0].id);
-                const qty = typeof item.cantidadIngresada === 'number' ? item.cantidadIngresada : (parseFloat(item.cantidadIngresada) || 0);
-                if (!stockMap[matId]) stockMap[matId] = { id: matId, name: linked[0].name || 'Sin nombre', ingresos: 0, vales: 0 };
-                stockMap[matId].ingresos += qty;
-            }
-            for (const item of filteredVales) {
-                const linked = item.baseDeDatosMateriales?.linkedItems;
-                if (!linked || linked.length === 0) continue;
-                const matId = String(linked[0].id);
-                const qty = typeof item.cantidad === 'number' ? item.cantidad : (parseFloat(item.cantidad) || 0);
-                if (!stockMap[matId]) stockMap[matId] = { id: matId, name: linked[0].name || 'Sin nombre', ingresos: 0, vales: 0 };
-                stockMap[matId].vales += qty;
-            }
-
-            const materialsItems = await fetchAllItemsWithRelations(
-                materialesBoard.items().withColumns(['precioLista', 'unidad', 'stockCritico']),
-                Object.keys(MATERIALES_COL_MAP), MATERIALES_COL_MAP
-            );
-
-            const materialsMap = {};
-            for (const mat of materialsItems) {
-                const sc = mat.stockCritico;
-                materialsMap[String(mat.id)] = {
-                    precioLista: typeof mat.precioLista === 'number' ? mat.precioLista : (parseFloat(mat.precioLista) || 0),
-                    unidad: mat.unidad || '',
-                    stockCritico: typeof sc === 'number' ? sc : (parseFloat(sc) || null)
-                };
-            }
-
-            const finalStock = Object.keys(stockMap).map(matId => {
-                const s = stockMap[matId];
-                const matInfo = materialsMap[matId] || { precioLista: 0, unidad: '', stockCritico: null };
-                const stock = s.ingresos - s.vales;
-                return {
-                    id: matId,
-                    name: s.name,
-                    stock,
-                    unidad: matInfo.unidad,
-                    precioLista: matInfo.precioLista,
-                    valorStock: stock * matInfo.precioLista,
-                    stockCritico: matInfo.stockCritico
-                };
-            }).filter(item => item.stock !== 0);
-
-            setStockData(finalStock);
+            const res = await fetch(`/api/vale-express/stock?obra=${encodeURIComponent(selectedObra)}`);
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(json.error || 'No se pudo obtener el stock');
+            setStockData(json.materiales ?? []);
         } catch (err) {
             console.error('Error calculating stock:', err);
             setError(err?.message || 'Error al calcular stock');
@@ -186,35 +98,26 @@ export default function StockPage() {
         if (selectedObra) calculateStock();
     }, [selectedObra, calculateStock]);
 
-    const handleMaterialClick = useCallback((material) => {
+    // El cruce por obra de un material tambien viene calculado. Antes salia de
+    // los tableros crudos que esta pantalla tenia en memoria, y era la unica
+    // razon por la que se los bajaba enteros.
+    const handleMaterialClick = useCallback(async (material) => {
         setSelectedMaterial(material);
+        setMaterialObrasStock([]);
         setLoadingObras(true);
-        const { ingresos, vales } = rawDataRef.current;
-        const matId = material.id;
-        const obrasMap = {};
-        for (const item of ingresos) {
-            if ((item.estado || '') !== 'PROCESADO') continue;
-            const linked = item.material?.linkedItems;
-            if (!linked || linked.length === 0 || String(linked[0].id) !== matId) continue;
-            const obra = item.obrabodega || 'Sin obra';
-            if (!obrasMap[obra]) obrasMap[obra] = { ingresos: 0, vales: 0 };
-            obrasMap[obra].ingresos += typeof item.cantidadIngresada === 'number' ? item.cantidadIngresada : (parseFloat(item.cantidadIngresada) || 0);
+        try {
+            const res = await fetch(`/api/vale-express/stock?material=${encodeURIComponent(material.id)}`);
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(json.error || 'No se pudo obtener el detalle');
+            setMaterialObrasStock(
+                (json.obras ?? []).map((fila) => ({ ...fila, isCurrent: fila.obra === selectedObra }))
+            );
+        } catch (err) {
+            console.error('[stock] no se pudo traer el cruce por obra:', err);
+            setMaterialObrasStock([]);
+        } finally {
+            setLoadingObras(false);
         }
-        for (const item of vales) {
-            if ((item.estado || '') !== 'ENTREGADA') continue;
-            const linked = item.baseDeDatosMateriales?.linkedItems;
-            if (!linked || linked.length === 0 || String(linked[0].id) !== matId) continue;
-            const obra = item.obra || 'Sin obra';
-            if (!obrasMap[obra]) obrasMap[obra] = { ingresos: 0, vales: 0 };
-            obrasMap[obra].vales += typeof item.cantidad === 'number' ? item.cantidad : (parseFloat(item.cantidad) || 0);
-        }
-        setMaterialObrasStock(
-            Object.entries(obrasMap)
-                .map(([obra, data]) => ({ obra, stock: data.ingresos - data.vales, isCurrent: obra === selectedObra }))
-                .filter(i => i.stock !== 0)
-                .sort((a, b) => b.stock - a.stock)
-        );
-        setLoadingObras(false);
     }, [selectedObra]);
 
     // KPI calculations
