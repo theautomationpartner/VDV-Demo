@@ -4,7 +4,7 @@ import { use, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, XCircle, ShieldQuestion, Building2, Wallet, User } from "lucide-react";
+import { CheckCircle2, XCircle, Building2, Wallet, User } from "lucide-react";
 import { EMPRESA } from "@/lib/generador-oc/empresa";
 
 function formatoMoneda(valor, moneda) {
@@ -92,39 +92,33 @@ export default function ValidarOcPage({ params }) {
         {!cargando && !resultado?.encontrada && (
           <Card className="flex flex-col items-center gap-3 p-6 text-center">
             <XCircle className="h-12 w-12 text-destructive" />
-            <p className="font-semibold">No se encontró esta Orden de Compra</p>
+            <p className="font-semibold">No se pudo validar esta Orden de Compra</p>
             <p className="text-sm text-muted-foreground">
-              El documento pudo haber sido eliminado, o el enlace no es válido.
+              El enlace no es válido, el documento fue eliminado, o la copia que tenés quedó
+              desactualizada porque la orden se volvió a emitir. Pedile a {EMPRESA.nombre} el
+              documento vigente.
             </p>
           </Card>
         )}
 
         {!cargando && resultado?.encontrada && (
           <Card className="space-y-5 p-6">
+            {/*
+              Solo se llega aca con el codigo correcto: el endpoint ya no
+              devuelve datos cuando no coincide (ver validar/route.js), asi que
+              el estado "no se pudo confirmar el codigo" que habia aca dejo de
+              ser alcanzable. Lo que ese estado protegia -un PDF con el monto
+              cambiado- se sigue detectando igual: el QR de un documento
+              adulterado lleva el codigo original, entra por este camino, y los
+              datos de abajo son los de monday para comparar contra el papel.
+            */}
             <div className="flex flex-col items-center gap-2 text-center">
-              {resultado.autentica ? (
-                <>
-                  <CheckCircle2 className="h-12 w-12 text-[hsl(var(--precio-bueno))]" />
-                  <p className="font-semibold text-[hsl(var(--precio-bueno))]">
-                    Documento auténtico
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Este código corresponde exactamente a la OC {resultado.numeroOc}, emitida por{" "}
-                    {EMPRESA.nombre}.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <ShieldQuestion className="h-12 w-12 text-[hsl(var(--precio-medio))]" />
-                  <p className="font-semibold text-[hsl(var(--precio-medio))]">
-                    No se pudo confirmar el código
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    La OC {resultado.numeroOc} existe, pero el código de validación no coincide.
-                    Compará los datos de abajo contra el documento antes de confiar en él.
-                  </p>
-                </>
-              )}
+              <CheckCircle2 className="h-12 w-12 text-[hsl(var(--precio-bueno))]" />
+              <p className="font-semibold text-[hsl(var(--precio-bueno))]">Documento auténtico</p>
+              <p className="text-sm text-muted-foreground">
+                Este código corresponde exactamente a la OC {resultado.numeroOc}, emitida por{" "}
+                {EMPRESA.nombre}. Compará los datos de abajo contra el documento que recibiste.
+              </p>
             </div>
 
             <div className="space-y-3 rounded-md border bg-muted/40 p-4 text-sm">
