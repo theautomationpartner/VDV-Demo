@@ -3,6 +3,11 @@ import {
   accesoErrorToResponse,
   AccesoError,
 } from "@/lib/server/auth-guard";
+import {
+  verificarAccesoArchivo,
+  accesoBoardErrorToResponse,
+  BoardAccessError,
+} from "@/lib/server/board-access-policy";
 import { getBoardSchema, resolveColumnId } from "@/lib/board-schemas";
 
 const MONDAY_API_URL = "https://api.monday.com/v2";
@@ -30,9 +35,10 @@ const AUTH_LAYERS_ENABLED = process.env.AUTH_LAYERS_ENABLED === "true";
  * boton quedaba inconsistente. Si se quiere retomar, esta en el historial.
  */
 export async function GET(request) {
+  let sesion = null;
   if (!DEMO_MODE && AUTH_LAYERS_ENABLED) {
     try {
-      verificarAcceso(request);
+      sesion = verificarAcceso(request);
     } catch (err) {
       if (err instanceof AccesoError) return accesoErrorToResponse(err);
       throw err;
@@ -49,6 +55,15 @@ export async function GET(request) {
       { error: "Faltan boardKey, itemId o columna" },
       { status: 400 },
     );
+  }
+
+  if (AUTH_LAYERS_ENABLED) {
+    try {
+      verificarAccesoArchivo(sesion, boardKey);
+    } catch (err) {
+      if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
+      throw err;
+    }
   }
 
   let columnId;

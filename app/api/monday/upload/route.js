@@ -50,7 +50,7 @@ export async function POST(request) {
 
   if (AUTH_LAYERS_ENABLED) {
     try {
-      verificarAccesoUpload(sesion, boardKey);
+      verificarAccesoUpload(sesion, boardKey, { columnId: String(columnId) });
     } catch (err) {
       if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
       throw err;
