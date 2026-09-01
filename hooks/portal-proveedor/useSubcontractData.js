@@ -118,8 +118,10 @@ export function useContracts(userContext, recarga = 0) {
   useEffect(() => {
     if (!userContext) return;
     const k = getCacheKey(userContext);
-    const isCached = _contracts.items && _contracts.key === k && (Date.now() - _contracts.time) < CACHE_TTL;
-    if (!isCached) setLoading(true);
+    // Ver la nota en usePaymentData: el esqueleto de carga solo aparece si no
+    // hay nada para mostrar de ESTE filtro. Un dato vencido se sigue mostrando
+    // mientras se revalida por atras.
+    if (!(_contracts.items && _contracts.key === k)) setLoading(true);
     const board = new FlujoContratacionSubcontratoBoard();
     fetchBoard(board, CONTRACT_COLS, userContext, _contracts)
       .then((all) => setItems(all))
@@ -138,8 +140,7 @@ export function useEstadosDePago(userContext) {
   useEffect(() => {
     if (!userContext) return;
     const k = getCacheKey(userContext);
-    const isCached = _eps.items && _eps.key === k && (Date.now() - _eps.time) < CACHE_TTL;
-    if (!isCached) setLoading(true);
+    if (!(_eps.items && _eps.key === k)) setLoading(true);
     const board = new EstadosDePagoSubcontratosBoard();
     fetchBoard(board, EP_COLS, userContext, _eps)
       .then((all) => setItems(all))
@@ -174,8 +175,7 @@ export function useOrdenesCompra(userContext) {
   useEffect(() => {
     if (!userContext) return;
     const k = getCacheKey(userContext);
-    const isCached = _ocs.items && _ocs.key === k && (Date.now() - _ocs.time) < CACHE_TTL;
-    if (!isCached) setLoading(true);
+    if (!(_ocs.items && _ocs.key === k)) setLoading(true);
     const board = new OrdenesDeCompraMaxxaBoard();
     fetchBoard(board, OC_COLS, userContext, _ocs)
       .then((all) => setItems(filterOCByAllowedGroups(all)))

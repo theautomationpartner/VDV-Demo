@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { OrdenesDeCompraMaxxaBoard, FacturasIaBoard, fetchAllItemsWithRelations } from "@/lib/board-sdk";
 import { BOARD_SCHEMAS, FACTURAS_GRUPO_DUPLICADAS_ID } from "@/lib/board-schemas";
 
@@ -53,22 +53,28 @@ function aplanarProveedor(item) {
   return item;
 }
 
-export function useOCData() {
-  const [ordenes, setOrdenes] = useState([]);
-  const [facturas, setFacturas] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refetching, setRefetching] = useState(false);
-  const [error, setError] = useState(null);
+/**
+ * Cache de modulo, compartido por las cinco pantallas de OC Tracker.
+ *
+ * Antes cada entrada al layout volvia a traer los dos tableros enteros
+ * (Ordenes y Facturas, paginados) desde cero, con la pantalla en blanco
+ * mientras tanto: entre 2 y 20 segundos cada vez, incluso al ir y volver entre
+ * dos pantallas que ya se habian visto. Ahora lo que ya se trajo se muestra al
+ * instante y, si quedo viejo, se vuelve a pedir por atras sin sacar de pantalla
+ * lo que el usuario esta mirando.
+ *
+ * Vive en memoria, asi que sobrevive a la navegacion dentro de la app pero no a
+ * un F5. `promise` evita que dos pantallas que montan a la vez disparen dos
+ * veces la misma consulta.
+ */
+let _cache = { ordenes: null, facturas: null, time: 0, promise: null };
+const CACHE_TTL = 5 * 60 * 1000;
 
-  const fetchData = async (isRefetch = false) => {
+async function traerOcYFacturas() {
+  if (_cache.promise) return _cache.promise;
+
+  _cache.promise = (async () => {
     try {
-      if (isRefetch) {
-        setRefetching(true);
-      } else {
-        setLoading(true);
-      }
-      setError(null);
-
       const [ordenesItems, facturasItems] = await Promise.all([
         fetchAllItemsWithRelations(
           ordenesBoard.items().withColumns(OC_COLUMNAS),
@@ -82,14 +88,52 @@ export function useOCData() {
         ),
       ]);
 
-      setOrdenes(ordenesItems.filter((oc) => oc.group?.id !== GRUPO_OC_DUPLICADAS).map(aplanarProveedor));
+      _cache.ordenes = ordenesItems
+        .filter((oc) => oc.group?.id !== GRUPO_OC_DUPLICADAS)
+        .map(aplanarProveedor);
       // Antes traia TODAS las facturas sin excluir "Duplicadas" - inflaba
       // Total Facturado/Saldo Disponible/% Consumido, mientras que Total OC
       // si excluia correctamente su propio grupo de duplicadas. Igual que
       // GRUPO_OC_DUPLICADAS arriba: se excluye SOLO el grupo de duplicadas,
       // el resto de los grupos (Pendientes, Revision manual, Enviada a pago,
       // En revision) cuentan.
-      setFacturas(facturasItems.filter((f) => f.group?.id !== FACTURAS_GRUPO_DUPLICADAS_ID).map(aplanarProveedor));
+      _cache.facturas = facturasItems
+        .filter((f) => f.group?.id !== FACTURAS_GRUPO_DUPLICADAS_ID)
+        .map(aplanarProveedor);
+      _cache.time = Date.now();
+      return { ordenes: _cache.ordenes, facturas: _cache.facturas };
+    } finally {
+      _cache.promise = null;
+    }
+  })();
+
+  return _cache.promise;
+}
+
+/** Para que un F5 no sea la unica forma de tirar el cache. */
+export function clearOCCache() {
+  _cache = { ordenes: null, facturas: null, time: 0, promise: null };
+}
+
+export function useOCData() {
+  const [ordenes, setOrdenes] = useState(() => _cache.ordenes ?? []);
+  const [facturas, setFacturas] = useState(() => _cache.facturas ?? []);
+  // Solo se muestra el esqueleto de carga si no hay NADA para mostrar. Que el
+  // dato este vencido no es motivo para dejar la pantalla en blanco: se sigue
+  // mostrando mientras se revalida.
+  const [loading, setLoading] = useState(() => _cache.ordenes === null);
+  const [refetching, setRefetching] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchData = useCallback(async () => {
+    if (_cache.ordenes === null) setLoading(true);
+    else setRefetching(true);
+    setError(null);
+
+    try {
+      const datos = await traerOcYFacturas();
+      setOrdenes(datos.ordenes);
+      setFacturas(datos.facturas);
     } catch (err) {
       console.error("Error loading OC data:", err);
       setError(err.message);
@@ -97,11 +141,15 @@ export function useOCData() {
       setLoading(false);
       setRefetching(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
+    // Con datos frescos no se pide nada; con datos viejos se revalida por atras
+    // (fetchData deja `loading` en false porque ya hay algo en pantalla).
+    const fresco = _cache.ordenes !== null && Date.now() - _cache.time < CACHE_TTL;
+    if (fresco) return;
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const facturasPorOc = useMemo(() => {
     const map = new Map();
@@ -194,14 +242,22 @@ export function useOCData() {
     loading,
     refetching,
     error,
-    refetch: () => fetchData(true),
+    refetch: fetchData,
     updateOCStatus: async (itemId, newStatus) => {
-      const prev = [...ordenes];
-      setOrdenes(ordenes.map((oc) => (oc.id === itemId ? { ...oc, estadoDocumento: newStatus } : oc)));
+      // El cambio optimista tambien va al cache: si no, al cambiar de pantalla
+      // y volver reaparecia el estado viejo, que es justamente el que se acaba
+      // de cambiar.
+      const prev = _cache.ordenes ?? ordenes;
+      const conNuevoEstado = prev.map((oc) =>
+        oc.id === itemId ? { ...oc, estadoDocumento: newStatus } : oc
+      );
+      _cache.ordenes = conNuevoEstado;
+      setOrdenes(conNuevoEstado);
       try {
         await ordenesBoard.item(itemId).update({ estadoDocumento: newStatus }).execute();
       } catch (err) {
         console.error("Error updating status:", err);
+        _cache.ordenes = prev;
         setOrdenes(prev);
         throw err;
       }

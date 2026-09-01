@@ -115,7 +115,9 @@ export function useFacturasPendientes(userContext) {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    // Ver la nota en usePaymentData: con datos de ESTE filtro ya en pantalla se
+    // revalida por atras, sin volver a mostrar el contador en cero.
+    if (!(_cache.key === key && _cache.stats)) setLoading(true);
     buildFacturaStats(userContext)
       .then((s) => setStats(s))
       .catch((e) => console.error('Error loading facturas pendientes:', e))

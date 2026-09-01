@@ -103,7 +103,10 @@ export function useFacturacion() {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    // Ver la nota en usePaymentData: si ya hay un mapa de una vuelta anterior
+    // se sigue mostrando mientras se revalida por atras, en vez de volver a
+    // dejar los totales en cero hasta que responda monday.
+    if (!_factCache.map) setLoading(true);
     buildFacturacionMap()
       .then((map) => {
         setFacturacionMap(map);
