@@ -79,7 +79,18 @@ function useCurrentUser(pathname, veRole) {
   return { ...identity, initials: initialsFor(identity.name) };
 }
 
-function isItemVisible(item, role) {
+/**
+ * `homeApps` son las apps asignadas a la cuenta (null = todavia no se sabe, o
+ * login legado: no se restringe nada).
+ *
+ * Un item puede declarar `app`: entonces solo se muestra si la cuenta tiene esa
+ * app. Lo necesita el Generador de OC, que se muestra dentro de OC Tracker pero
+ * sigue siendo una app aparte para los permisos - y como OC Tracker se le
+ * muestra a cualquier sesion valida, sin este control el Generador quedaria a
+ * la vista de todos.
+ */
+function isItemVisible(item, role, homeApps) {
+  if (item.app && homeApps !== null && !homeApps.includes(item.app)) return false;
   if (item.roles === null) return true;
   if (role === undefined) return true;
   return item.roles.includes(role);
@@ -253,7 +264,10 @@ export function AppSidebar() {
     (section) => section.key === "oc-tracker" || homeApps === null || homeApps.includes(section.key)
   );
 
-  const activeSection = visibleSections.find((section) => pathname.startsWith(section.basePath)) ?? null;
+  const activeSection =
+    visibleSections.find((section) =>
+      [section.basePath, ...(section.rutasExtra ?? [])].some((ruta) => pathname.startsWith(ruta)),
+    ) ?? null;
 
   // Acordeon de un solo nivel abierto a la vez, solo para el rail de
   // escritorio. La seccion activa (segun la ruta actual) arranca expandida;
@@ -362,7 +376,7 @@ export function AppSidebar() {
               const isExpanded = !collapsed && expandedKey === section.key;
               const SectionIcon = section.icon;
               const submenuId = `submenu-${section.key}`;
-              const visibleItems = section.items.filter((item) => isItemVisible(item, roles[section.key]));
+              const visibleItems = section.items.filter((item) => isItemVisible(item, roles[section.key], homeApps));
 
               return (
                 <li key={section.key} className="group/item relative" style={{ "--accent": section.accent }}>
@@ -550,6 +564,7 @@ export function AppSidebar() {
         visibleSections={visibleSections}
         activeSection={activeSection}
         roles={roles}
+        homeApps={homeApps}
         isWhitelistAdmin={isWhitelistAdmin}
         currentUser={currentUser}
         moreOpen={moreOpen}
@@ -577,6 +592,7 @@ function MobileNav({
   visibleSections,
   activeSection,
   roles,
+  homeApps,
   isWhitelistAdmin,
   currentUser,
   moreOpen,
@@ -586,7 +602,7 @@ function MobileNav({
   const [openSectionKey, setOpenSectionKey] = useState(null);
   const openSection = visibleSections.find((section) => section.key === openSectionKey) ?? null;
   const openSectionItems = openSection
-    ? openSection.items.filter((item) => isItemVisible(item, roles[openSection.key]))
+    ? openSection.items.filter((item) => isItemVisible(item, roles[openSection.key], homeApps))
     : [];
   const isMoreActive = pathname.startsWith("/admin");
 
@@ -604,7 +620,7 @@ function MobileNav({
         {visibleSections.map((section) => {
           const isSectionActive = activeSection?.key === section.key;
           const SectionIcon = section.icon;
-          const sectionVisibleItems = section.items.filter((item) => isItemVisible(item, roles[section.key]));
+          const sectionVisibleItems = section.items.filter((item) => isItemVisible(item, roles[section.key], homeApps));
           const firstVisibleHref = sectionVisibleItems[0]?.href ?? section.basePath;
           const itemStyle = { "--accent": section.accent };
           const itemClassName = cn(
