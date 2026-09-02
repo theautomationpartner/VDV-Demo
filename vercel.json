@@ -2,15 +2,15 @@
   "crons": [
     {
       "path": "/api/vale-express/stock/recalcular",
-      "schedule": "*/10 * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/oc-tracker/datos/recalcular",
-      "schedule": "*/10 * * * *"
+      "schedule": "1-59/5 * * * *"
     },
     {
       "path": "/api/portal-proveedor/datos/recalcular",
-      "schedule": "*/10 * * * *"
+      "schedule": "2-59/5 * * * *"
     }
   ]
 }
