@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronDown, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, X, Hash, Building2, DollarSign, Receipt, Coins, CalendarDays, CreditCard, ExternalLink, Mail, Tag, Wallet, UserRound } from "lucide-react";
 import { SemaforoIndicator } from "./SemaforoIndicator";
 import { ConsumptionBar } from "./ConsumptionBar";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { OrdenesDeCompraMaxxaBoard } from "@/lib/board-sdk";
 import { useColumnOptions } from "@/hooks/useColumnOptions";
@@ -230,7 +231,12 @@ export function ConsumoPorObra({ consumoPorObra, onUpdateStatus }) {
     try {
       await onUpdateStatus(ocId, newStatus);
     } catch (err) {
+      // El servidor rechaza aprobar a quien no es el aprobador designado, y
+      // updateOCStatus revierte el estado en pantalla. Sin este aviso el
+      // desplegable volvia solo a su valor anterior sin decir nada, y parecia
+      // que la app fallaba. El mensaje del servidor explica el motivo.
       console.error("Error updating status:", err);
+      toast.error(err?.message || "No se pudo cambiar el estado de la orden.");
     } finally {
       setUpdatingId(null);
     }
