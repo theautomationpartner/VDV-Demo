@@ -18,6 +18,27 @@ const ordenesBoard = new OrdenesDeCompraMaxxaBoard();
 // faltaba DUPLICADO, que si existe en monday - y no hay que mantenerlo a mano.
 const ESTADOS_FALLBACK = ["PENDIENTE", "APROBADO", "RECHAZADO", "NUEVO"];
 
+// De los estados que existen en la columna, estos son los unicos que algun
+// flujo de la app llega a escribir. DUPLICADO y NUEVO nunca los pone la app:
+// DUPLICADO se marca desde monday (hay un grupo para eso) y NUEVO no lo asigna
+// nadie, asi que ofrecerlos aca solo dejaba poner a mano un estado que despues
+// ningun circuito produce.
+const ESTADOS_ASIGNABLES = ["PENDIENTE", "APROBADO", "RECHAZADO"];
+
+/**
+ * Los estados que se le ofrecen a una orden.
+ *
+ * Son los asignables que ademas existan hoy en la columna de monday, mas -si
+ * hace falta- el estado actual de esa orden: si una orden esta en DUPLICADO y
+ * ese valor no esta entre las opciones, el desplegable no lo encuentra y la
+ * muestra como "Sin estado".
+ */
+function estadosParaLaOrden(estadosVivos, estadoActual) {
+  const opciones = estadosVivos.filter((e) => ESTADOS_ASIGNABLES.includes(e));
+  if (estadoActual && !opciones.includes(estadoActual)) return [estadoActual, ...opciones];
+  return opciones;
+}
+
 // Los estados de monday vienen en mayusculas. Estos se muestran capitalizados;
 // cualquier estado nuevo que agregue el cliente se muestra tal cual viene.
 const ESTADO_LABELS = {
@@ -394,7 +415,7 @@ export function ConsumoPorObra({ consumoPorObra, onUpdateStatus }) {
                                   <SelectValue placeholder="Sin estado" />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-[var(--radius-sm)]">
-                                  {estados.map((estado) => (
+                                  {estadosParaLaOrden(estados, oc.estadoDocumento).map((estado) => (
                                     <SelectItem key={estado} value={estado} className="text-sm">
                                       {ESTADO_LABELS[estado] ?? estado}
                                     </SelectItem>
