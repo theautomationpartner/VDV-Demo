@@ -3,6 +3,7 @@ import { mondayFetch, getBoardIdOrThrow } from "@/lib/server/monday-client";
 import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
 import {
   verificarAccesoMutacion,
+  filtrarPorObrasPermitidas,
   accesoBoardErrorToResponse,
   BoardAccessError,
 } from "@/lib/server/board-access-policy";
@@ -746,7 +747,16 @@ export async function POST(request) {
 
     const schema = getBoardSchema(boardKey);
 
-    if (op === "items") return Response.json({ result: await handleItems(boardKey, schema, params) });
+    if (op === "items") {
+      const resultado = await handleItems(boardKey, schema, params);
+      // La restriccion por obra se aplica ACA y no en la pantalla: antes el
+      // navegador se bajaba la pagina completa y escondia lo ajeno, asi que los
+      // datos de las otras obras llegaban igual. Ver filtrarPorObrasPermitidas.
+      if (AUTH_LAYERS_ENABLED) {
+        resultado.items = filtrarPorObrasPermitidas(sesion, boardKey, resultado.items);
+      }
+      return Response.json({ result: resultado });
+    }
 
     if (op === "columnOptions")
       return Response.json({ result: await handleColumnOptions(boardKey, schema, params) });
