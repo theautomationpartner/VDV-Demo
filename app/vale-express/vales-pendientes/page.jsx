@@ -104,7 +104,10 @@ export default function ValesPendientesPage() {
             .withPagination({ limit: 25, cursor: cursorVal || undefined })
             .execute();
 
-        // Client-side filter by allowed obras when restricted and no specific obra filter
+        // La restriccion por obra ahora la aplica el SERVIDOR: los vales de
+        // obras ajenas ya no llegan al navegador (ver filtrarPorObrasPermitidas
+        // en lib/server/board-access-policy.js). Este filtro queda como red de
+        // seguridad de la pantalla, no como el control.
         let filteredItems = result.items || [];
         if (!obraFilter && restricted && obras.length > 0) {
             filteredItems = filteredItems.filter(item => obras.includes(item.obra));
