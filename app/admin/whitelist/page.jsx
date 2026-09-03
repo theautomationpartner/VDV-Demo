@@ -212,7 +212,32 @@ function cargarProveedores() {
   return promesaProveedores;
 }
 
-function ProveedorPicker({ elegido, onElegir }) {
+/**
+ * Busqueda por texto contenido, no la difusa que trae cmdk por defecto.
+ *
+ * La de fabrica acepta las letras salteadas y en desorden: con 315 proveedores,
+ * escribir "ragnar" devolvia tambien "Piedras Valle Grande" y "PURIFICADORA".
+ * Con esta lista, mostrar de mas confunde mas de lo que ayuda.
+ *
+ * Sin acentos de los dos lados, asi "MUNOZ" encuentra "MUÑOZ".
+ */
+function sinAcentos(texto) {
+  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+function filtrarPorTextoContenido(value, search) {
+  if (!search) return 1;
+  return sinAcentos(value).includes(sinAcentos(search)) ? 1 : 0;
+}
+
+/**
+ * @param {object|null} elegido       proveedor recien elegido (para el rotulo)
+ * @param {string}      valorTexto    nombre ya guardado, cuando no se eligio en esta sesion
+ * @param {string}      etiqueta      rotulo del campo
+ * @param {string}      ayuda         texto de ayuda debajo, opcional
+ * @param {boolean}     compacto      para la columna de apps, que usa controles mas chicos
+ */
+function ProveedorPicker({ elegido, valorTexto = "", etiqueta = "Proveedor", ayuda = "", compacto = false, onElegir }) {
   const [proveedores, setProveedores] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(false);
@@ -236,6 +261,7 @@ function ProveedorPicker({ elegido, onElegir }) {
 
   const texto = () => {
     if (elegido) return elegido.name;
+    if (valorTexto) return valorTexto;
     if (cargando) return "Cargando…";
     if (error) return "No se pudo cargar la lista";
     return "Buscar proveedor…";
@@ -243,19 +269,31 @@ function ProveedorPicker({ elegido, onElegir }) {
 
   return (
     <div className="space-y-1.5">
-      <Label>Proveedor</Label>
+      <Label className={compacto ? "text-[11px] text-muted-foreground" : undefined}>{etiqueta}</Label>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
-          render={<Button variant="outline" className="h-9 w-full justify-between text-sm font-normal" />}
+          render={
+            <Button
+              variant="outline"
+              className={cn(
+                "h-9 w-full justify-between font-normal",
+                compacto ? "text-xs" : "text-sm"
+              )}
+            />
+          }
           disabled={cargando || error}
         >
           <span className="truncate">{texto()}</span>
           <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
         </PopoverTrigger>
         <PopoverContent className="w-[min(92vw,340px)] p-0" align="start">
-          <Command>
+          <Command filter={filtrarPorTextoContenido}>
             <CommandInput placeholder="Escribí para buscar…" />
-            <CommandList>
+            {/* overflow-y-scroll y no auto: con 315 items siempre hay que
+                desplazarse, y dejando la barra siempre visible se ve que la
+                lista sigue. Con `auto` el navegador la dibuja tan fina que
+                parecia que no habia mas resultados. */}
+            <CommandList className="max-h-80 overflow-y-scroll">
               <CommandEmpty>Sin resultados</CommandEmpty>
               <CommandGroup>
                 {proveedores.map((p) => (
@@ -283,9 +321,9 @@ function ProveedorPicker({ elegido, onElegir }) {
           </Command>
         </PopoverContent>
       </Popover>
-      <p className="text-xs text-muted-foreground">
-        Completa el email y el nombre desde el tablero de monday. Los dos se pueden editar después.
-      </p>
+      {ayuda && (
+        <p className={cn("text-muted-foreground", compacto ? "text-[11px]" : "text-xs")}>{ayuda}</p>
+      )}
     </div>
   );
 }
@@ -995,7 +1033,11 @@ export default function WhitelistAdminPage() {
                   (verificarAccesoLectura). */}
               {puedeAsignarPortal &&
                 form.asignaciones.some((a) => a.app === "portal-proveedor") && (
-                  <ProveedorPicker elegido={proveedorElegido} onElegir={aplicarProveedor} />
+                  <ProveedorPicker
+                    elegido={proveedorElegido}
+                    ayuda="Completa el email y el nombre desde el tablero de monday. Los dos se pueden editar después."
+                    onElegir={aplicarProveedor}
+                  />
                 )}
 
               <div className="space-y-1.5">
@@ -1136,15 +1178,22 @@ export default function WhitelistAdminPage() {
                     )}
 
                     {a.app === "portal-proveedor" && a.appRol === "subcontratista" && (
-                      <div className="space-y-1">
-                        <Input
-                          value={a.proveedorName}
-                          onChange={(e) => updateAsignacion(index, { proveedorName: e.target.value })}
-                          placeholder="Nombre del proveedor"
-                          className="h-9 text-xs"
-                        />
-                        <p className="text-[11px] text-muted-foreground">Tal cual figura en monday.</p>
-                      </div>
+                      // Desplegable y no texto libre: este es el campo que decide
+                      // que ve el proveedor (filtroPortalDeSesion lo compara
+                      // contra el nombre del item en monday), y escrito a mano
+                      // una letra de mas hace que entre y no vea nada, sin
+                      // ningun error que lo explique.
+                      //
+                      // `valorTexto` muestra lo que ya estaba guardado, aunque
+                      // hoy no coincida con ningun proveedor de la lista: al
+                      // editar un usuario viejo no hay que perderlo de vista.
+                      <ProveedorPicker
+                        valorTexto={a.proveedorName}
+                        etiqueta="Nombre del proveedor"
+                        ayuda="Sale del tablero de proveedores de monday."
+                        compacto
+                        onElegir={(p) => updateAsignacion(index, { proveedorName: p.name })}
+                      />
                     )}
                   </div>
                 );
