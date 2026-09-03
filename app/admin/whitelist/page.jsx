@@ -654,6 +654,20 @@ export default function WhitelistAdminPage() {
   const soloLecturaApps = useMemo(() => Object.keys(access).filter((app) => access[app] === "viewer"), [access]);
   const mostrarAcciones = editableApps.length > 0;
 
+  // La lista de proveedores se empieza a traer al entrar a la pantalla, no al
+  // abrir el dialogo: son ~2 s contra monday, y ese tiempo se gasta mientras la
+  // persona todavia esta mirando la tabla y buscando el boton. Cuando abre
+  // "Agregar usuario" ya esta lista.
+  //
+  // Solo si puede asignar el Portal: es el unico caso en que el buscador se
+  // muestra, y ademas el unico con permiso de leer ese tablero.
+  const puedeAsignarPortal = editableApps.includes("portal-proveedor");
+  useEffect(() => {
+    if (!puedeAsignarPortal) return;
+    // Los errores los muestra el propio buscador; aca solo se adelanta el pedido.
+    cargarProveedores().catch(() => {});
+  }, [puedeAsignarPortal]);
+
   const filteredUsuarios = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return usuarios;
@@ -979,7 +993,7 @@ export default function WhitelistAdminPage() {
                   editableApps ademas garantiza que la lista se pueda cargar: es
                   el mismo permiso que exige el servidor para leer ese tablero
                   (verificarAccesoLectura). */}
-              {editableApps.includes("portal-proveedor") &&
+              {puedeAsignarPortal &&
                 form.asignaciones.some((a) => a.app === "portal-proveedor") && (
                   <ProveedorPicker elegido={proveedorElegido} onElegir={aplicarProveedor} />
                 )}
