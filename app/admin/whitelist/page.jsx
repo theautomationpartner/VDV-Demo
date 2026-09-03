@@ -180,6 +180,38 @@ function obrasSummary(asignaciones) {
  * corrige el email o el nombre a mano, lo que se ve deja de corresponderse con
  * el proveedor y la seleccion se limpia.
  */
+/**
+ * Los 315 proveedores, traidos una sola vez por carga de pagina.
+ *
+ * El buscador se monta y desmonta seguido -al abrir el dialogo, y cada vez que
+ * se cambia de app y se vuelve al Portal-, y sin esto cada montaje volvia a
+ * bajar el tablero entero. La promesa se comparte, asi que dos montajes
+ * simultaneos tampoco disparan dos pedidos.
+ *
+ * Deliberadamente NO se cachea entre recargas: si alguien da de alta un
+ * proveedor en monday tiene que aparecer al recargar la pantalla, no en la
+ * proxima sesion. En el error se limpia para poder reintentar.
+ */
+let promesaProveedores = null;
+
+function cargarProveedores() {
+  if (!promesaProveedores) {
+    promesaProveedores = fetchAllItems(
+      new ProveedoresBoard().items().withColumns(["contacto", "mail"]),
+    )
+      .then((lista) =>
+        (lista ?? [])
+          .filter((p) => p.name)
+          .sort((a, b) => a.name.localeCompare(b.name, "es")),
+      )
+      .catch((err) => {
+        promesaProveedores = null;
+        throw err;
+      });
+  }
+  return promesaProveedores;
+}
+
 function ProveedorPicker({ elegido, onElegir }) {
   const [proveedores, setProveedores] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -188,14 +220,9 @@ function ProveedorPicker({ elegido, onElegir }) {
 
   useEffect(() => {
     let activo = true;
-    fetchAllItems(new ProveedoresBoard().items().withColumns(["contacto", "mail"]))
+    cargarProveedores()
       .then((lista) => {
-        if (!activo) return;
-        setProveedores(
-          (lista ?? [])
-            .filter((p) => p.name)
-            .sort((a, b) => a.name.localeCompare(b.name, "es"))
-        );
+        if (activo) setProveedores(lista);
       })
       .catch((err) => {
         console.error("[whitelist] No se pudo cargar la lista de proveedores:", err);
