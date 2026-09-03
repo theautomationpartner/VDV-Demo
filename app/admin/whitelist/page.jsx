@@ -26,7 +26,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Package, Handshake, UserX, MapPin, ChevronDown, FileSignature } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useObrasVales } from "@/hooks/useObras";
-import { OrdenesDeCompraMaxxaBoard } from "@/lib/board-sdk";
+import { OrdenesDeCompraMaxxaBoard, ProveedoresBoard, fetchAllItems } from "@/lib/board-sdk";
 
 const APP_LABELS = {
   "vale-express": "Vale Express",
@@ -164,6 +164,103 @@ function obrasSummary(asignaciones) {
  *
  * Es lo unico que hay que configurar para el Generador de OC.
  */
+/**
+ * Buscador de proveedores para dar de alta un usuario del Portal.
+ *
+ * El pedido del cliente: el nombre y el correo se tipeaban a mano y salian mal
+ * escritos. Eso no es cosmetico - `proveedorName` es lo que el servidor usa para
+ * decidir que ve ese proveedor (filtroPortalDeSesion), asi que una letra de mas
+ * y la persona entra y no ve nada, sin ningun error que lo explique.
+ *
+ * Los tres campos que completa quedan EDITABLES a proposito: de los 315
+ * proveedores del tablero, 49 no tienen correo cargado y 96 no tienen contacto.
+ * Si el selector fuera la unica via, esos no se podrian dar de alta.
+ */
+function ProveedorPicker({ onElegir }) {
+  const [proveedores, setProveedores] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [elegido, setElegido] = useState(null);
+
+  useEffect(() => {
+    let activo = true;
+    fetchAllItems(new ProveedoresBoard().items().withColumns(["contacto", "mail"]))
+      .then((lista) => {
+        if (!activo) return;
+        setProveedores(
+          (lista ?? [])
+            .filter((p) => p.name)
+            .sort((a, b) => a.name.localeCompare(b.name, "es"))
+        );
+      })
+      .catch((err) => {
+        console.error("[whitelist] No se pudo cargar la lista de proveedores:", err);
+        if (activo) setError(true);
+      })
+      .finally(() => activo && setCargando(false));
+    return () => {
+      activo = false;
+    };
+  }, []);
+
+  const texto = () => {
+    if (elegido) return elegido.name;
+    if (cargando) return "Cargando…";
+    if (error) return "No se pudo cargar la lista";
+    return "Buscar proveedor…";
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <Label>Proveedor</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          render={<Button variant="outline" className="h-9 w-full justify-between text-sm font-normal" />}
+          disabled={cargando || error}
+        >
+          <span className="truncate">{texto()}</span>
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+        </PopoverTrigger>
+        <PopoverContent className="w-[min(92vw,340px)] p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Escribí para buscar…" />
+            <CommandList>
+              <CommandEmpty>Sin resultados</CommandEmpty>
+              <CommandGroup>
+                {proveedores.map((p) => (
+                  <CommandItem
+                    // El texto de busqueda incluye contacto y mail: al cliente le
+                    // sirve encontrarlo por la persona o por el correo, no solo
+                    // por la razon social.
+                    key={p.id}
+                    value={`${p.name} ${p.contacto ?? ""} ${p.mail ?? ""}`}
+                    onSelect={() => {
+                      setElegido(p);
+                      onElegir(p);
+                      setOpen(false);
+                    }}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm">{p.name}</span>
+                      <span className="block truncate text-[11px] text-muted-foreground">
+                        {[p.contacto, p.mail].filter(Boolean).join(" · ") || "sin datos de contacto"}
+                      </span>
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      <p className="text-xs text-muted-foreground">
+        Completa el email y el nombre desde el tablero de monday. Los dos se pueden editar después.
+      </p>
+    </div>
+  );
+}
+
 function UsuarioMondayPicker({ value, onChange }) {
   const [usuarios, setUsuarios] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -593,6 +690,30 @@ export default function WhitelistAdminPage() {
     }));
   };
 
+  /**
+   * Vuelca el proveedor elegido en los campos del formulario.
+   *
+   * Tambien completa `proveedorName` de la asignacion al Portal, que es el campo
+   * que de verdad decide que ve esa persona: escrito a mano es donde nacian los
+   * errores que motivaron este pedido. Nada de esto queda bloqueado - son
+   * valores iniciales, no impuestos.
+   */
+  const aplicarProveedor = (prov) => {
+    const contacto = (prov.contacto ?? "").trim();
+    const mail = (prov.mail ?? "").trim();
+    setForm((f) => ({
+      ...f,
+      // Al editar, el email es la llave del usuario y no se puede cambiar.
+      email: f.id ? f.email : mail || f.email,
+      nombre: contacto || prov.name,
+      asignaciones: f.asignaciones.map((a) =>
+        a.app === "portal-proveedor" && a.appRol === "subcontratista"
+          ? { ...a, proveedorName: prov.name }
+          : a
+      ),
+    }));
+  };
+
   const addAsignacion = () => {
     // Solo ofrece apps que esta cuenta administra (editableApps) - no tiene
     // sentido dejarla asignar una app que no puede editar.
@@ -815,6 +936,15 @@ export default function WhitelistAdminPage() {
             {/* Columna izquierda: identidad de la persona */}
             <div className="space-y-4">
               <SectionLabel>Datos del usuario</SectionLabel>
+
+              {/* Solo para quien puede asignar el Portal: es el unico caso en
+                  que el usuario se corresponde con un proveedor. Ademas coincide
+                  con quien tiene permiso de leer ese tablero del lado del
+                  servidor (verificarAccesoLectura), asi que a nadie mas le
+                  fallaria la carga de la lista. */}
+              {editableApps.includes("portal-proveedor") && (
+                <ProveedorPicker onElegir={aplicarProveedor} />
+              )}
 
               <div className="space-y-1.5">
                 <Label>Email</Label>
