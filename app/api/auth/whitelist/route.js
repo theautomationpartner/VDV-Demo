@@ -1,4 +1,5 @@
 import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
+import { OC_APP } from "@/lib/oc-roles";
 import {
   listarUsuariosAutorizados,
   obtenerUsuarioAutorizado,
@@ -28,6 +29,21 @@ function appAccessMap(sesion) {
     if (a.appRol === "super_admin") access[a.app] = "editor";
     else if (a.appRol === "admin" && access[a.app] !== "editor") access[a.app] = "viewer";
   }
+
+  // El OC Tracker no tiene roles de administracion propios: los suyos son
+  // funcionales (Consulta / Comprador / Aprobador, ver lib/oc-roles.js). Sin
+  // esto nadie podria dar de alta a alguien para el OC Tracker, porque el
+  // permiso salia justamente del super_admin que esa app dejo de tener.
+  //
+  // Es la unica grieta en el "cada app es un compartimento": quien administra
+  // usuarios en Vale Express o en el Portal administra tambien los del OC
+  // Tracker. En VDV son las mismas dos personas para las tres.
+  const nivelesDeOtrasApps = Object.entries(access)
+    .filter(([app]) => app !== OC_APP)
+    .map(([, nivel]) => nivel);
+  if (nivelesDeOtrasApps.includes("editor")) access[OC_APP] = "editor";
+  else if (nivelesDeOtrasApps.includes("viewer") && !access[OC_APP]) access[OC_APP] = "viewer";
+
   return access;
 }
 

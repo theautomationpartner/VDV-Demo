@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, AlertTriangle } from "lucide-react";
 import { useSesionOc } from "@/hooks/generador-oc/useSesionOc";
+import { etiquetaRolOc, puedeEmitirOc } from "@/lib/oc-roles";
 import { useBorradores } from "@/hooks/generador-oc/useBorradores";
 import { limpiarBorradorAutomatico } from "@/lib/generador-oc/borradores";
 import OcHistorial from "@/components/generador-oc/OcHistorial";
@@ -111,6 +112,24 @@ function GeneradorOc() {
           <p className="text-sm text-muted-foreground">
             Tu cuenta no tiene acceso a esta aplicación. Pedile a un administrador que te la asigne
             desde Usuarios y Roles.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
+  // El rol Consulta ve las cinco pantallas del Tracker pero no emite. El menú
+  // ya no le ofrece estas dos, y esto cubre el caso de escribir la dirección a
+  // mano; el servidor lo verifica igual (requireEmisionOc).
+  if (!puedeEmitirOc(usuario.rol)) {
+    return (
+      <div className="container mx-auto max-w-2xl px-4 py-16">
+        <Card className="p-8 text-center">
+          <h1 className="mb-2 text-xl font-bold">Generador de Órdenes de Compra</h1>
+          <p className="text-sm text-muted-foreground">
+            Tu rol en el OC Tracker es <strong>{etiquetaRolOc(usuario.rol)}</strong>: podés ver los
+            tableros, pero no crear ni modificar órdenes. Para emitir hace falta el rol Comprador o
+            Aprobador.
           </p>
         </Card>
       </div>

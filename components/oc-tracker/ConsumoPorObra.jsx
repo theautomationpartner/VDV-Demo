@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { OrdenesDeCompraMaxxaBoard } from "@/lib/board-sdk";
 import { useColumnOptions } from "@/hooks/useColumnOptions";
+import { useSesionOc } from "@/hooks/generador-oc/useSesionOc";
+import { puedeEmitirOc } from "@/lib/oc-roles";
 
 const ordenesBoard = new OrdenesDeCompraMaxxaBoard();
 
@@ -234,6 +236,11 @@ export function ConsumoPorObra({ consumoPorObra, onUpdateStatus }) {
   // Estados vivos del board de OC: si el cliente agrega uno en monday, aparece
   // aca sin tocar el codigo.
   const { options: estados } = useColumnOptions(ordenesBoard, "estadoDocumento", ESTADOS_FALLBACK);
+  // El desplegable de estado es lo UNICO editable en las cinco pantallas del
+  // Tracker. El rol Consulta lo ve como una etiqueta; el servidor lo verifica
+  // igual (requireEmisionOc en lib/server/board-access-policy.js).
+  const { usuario } = useSesionOc();
+  const puedeCambiarEstado = puedeEmitirOc(usuario?.rol);
   const [expandedObra, setExpandedObra] = useState(null);
   const [selectedOC, setSelectedOC] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
@@ -403,6 +410,16 @@ export function ConsumoPorObra({ consumoPorObra, onUpdateStatus }) {
                               <ConsumptionBar percentage={oc.porcentajeConsumido} />
                             </TableCell>
                             <TableCell>
+                              {!puedeCambiarEstado ? (
+                                <span
+                                  className={cn(
+                                    "inline-flex h-8 min-w-[130px] items-center rounded-[var(--radius-sm)] border px-3 text-sm font-medium",
+                                    statusStyles[oc.estadoDocumento] || "bg-muted text-muted-foreground border-border"
+                                  )}
+                                >
+                                  {ESTADO_LABELS[oc.estadoDocumento] ?? oc.estadoDocumento ?? "Sin estado"}
+                                </span>
+                              ) : (
                               <Select value={oc.estadoDocumento || ""} onValueChange={(val) => handleStatusChange(oc.id, val)} disabled={updatingId === oc.id}>
                                 <SelectTrigger
                                   className={cn(
@@ -422,6 +439,7 @@ export function ConsumoPorObra({ consumoPorObra, onUpdateStatus }) {
                                   ))}
                                 </SelectContent>
                               </Select>
+                              )}
                             </TableCell>
                           </TableRow>
                           {selectedOC === oc.id && (

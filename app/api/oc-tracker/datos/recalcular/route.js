@@ -1,5 +1,6 @@
 import { verificarAcceso, AccesoError } from "@/lib/server/auth-guard";
 import { esLlamadaDeCron } from "@/lib/server/cron-guard";
+import { verificarAccesoLectura, BoardAccessError } from "@/lib/server/board-access-policy";
 import { leerDatosOc, recalcularDatosOc } from "@/lib/server/oc-tracker-snapshot";
 
 const DEMO_MODE = process.env.DEMO_MODE === "true";
@@ -29,9 +30,12 @@ async function manejar(request) {
     if (DEMO_MODE) return Response.json({ ok: true, omitido: "demo" });
     if (!AUTH_LAYERS_ENABLED) return Response.json({ error: "No autorizado" }, { status: 401 });
     try {
-      verificarAcceso(request);
+      const sesion = verificarAcceso(request);
+      // Mismo permiso que para leerlos: forzar el recalculo le pega a monday.
+      verificarAccesoLectura(sesion, "OrdenesDeCompraMaxxaBoard");
     } catch (err) {
       if (err instanceof AccesoError) return Response.json({ error: "No autorizado" }, { status: 401 });
+      if (err instanceof BoardAccessError) return Response.json({ error: err.message }, { status: 403 });
       throw err;
     }
 

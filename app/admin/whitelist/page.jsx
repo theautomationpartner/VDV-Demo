@@ -27,11 +27,16 @@ import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Pac
 import { cn } from "@/lib/utils";
 import { useObrasVales } from "@/hooks/useObras";
 import { OrdenesDeCompraMaxxaBoard, ProveedoresBoard, fetchAllItems } from "@/lib/board-sdk";
+import { OC_APP, OC_ROLES, etiquetaRolOc } from "@/lib/oc-roles";
 
 const APP_LABELS = {
   "vale-express": "Vale Express",
   "portal-proveedor": "Portal Proveedor",
-  "generador-oc": "Generador de OC",
+  // La app se llama "OC Tracker" desde que dejo de ser solo el Generador: la
+  // misma asignacion habilita ahora las cinco pantallas del Tracker Y las dos
+  // de emision. La clave sigue siendo "generador-oc" para no migrar las
+  // asignaciones de produccion (ver lib/oc-roles.js).
+  "generador-oc": "OC Tracker",
 };
 const APP_ICONS = {
   "vale-express": Package,
@@ -68,15 +73,10 @@ const APP_ROLES = {
     { value: "admin", label: "Administrador" },
     { value: "subcontratista", label: "Subcontratista" },
   ],
-  // En el Generador de OC los tres roles hacen exactamente lo mismo: emitir
-  // ordenes. Quien puede APROBAR una orden no se decide aca sino orden por
-  // orden (el aprobador designado, o el Gerente General), igual que en la Vibe.
-  // Los roles existen solo para administrar la app desde esta pantalla.
-  "generador-oc": [
-    { value: "super_admin", label: "Super Admin" },
-    { value: "admin", label: "Administrador" },
-    { value: "comprador", label: "Comprador" },
-  ],
+  // Consulta / Comprador / Aprobador. Ver lib/oc-roles.js: hasta el 03-sep-2026
+  // esta app tenia los mismos super_admin/admin que las otras dos y los tres
+  // roles hacian exactamente lo mismo.
+  [OC_APP]: OC_ROLES,
 };
 
 // Lista unica de todos los appRol posibles (deduplicados por value - "Super
@@ -117,10 +117,46 @@ const ROLE_COLORS = {
     badge: "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400",
     text: "text-rose-600 dark:text-rose-400",
   },
+  // Los tres del OC Tracker. Aprobador comparte el verde con Super Admin a
+  // proposito: es el que puede todo dentro de su app.
+  aprobador: {
+    badge: "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400",
+    text: "text-emerald-600 dark:text-emerald-400",
+  },
+  comprador: {
+    badge: "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400",
+    text: "text-amber-600 dark:text-amber-400",
+  },
+  consulta: {
+    badge: "bg-slate-500/10 border-slate-500/30 text-slate-600 dark:text-slate-400",
+    text: "text-slate-600 dark:text-slate-400",
+  },
 };
 const DEFAULT_ROLE_COLOR = { badge: "bg-muted border-border text-muted-foreground", text: "text-muted-foreground" };
 function roleColor(value) {
   return ROLE_COLORS[value] ?? DEFAULT_ROLE_COLOR;
+}
+
+/**
+ * Como se muestra un appRol. Para el OC Tracker pasa por etiquetaRolOc, que
+ * traduce los roles viejos (super_admin/admin) al que hoy les corresponde -si
+ * no, esas cuentas mostraban el valor crudo en la ficha y el desplegable de rol
+ * aparecia vacio al editarlas.
+ */
+function etiquetaRol(app, appRol) {
+  if (app === OC_APP) return etiquetaRolOc(appRol);
+  return APP_ROLES[app]?.find((r) => r.value === appRol)?.label ?? appRol;
+}
+
+/**
+ * Las opciones de rol de una asignacion. Si esta cargada con un rol que ya no
+ * se ofrece, se agrega adelante para que el desplegable no aparezca vacio y
+ * para que guardar sin tocarlo no cambie nada sin querer.
+ */
+function opcionesDeRol(app, appRol) {
+  const opciones = APP_ROLES[app] ?? [];
+  if (!appRol || opciones.some((r) => r.value === appRol)) return opciones;
+  return [{ value: appRol, label: `${etiquetaRol(app, appRol)} (rol anterior)` }, ...opciones];
 }
 
 function initialsFor(text) {
@@ -590,7 +626,7 @@ function UsuarioCard({ u, onEdit, onDelete, onToggleEstado, togglingId, mostrarA
               {AppIcon && <AppIcon className="w-3 h-3" />}
               {APP_LABELS[a.app] ?? a.app}
               <span className="opacity-50">·</span>
-              {APP_ROLES[a.app]?.find((r) => r.value === a.appRol)?.label ?? a.appRol}
+              {etiquetaRol(a.app, a.appRol)}
             </span>
           );
         })}
@@ -828,7 +864,7 @@ export default function WhitelistAdminPage() {
         appConfig:
           a.app === "vale-express"
             ? { obras: a.obras.split(",").map((s) => s.trim()).filter(Boolean), restrictObras: a.restrictObras }
-            : a.app === "generador-oc"
+            : a.app === OC_APP
               ? { mondayUserId: a.mondayUserId ? Number(a.mondayUserId) : null }
               : { proveedorName: a.proveedorName.trim() || null, rolContrato: a.rolContrato || null },
       }));
@@ -1142,7 +1178,7 @@ export default function WhitelistAdminPage() {
                       <Select value={a.appRol} onValueChange={(v) => updateAsignacion(index, { appRol: v })}>
                         <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {APP_ROLES[a.app].map((r) => (
+                          {opcionesDeRol(a.app, a.appRol).map((r) => (
                             <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                           ))}
                         </SelectContent>
@@ -1173,7 +1209,7 @@ export default function WhitelistAdminPage() {
                       </div>
                     )}
 
-                    {a.app === "generador-oc" && (
+                    {a.app === OC_APP && (
                       <UsuarioMondayPicker
                         value={a.mondayUserId}
                         onChange={(id) => updateAsignacion(index, { mondayUserId: id })}
