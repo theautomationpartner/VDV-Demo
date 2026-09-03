@@ -794,10 +794,13 @@ export default function WhitelistAdminPage() {
       // Al editar, el email es la llave del usuario y no se puede cambiar.
       email: f.id ? f.email : mail || f.email,
       nombre: contacto || prov.name,
+      // Se completa en CUALQUIER asignacion al Portal, no solo si ya esta en
+      // subcontratista: lo normal es elegir el proveedor primero y el rol
+      // despues, y si se exigiera el rol de antemano el campo de abajo quedaba
+      // vacio justo en ese orden. Para los demas roles el dato es inerte -
+      // filtroPortalDeSesion solo lo mira cuando el rol es subcontratista.
       asignaciones: f.asignaciones.map((a) =>
-        a.app === "portal-proveedor" && a.appRol === "subcontratista"
-          ? { ...a, proveedorName: prov.name }
-          : a
+        a.app === "portal-proveedor" ? { ...a, proveedorName: prov.name } : a
       ),
     }));
   };
