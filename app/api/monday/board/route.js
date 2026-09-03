@@ -3,6 +3,7 @@ import { mondayFetch, getBoardIdOrThrow } from "@/lib/server/monday-client";
 import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
 import {
   verificarAccesoMutacion,
+  verificarAccesoLectura,
   filtrarPorObrasPermitidas,
   accesoBoardErrorToResponse,
   BoardAccessError,
@@ -748,6 +749,18 @@ export async function POST(request) {
     const schema = getBoardSchema(boardKey);
 
     if (op === "items") {
+      // Antes que nada: hay tableros que directamente no se pueden leer segun
+      // quien pide (los del Portal, para un subcontratista). Va antes de
+      // handleItems para no traer de monday algo que no se va a entregar.
+      if (AUTH_LAYERS_ENABLED) {
+        try {
+          verificarAccesoLectura(sesion, boardKey);
+        } catch (err) {
+          if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
+          throw err;
+        }
+      }
+
       const resultado = await handleItems(boardKey, schema, params);
       // La restriccion por obra se aplica ACA y no en la pantalla: antes el
       // navegador se bajaba la pagina completa y escondia lo ajeno, asi que los
