@@ -175,13 +175,16 @@ function obrasSummary(asignaciones) {
  * Los tres campos que completa quedan EDITABLES a proposito: de los 315
  * proveedores del tablero, 49 no tienen correo cargado y 96 no tienen contacto.
  * Si el selector fuera la unica via, esos no se podrian dar de alta.
+ *
+ * `elegido` lo maneja el formulario, no este componente: si el que da el alta
+ * corrige el email o el nombre a mano, lo que se ve deja de corresponderse con
+ * el proveedor y la seleccion se limpia.
  */
-function ProveedorPicker({ onElegir }) {
+function ProveedorPicker({ elegido, onElegir }) {
   const [proveedores, setProveedores] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(false);
   const [open, setOpen] = useState(false);
-  const [elegido, setElegido] = useState(null);
 
   useEffect(() => {
     let activo = true;
@@ -236,7 +239,6 @@ function ProveedorPicker({ onElegir }) {
                     key={p.id}
                     value={`${p.name} ${p.contacto ?? ""} ${p.mail ?? ""}`}
                     onSelect={() => {
-                      setElegido(p);
                       onElegir(p);
                       setOpen(false);
                     }}
@@ -589,6 +591,10 @@ export default function WhitelistAdminPage() {
   const [usuarios, setUsuarios] = useState([]);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  // El proveedor elegido en el buscador. No se guarda con el usuario: solo sirve
+  // para mostrar de donde salieron el email y el nombre mientras se completa el
+  // alta, y se limpia apenas alguno de los dos se edita a mano.
+  const [proveedorElegido, setProveedorElegido] = useState(null);
   const [form, setForm] = useState({ id: null, email: "", nombre: "", asignaciones: [] });
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
@@ -643,6 +649,7 @@ export default function WhitelistAdminPage() {
   }, [usuarios]);
 
   const openNew = () => {
+    setProveedorElegido(null);
     setForm({
       id: null,
       email: "",
@@ -672,6 +679,7 @@ export default function WhitelistAdminPage() {
         mondayUserId: a.appConfig?.mondayUserId ? String(a.appConfig.mondayUserId) : "",
       }));
     const tieneAppsOcultas = (u.asignaciones ?? []).length > asignaciones.length;
+    setProveedorElegido(null);
     setForm({
       id: u.id,
       email: u.email,
@@ -701,6 +709,7 @@ export default function WhitelistAdminPage() {
   const aplicarProveedor = (prov) => {
     const contacto = (prov.contacto ?? "").trim();
     const mail = (prov.mail ?? "").trim();
+    setProveedorElegido(prov);
     setForm((f) => ({
       ...f,
       // Al editar, el email es la llave del usuario y no se puede cambiar.
@@ -937,21 +946,26 @@ export default function WhitelistAdminPage() {
             <div className="space-y-4">
               <SectionLabel>Datos del usuario</SectionLabel>
 
-              {/* Solo para quien puede asignar el Portal: es el unico caso en
-                  que el usuario se corresponde con un proveedor. Ademas coincide
-                  con quien tiene permiso de leer ese tablero del lado del
-                  servidor (verificarAccesoLectura), asi que a nadie mas le
-                  fallaria la carga de la lista. */}
-              {editableApps.includes("portal-proveedor") && (
-                <ProveedorPicker onElegir={aplicarProveedor} />
-              )}
+              {/* Aparece solo cuando se esta asignando el Portal, que es el
+                  unico caso en que el usuario se corresponde con un proveedor
+                  (fue el pedido explicito del cliente). La condicion de
+                  editableApps ademas garantiza que la lista se pueda cargar: es
+                  el mismo permiso que exige el servidor para leer ese tablero
+                  (verificarAccesoLectura). */}
+              {editableApps.includes("portal-proveedor") &&
+                form.asignaciones.some((a) => a.app === "portal-proveedor") && (
+                  <ProveedorPicker elegido={proveedorElegido} onElegir={aplicarProveedor} />
+                )}
 
               <div className="space-y-1.5">
                 <Label>Email</Label>
                 <Input
                   type="email"
                   value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, email: e.target.value });
+                    setProveedorElegido(null);
+                  }}
                   disabled={Boolean(form.id)}
                   placeholder="nombre@vdv.cl"
                 />
@@ -962,7 +976,10 @@ export default function WhitelistAdminPage() {
                 <Label>Nombre</Label>
                 <Input
                   value={form.nombre}
-                  onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, nombre: e.target.value });
+                    setProveedorElegido(null);
+                  }}
                   placeholder="Nombre y apellido"
                   disabled={Boolean(form.id) && !form.puedeAdministrarCompleto}
                 />
