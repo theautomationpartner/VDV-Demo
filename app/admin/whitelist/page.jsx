@@ -167,10 +167,24 @@ function initialsFor(text) {
   return words.map((w) => w[0]?.toUpperCase()).join("") || "?";
 }
 
+/**
+ * Con que rol arranca una asignacion recien agregada.
+ *
+ * Para las dos apps viejas es el primero de la lista, que es Super Admin - se
+ * deja como estaba. Para el OC Tracker NO: su lista arranca por Aprobador
+ * (estan ordenados de mas a menos permisos, como en las otras dos), y dejar eso
+ * como valor inicial significa que quien carga usuarios crea aprobadores sin
+ * querer, que es justo lo que el cliente pidio evitar. Arranca en Comprador.
+ */
+function rolInicial(app) {
+  if (app === OC_APP) return "comprador";
+  return APP_ROLES[app][0].value;
+}
+
 function nuevaAsignacion(app) {
   return {
     app,
-    appRol: APP_ROLES[app][0].value,
+    appRol: rolInicial(app),
     obras: "",
     restrictObras: false,
     proveedorName: "",
@@ -1164,7 +1178,7 @@ export default function WhitelistAdminPage() {
                     <div className="grid gap-2 sm:grid-cols-2">
                       <Select
                         value={a.app}
-                        onValueChange={(v) => updateAsignacion(index, { app: v, appRol: APP_ROLES[v][0].value })}
+                        onValueChange={(v) => updateAsignacion(index, { app: v, appRol: rolInicial(v) })}
                       >
                         <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                         <SelectContent>
