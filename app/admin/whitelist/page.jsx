@@ -25,9 +25,10 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Package, Handshake, UserX, MapPin, ChevronDown, FileSignature } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useObrasVales } from "@/hooks/useObras";
+import { useObrasVales, useObrasContratos } from "@/hooks/useObras";
 import { OrdenesDeCompraMaxxaBoard, ProveedoresBoard, fetchAllItems } from "@/lib/board-sdk";
 import { OC_APP, OC_ROLES, etiquetaRolOc, normalizarRolOc } from "@/lib/oc-roles";
+import { PASOS_VB, esSuperAprobador, pasoPorClave, pasosAsignados } from "@/lib/contratos-vb";
 
 const APP_LABELS = {
   "vale-express": "Vale Express",
@@ -43,22 +44,6 @@ const APP_ICONS = {
   "portal-proveedor": Handshake,
   "generador-oc": FileSignature,
 };
-
-// Paso del circuito de contratos que esta persona puede aprobar. Va aparte del
-// appRol porque son dos ejes distintos: el appRol dice que ve en el Portal, y
-// esto dice cual de los cinco VB puede dar. Se decidio guardarlo aca y no leer
-// las columnas de personas del tablero FLUJO CONTRATACION porque ese tablero no
-// alcanza: OT y ADMINISTRADOR estan cargadas en 76 de 79 contratos, APR en 29,
-// y para ABOGADO y REP LEGAL no existe columna. Ademas asi un cambio de
-// responsable se hace en un usuario y no en 79 items.
-export const ROLES_CONTRATO = [
-  { value: "", label: "Ninguno (no aprueba contratos)" },
-  { value: "ot", label: "VB Obra / Terreno" },
-  { value: "apr", label: "VP Aprobación" },
-  { value: "administrador", label: "VB Administrador" },
-  { value: "abogado", label: "VB Abogado" },
-  { value: "rep_legal", label: "VB Rep. Legal" },
-];
 
 const APP_ROLES = {
   "vale-express": [
@@ -193,7 +178,10 @@ function nuevaAsignacion(app) {
     obras: "",
     restrictObras: false,
     proveedorName: "",
-    rolContrato: "",
+    // Los pasos del circuito de contratos, y en que obras cada uno. Ver
+    // lib/contratos-vb.js: reemplaza al `rolContrato` de un solo paso.
+    pasosContrato: [],
+    superAprobador: false,
     mondayUserId: "",
   };
 }
@@ -201,6 +189,23 @@ function nuevaAsignacion(app) {
 // Resumen de obras permitidas para la asignacion de Vale Express de un
 // usuario (Portal Proveedor no tiene ese concepto) - null si ni siquiera
 // tiene asignacion a Vale Express, "Todas" si no esta restringido.
+/**
+ * Cuantos vistos buenos de contratos da esta persona, para la ficha de la
+ * lista. Antes era un solo paso y no se mostraba en ningun lado; ahora puede
+ * ser mas de uno, asi que sin esto no hay forma de saberlo sin abrir a cada
+ * persona.
+ */
+function vbSummary(asignaciones) {
+  const portal = (asignaciones ?? []).find((a) => a.app === "portal-proveedor");
+  if (!portal) return null;
+  if (esSuperAprobador(portal.appConfig)) return "Super aprobador";
+
+  const pasos = pasosAsignados(portal.appConfig);
+  if (pasos.length === 0) return null;
+  if (pasos.length === 1) return pasoPorClave(pasos[0].paso)?.label ?? "1 VB";
+  return `${pasos.length} vistos buenos`;
+}
+
 function obrasSummary(asignaciones) {
   const ve = (asignaciones ?? []).find((a) => a.app === "vale-express");
   if (!ve) return null;
@@ -474,11 +479,21 @@ function SectionLabel({ children }) {
  * usa el resto de Vale Express) y se va armando como chips removibles. El switch "Todas" es
  * la misma semantica que ya tenia el campo vacio (restrictObras=false).
  */
-function ObrasPicker({ value, onChange }) {
+function ObrasPicker({
+  value,
+  onChange,
+  obras,
+  etiqueta = "Obras permitidas",
+  textoTodas = "Tiene acceso a todas las obras (sin restricción).",
+}) {
   const selected = useMemo(() => value.split(",").map((s) => s.trim()).filter(Boolean), [value]);
   const [modoRestringido, setModoRestringido] = useState(selected.length > 0);
   const [open, setOpen] = useState(false);
-  const { options: todasLasObras } = useObrasVales();
+  // Las obras del tablero de VALES son el caso original; el circuito de
+  // contratos pasa las suyas, que son una columna distinta y pueden no
+  // coincidir.
+  const { options: obrasDeVales } = useObrasVales();
+  const todasLasObras = obras ?? obrasDeVales;
 
   const disponibles = todasLasObras.filter((o) => !selected.includes(o));
 
@@ -501,7 +516,7 @@ function ObrasPicker({ value, onChange }) {
   return (
     <div className="space-y-2 rounded-md border border-border/60 bg-background/40 p-2.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-foreground">Obras permitidas</span>
+        <span className="text-xs font-medium text-foreground">{etiqueta}</span>
         <label className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
           <Switch size="sm" checked={!modoRestringido} onCheckedChange={handleModoChange} />
           Todas
@@ -551,7 +566,92 @@ function ObrasPicker({ value, onChange }) {
           </Popover>
         </>
       ) : (
-        <p className="text-[11px] text-muted-foreground">Tiene acceso a todas las obras (sin restricción).</p>
+        <p className="text-[11px] text-muted-foreground">{textoTodas}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Que pasos del circuito de contratos da esta persona, y en que obras.
+ *
+ * Reemplaza al desplegable viejo, que dejaba elegir UNO solo y para todas las
+ * obras. No alcanzaba para dos casos que el cliente describio: en las obras
+ * chicas una misma persona da Obra/Terreno y Administrador, y el Gerente
+ * General da los cinco.
+ *
+ * Cada paso marcado abre su propio selector de obras porque las listas no
+ * coinciden entre pasos: en el tablero hay una cuenta que es OT en cuatro obras
+ * y Administrador en solo tres de esas cuatro.
+ */
+function PasosContratoPicker({ pasos, superAprobador, onChange }) {
+  const { options: obrasDeContratos } = useObrasContratos();
+
+  const marcado = (clave) => pasos.find((p) => p.paso === clave) ?? null;
+
+  const alternar = (clave, activo) => {
+    if (activo) onChange([...pasos, { paso: clave, obras: [] }], superAprobador);
+    else onChange(pasos.filter((p) => p.paso !== clave), superAprobador);
+  };
+
+  const cambiarObras = (clave, texto) => {
+    const obras = texto.split(",").map((o) => o.trim()).filter(Boolean);
+    onChange(pasos.map((p) => (p.paso === clave ? { ...p, obras } : p)), superAprobador);
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-[11px] text-muted-foreground">Aprueba en contratos</Label>
+
+      <label className="flex items-start gap-2 rounded-md border border-border/60 bg-background/40 p-2.5">
+        <Switch
+          size="sm"
+          className="mt-0.5"
+          checked={superAprobador}
+          onCheckedChange={(v) => onChange(pasos, v === true)}
+        />
+        <span className="min-w-0">
+          <span className="block text-xs font-medium text-foreground">Super aprobador</span>
+          <span className="block text-[11px] text-muted-foreground">
+            Da los cinco vistos buenos en todas las obras, y puede saltear el orden.
+          </span>
+        </span>
+      </label>
+
+      {superAprobador ? (
+        <p className="text-[11px] text-muted-foreground">
+          Con super aprobador activado no hace falta elegir pasos: los tiene todos.
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {PASOS_VB.map((paso) => {
+            const elegido = marcado(paso.paso);
+            return (
+              <div key={paso.paso} className="rounded-md border border-border/60 bg-background/40 p-2.5">
+                <label className="flex items-center gap-2">
+                  <Switch
+                    size="sm"
+                    checked={Boolean(elegido)}
+                    onCheckedChange={(v) => alternar(paso.paso, v === true)}
+                  />
+                  <span className="text-xs font-medium text-foreground">{paso.label}</span>
+                </label>
+
+                {elegido && (
+                  <div className="mt-2">
+                    <ObrasPicker
+                      value={elegido.obras.join(", ")}
+                      onChange={(texto) => cambiarObras(paso.paso, texto)}
+                      obras={obrasDeContratos}
+                      etiqueta="¿En qué obras?"
+                      textoTodas="Da este visto bueno en todas las obras."
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -564,6 +664,7 @@ function ObrasPicker({ value, onChange }) {
 function UsuarioCard({ u, onEdit, onDelete, onToggleEstado, togglingId, mostrarAcciones }) {
   const isRevocado = u.estado !== "activo";
   const resumenObras = obrasSummary(u.asignaciones);
+  const resumenVb = vbSummary(u.asignaciones);
 
   return (
     <div
@@ -649,6 +750,12 @@ function UsuarioCard({ u, onEdit, onDelete, onToggleEstado, togglingId, mostrarA
             </span>
           );
         })}
+        {resumenVb && (
+          <span className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] text-muted-foreground">
+            <FileSignature className="w-3 h-3" />
+            {resumenVb}
+          </span>
+        )}
         {resumenObras &&
           (resumenObras.esTodas ? (
             <span className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] text-muted-foreground">
@@ -814,7 +921,11 @@ export default function WhitelistAdminPage() {
         obras: (a.appConfig?.obras ?? []).join(", "),
         restrictObras: a.appConfig?.restrictObras === true,
         proveedorName: a.appConfig?.proveedorName ?? "",
-        rolContrato: a.appConfig?.rolContrato ?? "",
+        // pasosAsignados() traduce el `rolContrato` viejo -un paso, todas las
+        // obras- al formato nuevo, asi no hay que migrar nada en la base: al
+        // guardar queda escrito en la forma nueva.
+        pasosContrato: pasosAsignados(a.appConfig),
+        superAprobador: a.appConfig?.superAprobador === true,
         mondayUserId: a.appConfig?.mondayUserId ? String(a.appConfig.mondayUserId) : "",
       }));
     const tieneAppsOcultas = (u.asignaciones ?? []).length > asignaciones.length;
@@ -890,7 +1001,11 @@ export default function WhitelistAdminPage() {
             ? { obras: a.obras.split(",").map((s) => s.trim()).filter(Boolean), restrictObras: a.restrictObras }
             : a.app === OC_APP
               ? { mondayUserId: a.mondayUserId ? Number(a.mondayUserId) : null }
-              : { proveedorName: a.proveedorName.trim() || null, rolContrato: a.rolContrato || null },
+              : {
+                  proveedorName: a.proveedorName.trim() || null,
+                  pasosContrato: a.pasosContrato ?? [],
+                  superAprobador: a.superAprobador === true,
+                },
       }));
 
       const payload = { email: form.email.trim(), asignaciones };
@@ -1217,20 +1332,13 @@ export default function WhitelistAdminPage() {
                     )}
 
                     {a.app === "portal-proveedor" && a.appRol !== "subcontratista" && (
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">Aprueba en contratos</Label>
-                        <Select
-                          value={a.rolContrato || "__ninguno__"}
-                          onValueChange={(v) => updateAsignacion(index, { rolContrato: v === "__ninguno__" ? "" : v })}
-                        >
-                          <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {ROLES_CONTRATO.map((r) => (
-                              <SelectItem key={r.value || "__ninguno__"} value={r.value || "__ninguno__"}>{r.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      <PasosContratoPicker
+                        pasos={a.pasosContrato}
+                        superAprobador={a.superAprobador}
+                        onChange={(pasosContrato, superAprobador) =>
+                          updateAsignacion(index, { pasosContrato, superAprobador })
+                        }
+                      />
                     )}
 
                     {a.app === OC_APP && (

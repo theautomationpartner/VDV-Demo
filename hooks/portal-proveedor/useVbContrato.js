@@ -2,60 +2,17 @@
 
 import { useCallback, useState } from 'react';
 import { FlujoContratacionSubcontratoBoard } from '@/lib/board-sdk';
+import { APROBADO, CON_OBS } from '@/lib/contratos-vb';
 
 const board = new FlujoContratacionSubcontratoBoard();
 
 /**
- * Los cinco vistos buenos del circuito de contratos, EN ORDEN.
- *
- * El orden importa y no es una suposicion: se verifico contra los 79 contratos
- * del tablero y ninguno tiene un VB dado antes que el anterior. Por eso la
- * pantalla solo habilita tu paso si los anteriores ya estan en VB - asi nadie
- * aprueba de mas por error al ver los cinco juntos.
- *
- * `rol` es el valor que se guarda en la asignacion del usuario (ROLES_CONTRATO
- * en app/admin/whitelist/page.jsx); `campo` es la clave del schema.
- */
-export const PASOS_VB = [
-  { rol: 'ot', campo: 'vbOt', label: 'VB Obra / Terreno' },
-  { rol: 'apr', campo: 'vpApr', label: 'VP Aprobación' },
-  { rol: 'administrador', campo: 'vbAdministrador', label: 'VB Administrador' },
-  { rol: 'abogado', campo: 'vbAbogado', label: 'VB Abogado' },
-  { rol: 'rep_legal', campo: 'vbRepLegal', label: 'VB Rep. Legal' },
-];
-
-const APROBADO = 'VB';
-const CON_OBS = 'CON OBS';
-
-/** El paso que le toca a este usuario, o null si no aprueba contratos. */
-export function pasoDelUsuario(userContext) {
-  const rol = userContext?.rolContrato;
-  if (!rol) return null;
-  return PASOS_VB.find((p) => p.rol === rol) ?? null;
-}
-
-/**
- * Un paso se puede tocar si es el del usuario, todavia no esta aprobado, y
- * todos los anteriores ya estan en VB.
- */
-export function puedeAprobar(contrato, paso) {
-  if (!paso || !contrato) return false;
-  if ((contrato[paso.campo] || '').toUpperCase() === APROBADO) return false;
-  const idx = PASOS_VB.findIndex((p) => p.rol === paso.rol);
-  return PASOS_VB.slice(0, idx).every((p) => (contrato[p.campo] || '').toUpperCase() === APROBADO);
-}
-
-/** Por que NO se puede aprobar todavia - para explicarlo en pantalla. */
-export function motivoBloqueo(contrato, paso) {
-  if (!paso) return null;
-  if ((contrato[paso.campo] || '').toUpperCase() === APROBADO) return 'Ya diste tu visto bueno.';
-  const idx = PASOS_VB.findIndex((p) => p.rol === paso.rol);
-  const pendiente = PASOS_VB.slice(0, idx).find((p) => (contrato[p.campo] || '').toUpperCase() !== APROBADO);
-  return pendiente ? `Falta el paso anterior: ${pendiente.label}.` : null;
-}
-
-/**
  * Escribe el visto bueno (o la observacion) en monday.
+ *
+ * Las REGLAS del circuito -quien da que paso, en que obras, y en que orden- ya
+ * no viven aca: estan en lib/contratos-vb.js, compartidas con el servidor. Si
+ * la pantalla y el guardia dejaran de usar las mismas, se separan y vuelve a
+ * poder aprobarse fuera de turno por la API.
  *
  * "Con observaciones" exige un motivo, y ese texto se publica como update del
  * item: queda donde el equipo lo va a buscar, sin agregar columnas al tablero

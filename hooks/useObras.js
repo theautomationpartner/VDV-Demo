@@ -1,6 +1,11 @@
 "use client";
 
-import { ValesBoard, IngresosBoard, PagosVdvBoard } from "@/lib/board-sdk";
+import {
+  ValesBoard,
+  IngresosBoard,
+  PagosVdvBoard,
+  FlujoContratacionSubcontratoBoard,
+} from "@/lib/board-sdk";
 import { ALL_OBRAS } from "@/hooks/vale-express/useUserRole";
 import { useColumnOptions } from "@/hooks/useColumnOptions";
 
@@ -19,6 +24,7 @@ import { useColumnOptions } from "@/hooks/useColumnOptions";
  */
 
 const valesBoard = new ValesBoard();
+const contratosBoard = new FlujoContratacionSubcontratoBoard();
 const ingresosBoard = new IngresosBoard();
 const pagosBoard = new PagosVdvBoard();
 
@@ -35,4 +41,19 @@ export function useObrasIngresos(fallback = ALL_OBRAS) {
 /** Obras de la columna OBRA del board PAGOS VDV (Portal Proveedor). */
 export function useObrasPagos(fallback = ALL_OBRAS) {
   return useColumnOptions(pagosBoard, "obra", fallback);
+}
+
+/**
+ * Obras de la columna OBRA del board FLUJO CONTRATACION SUBCONTRATO.
+ *
+ * Es la lista que hace falta para decir en que obras da cada visto bueno una
+ * persona (ver lib/contratos-vb.js). Va aparte de las otras a proposito: hoy en
+ * ese tablero se usan 8 obras y en VALES 32, asi que ofrecer las de VALES seria
+ * hacer elegir entre obras que ningun contrato tiene.
+ *
+ * Sin fallback: si monday no responde, mejor una lista vacia -y que se note-
+ * que ofrecer obras que en contratos no existen.
+ */
+export function useObrasContratos() {
+  return useColumnOptions(contratosBoard, "obra", []);
 }

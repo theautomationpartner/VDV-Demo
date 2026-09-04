@@ -13,12 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import {
-  pasoDelUsuario,
-  puedeAprobar,
-  motivoBloqueo,
-  useVbContrato,
-} from "@/hooks/portal-proveedor/useVbContrato";
+import { useVbContrato } from "@/hooks/portal-proveedor/useVbContrato";
+import { pasosEnContrato, pasoHabilitado, motivoBloqueo } from "@/lib/contratos-vb";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import ProcessTimeline from "@/components/portal-proveedor/ProcessTimeline";
@@ -128,18 +124,38 @@ function ContratoFirmado({ contract }) {
   );
 }
 
-// Panel de aprobacion: aparece SOLO si a esta persona le toca un paso del
-// circuito (rolContrato en su asignacion). Un subcontratista nunca lo ve.
+// Panel de aprobacion: aparece SOLO si a esta persona le toca algun paso del
+// circuito EN ESTE CONTRATO. Un subcontratista nunca lo ve.
+//
+// Puede ser mas de uno: en las obras chicas la misma persona da Obra/Terreno y
+// Administrador, y el super aprobador da los cinco. Por eso se dibuja una
+// tarjeta por paso en vez de una sola.
 function PanelVb({ contract, userContext, onListo }) {
+  const pasos = pasosEnContrato(userContext, contract.obra);
+  if (pasos.length === 0) return null;
+
+  return (
+    <div className="mt-4 space-y-2">
+      {pasos.map((paso) => (
+        <TarjetaVb
+          key={paso.paso}
+          contract={contract}
+          userContext={userContext}
+          paso={paso}
+          onListo={onListo}
+        />
+      ))}
+    </div>
+  );
+}
+
+function TarjetaVb({ contract, userContext, paso, onListo }) {
   const [obsAbierta, setObsAbierta] = useState(false);
   const [comentario, setComentario] = useState("");
   const { registrar, guardando } = useVbContrato();
 
-  const paso = pasoDelUsuario(userContext);
-  if (!paso) return null;
-
-  const habilitado = puedeAprobar(contract, paso);
-  const motivo = motivoBloqueo(contract, paso);
+  const habilitado = pasoHabilitado(contract, paso, userContext);
+  const motivo = motivoBloqueo(contract, paso, userContext);
   const ocupado = guardando === contract.id + paso.campo;
 
   const enviar = async (aprueba) => {
@@ -167,7 +183,7 @@ function PanelVb({ contract, userContext, onListo }) {
   };
 
   return (
-    <div className="mt-4 rounded-md border border-border bg-muted/30 p-3">
+    <div className="rounded-md border border-border bg-muted/30 p-3">
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
         Te toca: {paso.label}
       </p>
