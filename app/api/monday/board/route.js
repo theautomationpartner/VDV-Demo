@@ -811,9 +811,21 @@ export async function POST(request) {
       return Response.json({ result: await handleItemNote(params) });
     }
 
-    if (op === "item") return Response.json({ result: await handleItemById(boardKey, schema, params) });
-
-    if (op === "subitems") return Response.json({ result: await handleSubitems(params) });
+    // "item" y "subitems" son lecturas igual que "items", solo que de a uno:
+    // sin el mismo guardia, cerrar "items" no serviria de nada (se piden los
+    // ids de a uno y listo).
+    if (op === "item" || op === "subitems") {
+      if (AUTH_LAYERS_ENABLED) {
+        try {
+          verificarAccesoLectura(sesion, op === "subitems" ? params.subBoardKey : boardKey);
+        } catch (err) {
+          if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
+          throw err;
+        }
+      }
+      if (op === "item") return Response.json({ result: await handleItemById(boardKey, schema, params) });
+      return Response.json({ result: await handleSubitems(params) });
+    }
 
     if (op === "subitemCreate") {
       if (AUTH_LAYERS_ENABLED) {

@@ -1,5 +1,10 @@
 import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
 import {
+  verificarAccesoLectura,
+  accesoBoardErrorToResponse,
+  BoardAccessError,
+} from "@/lib/server/board-access-policy";
+import {
   calcularDatosOc,
   leerDatosOc,
   recalcularDatosOc,
@@ -16,19 +21,24 @@ export const maxDuration = 300;
  * Las ordenes y facturas que consumen las cinco pantallas de OC Tracker, ya
  * traidas y filtradas (ver lib/server/oc-tracker-snapshot.js).
  *
- * OJO con los permisos: OC Tracker NO existe como app en `asignaciones` - se
- * muestra a cualquier sesion valida, y sus items de menu son `roles: null`
- * (lib/nav-config.js, y el filtro de AppSidebar que la excluye a proposito).
- * Por eso aca se exige sesion y nada mas: pedir una asignacion dejaria la
- * seccion afuera para todo el mundo. Ya hay un antecedente de ese error
- * documentado en lib/server/board-access-policy.js.
+ * Hace falta tener el OC Tracker asignado. Hasta el 03-sep-2026 aca se exigia
+ * sesion y nada mas -a proposito: la seccion se le mostraba a cualquiera- y eso
+ * significaba que un subcontratista del Portal se bajaba las ordenes y las
+ * facturas enteras de VDV con un fetch. Ahora la app se habilita por persona en
+ * Usuarios y Roles, asi que el permiso existe y se puede pedir.
+ *
+ * El rol NO se mira aca: los tres (Consulta, Comprador, Aprobador) ven las
+ * mismas cinco pantallas. Lo que cambia por rol es lo que se puede ESCRIBIR, y
+ * eso lo controla lib/server/board-access-policy.js.
  */
 export async function GET(request) {
   if (!DEMO_MODE && AUTH_LAYERS_ENABLED) {
     try {
-      verificarAcceso(request);
+      const sesion = verificarAcceso(request);
+      verificarAccesoLectura(sesion, "OrdenesDeCompraMaxxaBoard");
     } catch (err) {
       if (err instanceof AccesoError) return accesoErrorToResponse(err);
+      if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
       throw err;
     }
   }

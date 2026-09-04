@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { getOcs, getObrasOc, actualizarEstadoOc } from "@/lib/generador-oc/datos";
 import EstadoOcCell from "./EstadoOcCell";
 import VerDocumentoOc from "./VerDocumentoOc";
+import { puedeAprobarOc, puedeEmitirOc } from "@/lib/oc-roles";
 import AprobarOcDialog from "./AprobarOcDialog";
 import EditarOcDialog from "./EditarOcDialog";
 
@@ -164,13 +165,24 @@ export default function OcHistorial({ currentUser }) {
    * Quien puede gestionar cada orden. La pantalla lo usa para no ofrecer lo que
    * va a fallar; quien puede de verdad lo verifica el servidor contra el
    * tablero (lib/server/board-access-policy.js).
+   *
+   * Son dos ejes que se cruzan: el ROL del OC Tracker dice que puede hacer esta
+   * persona en general, y las columnas RESPONSABLE / APROBADOR dicen que puede
+   * hacer en ESTA orden. El rol Consulta no llega ni al primero.
    */
   const permisos = (item) => {
+    const rol = currentUser?.rol;
     const esGerenteGeneral = currentUser?.cargo?.trim().toLowerCase() === "gerente general";
     const nombre = currentUser?.name;
     const esResponsable = contienePersona(item.responsable, nombre);
-    const esAprobador = esGerenteGeneral || contienePersona(item.aprobador, nombre);
-    const puedeGestionar = Boolean(currentUser?.id) && (esGerenteGeneral || esResponsable || esAprobador);
+    const designadoAprobador = esGerenteGeneral || contienePersona(item.aprobador, nombre);
+    // El Gerente General queda exento del rol, igual que en el servidor: es la
+    // excepcion heredada de la Vibe, y el cliente todavia no definio si sigue.
+    const esAprobador = designadoAprobador && (esGerenteGeneral || puedeAprobarOc(rol));
+    const puedeGestionar =
+      Boolean(currentUser?.id) &&
+      puedeEmitirOc(rol) &&
+      (esGerenteGeneral || esResponsable || designadoAprobador);
     return {
       puedeGestionar,
       esAprobador: Boolean(currentUser?.id) && esAprobador,

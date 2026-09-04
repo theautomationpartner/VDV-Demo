@@ -17,7 +17,8 @@ import { getUsuariosAprobadores } from "@/lib/generador-oc/datos";
  * Quien tiene que aprobar esta orden. Se elige entre los usuarios de monday,
  * porque la columna APROBADOR del tablero guarda un usuario de monday.
  *
- * El emisor queda fuera de la lista: nadie aprueba su propia orden.
+ * La lista trae solo a quienes tienen el rol Aprobador en el OC Tracker, y sin
+ * el emisor: nadie aprueba su propia orden. Ver getUsuariosAprobadores.
  */
 export default function SelectorAprobador({ valor, onChange, emisorId }) {
   const [usuarios, setUsuarios] = useState([]);
@@ -71,7 +72,8 @@ export default function SelectorAprobador({ valor, onChange, emisorId }) {
       <div className="space-y-2">
         <Label>Aprobador *</Label>
         <p className="text-sm text-muted-foreground">
-          No hay otros usuarios activos disponibles para aprobar.
+          No hay nadie mas con el rol Aprobador y usuario de monday cargado. Se asigna en
+          Usuarios y Roles.
         </p>
       </div>
     );

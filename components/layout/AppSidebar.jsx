@@ -80,14 +80,23 @@ function useCurrentUser(pathname, veRole) {
 }
 
 /**
+ * Con que app de `asignaciones` se habilita una seccion. Casi siempre es su
+ * propia clave; OC Tracker lo declara aparte porque en la base sigue guardada
+ * como "generador-oc" (ver lib/oc-roles.js).
+ */
+function appDeSeccion(section) {
+  return section.app ?? section.key;
+}
+
+/**
  * `homeApps` son las apps asignadas a la cuenta (null = todavia no se sabe, o
  * login legado: no se restringe nada).
  *
- * Un item puede declarar `app`: entonces solo se muestra si la cuenta tiene esa
- * app. Lo necesita el Generador de OC, que se muestra dentro de OC Tracker pero
- * sigue siendo una app aparte para los permisos - y como OC Tracker se le
- * muestra a cualquier sesion valida, sin este control el Generador quedaria a
- * la vista de todos.
+ * Un item puede declarar `app` para pedir una app distinta a la de su seccion.
+ * Hoy no lo usa nadie: lo necesitaba el Generador de OC, que vive dentro de OC
+ * Tracker, cuando el Tracker se le mostraba a cualquiera. Ahora los dos son la
+ * misma app y lo que los separa es el ROL (`roles`), asi que el mecanismo queda
+ * por si vuelve a hacer falta.
  */
 function isItemVisible(item, role, homeApps) {
   if (item.app && homeApps !== null && !homeApps.includes(item.app)) return false;
@@ -256,12 +265,16 @@ export function AppSidebar() {
   // por que ver el menu interno ni los nombres de los modulos.
   const publica = esRutaPublica(pathname);
 
-  // OC Tracker no tiene dueño (cualquier cuenta lo puede ver); Vale Express y
-  // Portal Proveedor solo se muestran si estan entre las apps asignadas a la
-  // cuenta global actual (puede ser mas de una), o si todavia no hay ninguna
-  // cuenta global conocida (login legado).
+  // Una seccion se muestra solo si su app esta entre las asignadas a la cuenta
+  // global actual (puede ser mas de una), o si todavia no hay ninguna cuenta
+  // global conocida (login legado).
+  //
+  // OC Tracker era la excepcion: se le mostraba a cualquier sesion valida, sin
+  // pedir asignacion. Dejo de serlo -ahora se habilita por persona como las
+  // otras dos-, pero su app se llama distinto que la seccion (ver
+  // lib/oc-roles.js), asi que la clave sale de `section.app`.
   const visibleSections = NAV_SECTIONS.filter(
-    (section) => section.key === "oc-tracker" || homeApps === null || homeApps.includes(section.key)
+    (section) => homeApps === null || homeApps.includes(appDeSeccion(section))
   );
 
   const activeSection =
@@ -376,7 +389,7 @@ export function AppSidebar() {
               const isExpanded = !collapsed && expandedKey === section.key;
               const SectionIcon = section.icon;
               const submenuId = `submenu-${section.key}`;
-              const visibleItems = section.items.filter((item) => isItemVisible(item, roles[section.key], homeApps));
+              const visibleItems = section.items.filter((item) => isItemVisible(item, roles[appDeSeccion(section)], homeApps));
 
               return (
                 <li key={section.key} className="group/item relative" style={{ "--accent": section.accent }}>
@@ -602,7 +615,7 @@ function MobileNav({
   const [openSectionKey, setOpenSectionKey] = useState(null);
   const openSection = visibleSections.find((section) => section.key === openSectionKey) ?? null;
   const openSectionItems = openSection
-    ? openSection.items.filter((item) => isItemVisible(item, roles[openSection.key], homeApps))
+    ? openSection.items.filter((item) => isItemVisible(item, roles[appDeSeccion(openSection)], homeApps))
     : [];
   const isMoreActive = pathname.startsWith("/admin");
 
@@ -620,7 +633,7 @@ function MobileNav({
         {visibleSections.map((section) => {
           const isSectionActive = activeSection?.key === section.key;
           const SectionIcon = section.icon;
-          const sectionVisibleItems = section.items.filter((item) => isItemVisible(item, roles[section.key], homeApps));
+          const sectionVisibleItems = section.items.filter((item) => isItemVisible(item, roles[appDeSeccion(section)], homeApps));
           const firstVisibleHref = sectionVisibleItems[0]?.href ?? section.basePath;
           const itemStyle = { "--accent": section.accent };
           const itemClassName = cn(
