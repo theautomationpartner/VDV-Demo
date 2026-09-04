@@ -27,7 +27,7 @@ import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Pac
 import { cn } from "@/lib/utils";
 import { useObrasVales, useObrasContratos } from "@/hooks/useObras";
 import { OrdenesDeCompraMaxxaBoard, ProveedoresBoard, fetchAllItems } from "@/lib/board-sdk";
-import { OC_APP, OC_ROLES, etiquetaRolOc, normalizarRolOc } from "@/lib/oc-roles";
+import { OC_APP, OC_ROLES, etiquetaRolOc, normalizarRolOc, puedeEmitirOc } from "@/lib/oc-roles";
 import { PASOS_VB, esSuperAprobador, pasoPorClave, pasosAsignados } from "@/lib/contratos-vb";
 
 const APP_LABELS = {
@@ -1341,7 +1341,12 @@ export default function WhitelistAdminPage() {
                       />
                     )}
 
-                    {a.app === OC_APP && (
+                    {/* Solo para quien emite. El rol Consulta no crea ordenes,
+                        asi que el campo no le aplica - y dejarlo a la vista
+                        invita a vincularle un usuario de monday real, que
+                        despues hace que las ordenes salgan a nombre de otro si
+                        a esa cuenta le cambian el rol. */}
+                    {a.app === OC_APP && puedeEmitirOc(a.appRol) && (
                       <UsuarioMondayPicker
                         value={a.mondayUserId}
                         onChange={(id) => updateAsignacion(index, { mondayUserId: id })}
