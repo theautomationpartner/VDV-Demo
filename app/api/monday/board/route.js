@@ -802,6 +802,9 @@ export async function POST(request) {
             op: "itemUpdate",
             values: params.values ?? {},
             itemId: params.itemId,
+            // Es la nota que acompaña a una escritura que YA se hizo, no una
+            // escritura nueva. Ver requireRolContrato.
+            esNota: true,
           });
         } catch (err) {
           if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
