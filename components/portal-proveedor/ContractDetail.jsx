@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useVbContrato } from "@/hooks/portal-proveedor/useVbContrato";
-import { pasosEnContrato, pasoHabilitado, motivoBloqueo } from "@/lib/contratos-vb";
+import { APROBADO, CON_OBS, pasosEnContrato, pasoHabilitado, motivoBloqueo } from "@/lib/contratos-vb";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import ProcessTimeline from "@/components/portal-proveedor/ProcessTimeline";
@@ -176,7 +176,10 @@ function TarjetaVb({ contract, userContext, paso, onListo }) {
       );
       setObsAbierta(false);
       setComentario("");
-      onListo?.();
+      // Que columna quedo en que valor, para que la pantalla lo pinte al
+      // instante: los datos vienen de una foto que el servidor recalcula cada 5
+      // minutos, asi que recargar sola devuelve el estado viejo.
+      onListo?.({ contratoId: contract.id, campo: paso.campo, valor: aprueba ? APROBADO : CON_OBS });
     } else {
       toast.error(r.error);
     }
