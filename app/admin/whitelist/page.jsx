@@ -27,7 +27,7 @@ import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Pac
 import { cn } from "@/lib/utils";
 import { useObrasVales } from "@/hooks/useObras";
 import { OrdenesDeCompraMaxxaBoard, ProveedoresBoard, fetchAllItems } from "@/lib/board-sdk";
-import { OC_APP, OC_ROLES, etiquetaRolOc } from "@/lib/oc-roles";
+import { OC_APP, OC_ROLES, etiquetaRolOc, normalizarRolOc } from "@/lib/oc-roles";
 
 const APP_LABELS = {
   "vale-express": "Vale Express",
@@ -156,7 +156,12 @@ function etiquetaRol(app, appRol) {
 function opcionesDeRol(app, appRol) {
   const opciones = APP_ROLES[app] ?? [];
   if (!appRol || opciones.some((r) => r.value === appRol)) return opciones;
-  return [{ value: appRol, label: `${etiquetaRol(app, appRol)} (rol anterior)` }, ...opciones];
+
+  // Se muestra con su nombre VIEJO ("Super Admin"), no con el que le
+  // corresponde hoy: si dijera "Aprobador (rol anterior)" arriba de
+  // "Aprobador", parece un cuarto rol en vez del que esta guardado.
+  const nombreViejo = ALL_APP_ROLES.find((r) => r.value === appRol)?.label ?? appRol;
+  return [{ value: appRol, label: `${nombreViejo} (rol anterior)` }, ...opciones];
 }
 
 function initialsFor(text) {
@@ -800,7 +805,12 @@ export default function WhitelistAdminPage() {
       .filter((a) => editableApps.includes(a.app))
       .map((a) => ({
         app: a.app,
-        appRol: a.appRol,
+        // El OC Tracker se normaliza al abrir: una asignacion vieja
+        // (super_admin/admin) llega ya como Aprobador, que es lo que podia
+        // hacer. Asi el desplegable ofrece EXACTAMENTE los tres roles, sin una
+        // cuarta opcion "rol anterior" que parece un rol mas - y guardar a esa
+        // persona, aunque no se toque nada, la deja migrada.
+        appRol: a.app === OC_APP ? normalizarRolOc(a.appRol) : a.appRol,
         obras: (a.appConfig?.obras ?? []).join(", "),
         restrictObras: a.appConfig?.restrictObras === true,
         proveedorName: a.appConfig?.proveedorName ?? "",
