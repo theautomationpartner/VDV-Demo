@@ -31,7 +31,16 @@ export default function ContratosPage() {
     setUserContext(JSON.parse(ctx));
   }, [router]);
 
-  const { items, loading } = useContracts(userContext, recarga);
+  // Lo que se acaba de escribir en monday y todavia no esta en la foto del
+  // servidor. Ver `onCambio` mas abajo.
+  const [parches, setParches] = useState({});
+
+  const { items: itemsDelServidor, loading } = useContracts(userContext, recarga);
+
+  const items = useMemo(
+    () => itemsDelServidor.map((i) => (parches[i.id] ? { ...i, ...parches[i.id] } : i)),
+    [itemsDelServidor, parches],
+  );
 
   const obraCards = useMemo(() => {
     const map = new Map();
@@ -133,10 +142,22 @@ export default function ContratosPage() {
               items={selectedItems}
               obraName={selectedObra}
               userContext={userContext}
-              onCambio={() => {
-                // Despues de un VB el contrato cambio en monday: se limpia el
-                // cache y se recarga, si no la pantalla sigue mostrando el
-                // estado viejo hasta que venza el TTL de 5 minutos.
+              onCambio={(cambio) => {
+                // El VB ya quedo escrito en monday, pero esta pantalla no lee
+                // monday: lee la foto que el servidor recalcula cada 5 minutos.
+                // Recargar sola no alcanza -vuelve la misma foto vieja- y el
+                // contrato seguia mostrando POR REVISAR despues de aprobarlo,
+                // asi que la gente le daba dos veces.
+                //
+                // Se pinta el cambio al instante y ademas se pide de nuevo: en
+                // cuanto la foto se actualiza, el parche coincide con lo que
+                // llega y deja de notarse.
+                if (cambio?.contratoId && cambio?.campo) {
+                  setParches((p) => ({
+                    ...p,
+                    [cambio.contratoId]: { ...p[cambio.contratoId], [cambio.campo]: cambio.valor },
+                  }));
+                }
                 clearSubcontractCache();
                 setRecarga((n) => n + 1);
               }}
