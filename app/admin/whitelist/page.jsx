@@ -156,7 +156,12 @@ function etiquetaRol(app, appRol) {
 function opcionesDeRol(app, appRol) {
   const opciones = APP_ROLES[app] ?? [];
   if (!appRol || opciones.some((r) => r.value === appRol)) return opciones;
-  return [{ value: appRol, label: `${etiquetaRol(app, appRol)} (rol anterior)` }, ...opciones];
+
+  // Se muestra con su nombre VIEJO ("Super Admin"), no con el que le
+  // corresponde hoy: si dijera "Aprobador (rol anterior)" arriba de
+  // "Aprobador", parece un cuarto rol en vez del que esta guardado.
+  const nombreViejo = ALL_APP_ROLES.find((r) => r.value === appRol)?.label ?? appRol;
+  return [{ value: appRol, label: `${nombreViejo} (rol anterior)` }, ...opciones];
 }
 
 function initialsFor(text) {
