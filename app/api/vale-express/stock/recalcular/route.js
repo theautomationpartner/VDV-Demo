@@ -24,13 +24,13 @@ export const maxDuration = 300;
  * Sin ese control quedaria un endpoint publico capaz de hacerle pegar a la API
  * de monday todo lo que alguien quiera.
  */
-function autorizado(request) {
+async function autorizado(request) {
   if (esLlamadaDeCron(request)) return true;
 
   if (DEMO_MODE || !AUTH_LAYERS_ENABLED) return false;
 
   try {
-    const sesion = verificarAcceso(request);
+    const sesion = await verificarAcceso(request);
     const asignacion = sesion?.asignaciones?.find((a) => a.app === "vale-express");
     return ROLES_QUE_PUEDEN_FORZAR.includes(asignacion?.appRol);
   } catch (err) {
@@ -40,7 +40,7 @@ function autorizado(request) {
 }
 
 async function manejar(request) {
-  if (!autorizado(request)) {
+  if (!await autorizado(request)) {
     return Response.json({ error: "No autorizado" }, { status: 401 });
   }
 

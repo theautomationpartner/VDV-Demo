@@ -26,7 +26,7 @@ async function manejar(request) {
     if (DEMO_MODE) return Response.json({ ok: true, omitido: "demo" });
     if (!AUTH_LAYERS_ENABLED) return Response.json({ error: "No autorizado" }, { status: 401 });
     try {
-      verificarAcceso(request);
+      await verificarAcceso(request);
     } catch (err) {
       if (err instanceof AccesoError) return Response.json({ error: "No autorizado" }, { status: 401 });
       throw err;

@@ -45,9 +45,9 @@ function verificarAccesoKey(sesion, key, { write }) {
   }
 }
 
-function guard(request, key, { write }) {
+async function guard(request, key, { write }) {
   if (DEMO_MODE || !AUTH_LAYERS_ENABLED) return; // mismo criterio que /api/monday/* (ver auth-guard.js)
-  const sesion = verificarAcceso(request);
+  const sesion = await verificarAcceso(request);
   verificarAccesoKey(sesion, key, { write });
 }
 
@@ -69,7 +69,7 @@ async function writeAll(data) {
 export async function GET(request, { params }) {
   const { key } = await params;
   try {
-    guard(request, key, { write: false });
+    await guard(request, key, { write: false });
   } catch (err) {
     if (err instanceof AccesoError) return accesoErrorToResponse(err);
     if (err instanceof KeyAccessError) return Response.json({ error: err.message }, { status: err.status });
@@ -83,7 +83,7 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   const { key } = await params;
   try {
-    guard(request, key, { write: true });
+    await guard(request, key, { write: true });
   } catch (err) {
     if (err instanceof AccesoError) return accesoErrorToResponse(err);
     if (err instanceof KeyAccessError) return Response.json({ error: err.message }, { status: err.status });

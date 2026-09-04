@@ -1,4 +1,5 @@
 import { leerSesion } from "@/lib/server/session";
+import { verificarAcceso, AccesoError } from "@/lib/server/auth-guard";
 
 const DEMO_MODE = process.env.DEMO_MODE === "true";
 const AUTH_LAYERS_ENABLED = process.env.AUTH_LAYERS_ENABLED === "true";
@@ -15,8 +16,19 @@ export async function GET(request) {
     return Response.json({ status: "ready", email: null, rol: null });
   }
 
-  const sesion = leerSesion(request);
-  if (!sesion) return Response.json({ status: "logged_out" });
+  if (!leerSesion(request)) return Response.json({ status: "logged_out" });
+
+  // Los roles salen de la base, no de la cookie: es lo que hace que un cambio
+  // en Usuarios y Roles se vea en el menu sin cerrar sesion. Si la cuenta fue
+  // revocada o borrada, verificarAcceso lanza y se responde logged_out, que es
+  // lo que saca a esa persona de la app.
+  let sesion;
+  try {
+    sesion = await verificarAcceso(request);
+  } catch (err) {
+    if (err instanceof AccesoError) return Response.json({ status: "logged_out" });
+    throw err;
+  }
 
   return Response.json({
     status: "ready",

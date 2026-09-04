@@ -30,7 +30,7 @@ async function manejar(request) {
     if (DEMO_MODE) return Response.json({ ok: true, omitido: "demo" });
     if (!AUTH_LAYERS_ENABLED) return Response.json({ error: "No autorizado" }, { status: 401 });
     try {
-      const sesion = verificarAcceso(request);
+      const sesion = await verificarAcceso(request);
       // Mismo permiso que para leerlos: forzar el recalculo le pega a monday.
       verificarAccesoLectura(sesion, "OrdenesDeCompraMaxxaBoard");
     } catch (err) {

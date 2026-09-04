@@ -60,8 +60,8 @@ function puedeAdministrarCompleto(asignaciones, editable) {
   return propias.length > 0 && propias.every((a) => editable.has(a.app));
 }
 
-function requireAlgunAcceso(request) {
-  const sesion = verificarAcceso(request);
+async function requireAlgunAcceso(request) {
+  const sesion = await verificarAcceso(request);
   const access = appAccessMap(sesion);
   if (Object.keys(access).length === 0) {
     return { error: Response.json({ error: "Necesitas rol de administrador en alguna app" }, { status: 403 }) };
@@ -72,7 +72,7 @@ function requireAlgunAcceso(request) {
 export async function GET(request) {
   let access;
   try {
-    const result = requireAlgunAcceso(request);
+    const result = await requireAlgunAcceso(request);
     if (result.error) return result.error;
     access = result.access;
   } catch (err) {
@@ -124,7 +124,7 @@ function subcontratistaSinProveedor(asignaciones = []) {
 export async function POST(request) {
   let access;
   try {
-    const result = requireAlgunAcceso(request);
+    const result = await requireAlgunAcceso(request);
     if (result.error) return result.error;
     access = result.access;
   } catch (err) {
@@ -152,7 +152,7 @@ export async function POST(request) {
 export async function PATCH(request) {
   let access;
   try {
-    const result = requireAlgunAcceso(request);
+    const result = await requireAlgunAcceso(request);
     if (result.error) return result.error;
     access = result.access;
   } catch (err) {
@@ -206,7 +206,7 @@ export async function PATCH(request) {
 export async function DELETE(request) {
   let access;
   try {
-    const result = requireAlgunAcceso(request);
+    const result = await requireAlgunAcceso(request);
     if (result.error) return result.error;
     access = result.access;
   } catch (err) {
