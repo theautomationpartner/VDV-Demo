@@ -35,7 +35,7 @@ export async function GET(request) {
   }
 
   try {
-    const sesion = verificarAcceso(request);
+    const sesion = await verificarAcceso(request);
     verificarAccesoLectura(sesion, "OrdenesDeCompraMaxxaBoard");
   } catch (err) {
     if (err instanceof AccesoError) return accesoErrorToResponse(err);

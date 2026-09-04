@@ -24,7 +24,7 @@ let cache = null;
 export async function GET(request) {
   if (!DEMO_MODE && AUTH_LAYERS_ENABLED) {
     try {
-      verificarAcceso(request);
+      await verificarAcceso(request);
     } catch (err) {
       if (err instanceof AccesoError) return accesoErrorToResponse(err);
       throw err;

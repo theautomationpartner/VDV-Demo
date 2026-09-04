@@ -38,7 +38,7 @@ export async function GET(request) {
   let sesion = null;
   if (!DEMO_MODE && AUTH_LAYERS_ENABLED) {
     try {
-      sesion = verificarAcceso(request);
+      sesion = await verificarAcceso(request);
     } catch (err) {
       if (err instanceof AccesoError) return accesoErrorToResponse(err);
       throw err;

@@ -34,7 +34,7 @@ export const maxDuration = 300;
 export async function GET(request) {
   if (!DEMO_MODE && AUTH_LAYERS_ENABLED) {
     try {
-      const sesion = verificarAcceso(request);
+      const sesion = await verificarAcceso(request);
       verificarAccesoLectura(sesion, "OrdenesDeCompraMaxxaBoard");
     } catch (err) {
       if (err instanceof AccesoError) return accesoErrorToResponse(err);

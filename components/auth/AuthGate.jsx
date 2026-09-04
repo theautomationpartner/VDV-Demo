@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,20 +28,45 @@ export function AuthGate({ children }) {
   // cuenta en la app. Ver lib/rutas-publicas.js.
   const publica = esRutaPublica(pathname);
 
+  // Se vuelve a preguntar en CADA navegacion, no solo al abrir la app.
+  //
+  // El menu y las pantallas deciden que mostrar con lo que hay en localStorage,
+  // que se escribe una vez al entrar. Como la sesion dura 12 horas (30 dias con
+  // "recordarme"), cambiarle el rol a alguien no se veia hasta que cerrara
+  // sesion: el servidor ya le rechazaba las acciones, pero el menu se las
+  // seguia ofreciendo. Ahora /api/auth/status lee los roles de la base, y esto
+  // los refresca al primer clic.
+  //
+  // Solo la PRIMERA vez muestra la pantalla de carga; despues se refresca
+  // callado, para no parpadear en cada navegacion.
+  const yaResolvio = useRef(false);
+
   useEffect(() => {
     if (publica) return;
+    let vigente = true;
+
     fetch("/api/auth/status")
       .then((res) => res.json())
       .then((json) => {
+        if (!vigente) return;
         // Sesion global ya activa (cookie valida de un login anterior, o recarga
         // de pagina) - autocompleta ve_session/pp_session igual que en un login
         // recien hecho, pero SIN redirigir (no hay que sacar a nadie de donde
         // ya esta navegando solo por refrescar la pagina).
         if (json.status === "ready" && json.email) seedAppSessionFromEmail(json.email, json);
+        yaResolvio.current = true;
         setState(json.status === "ready" ? { phase: "ready" } : { phase: "login" });
       })
-      .catch(() => setState({ phase: "error" }));
-  }, [publica]);
+      .catch(() => {
+        // Una consulta de refresco que falla no tiene que tirar abajo una
+        // pantalla que ya estaba andando: solo la primera decide.
+        if (vigente && !yaResolvio.current) setState({ phase: "error" });
+      });
+
+    return () => {
+      vigente = false;
+    };
+  }, [publica, pathname]);
 
   // Login recien completado (email + 2FA, o sin 2FA si MFA_REQUIRED=false): el
   // servidor ya resolvio a que app pertenece esta cuenta y que rol tiene ahi
