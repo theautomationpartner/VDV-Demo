@@ -27,7 +27,7 @@ import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Pac
 import { cn } from "@/lib/utils";
 import { useObrasVales } from "@/hooks/useObras";
 import { OrdenesDeCompraMaxxaBoard, ProveedoresBoard, fetchAllItems } from "@/lib/board-sdk";
-import { OC_APP, OC_ROLES, etiquetaRolOc } from "@/lib/oc-roles";
+import { OC_APP, OC_ROLES, etiquetaRolOc, normalizarRolOc } from "@/lib/oc-roles";
 
 const APP_LABELS = {
   "vale-express": "Vale Express",
@@ -805,7 +805,12 @@ export default function WhitelistAdminPage() {
       .filter((a) => editableApps.includes(a.app))
       .map((a) => ({
         app: a.app,
-        appRol: a.appRol,
+        // El OC Tracker se normaliza al abrir: una asignacion vieja
+        // (super_admin/admin) llega ya como Aprobador, que es lo que podia
+        // hacer. Asi el desplegable ofrece EXACTAMENTE los tres roles, sin una
+        // cuarta opcion "rol anterior" que parece un rol mas - y guardar a esa
+        // persona, aunque no se toque nada, la deja migrada.
+        appRol: a.app === OC_APP ? normalizarRolOc(a.appRol) : a.appRol,
         obras: (a.appConfig?.obras ?? []).join(", "),
         restrictObras: a.appConfig?.restrictObras === true,
         proveedorName: a.appConfig?.proveedorName ?? "",
