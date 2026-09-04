@@ -106,6 +106,21 @@ export async function GET(request) {
   return Response.json({ result, access });
 }
 
+/**
+ * Un subcontratista SIN proveedor es una cuenta rota: filtroPortalDeSesion no
+ * sabe que mostrarle y le tira un error apenas entra. No hay caso legitimo, asi
+ * que no se deja guardar - antes se podia, y el problema recien aparecia cuando
+ * la persona intentaba usar el Portal.
+ */
+function subcontratistaSinProveedor(asignaciones = []) {
+  return asignaciones.some(
+    (a) =>
+      a.app === "portal-proveedor" &&
+      a.appRol === "subcontratista" &&
+      !String(a.appConfig?.proveedorName ?? "").trim(),
+  );
+}
+
 export async function POST(request) {
   let access;
   try {
@@ -126,6 +141,9 @@ export async function POST(request) {
   const appFueraDeAlcance = asignaciones.find((a) => !editables.has(a.app));
   if (appFueraDeAlcance) {
     return Response.json({ error: `No administrás ${appFueraDeAlcance.app}` }, { status: 403 });
+  }
+  if (subcontratistaSinProveedor(asignaciones)) {
+    return Response.json({ error: "Elegí el proveedor del subcontratista" }, { status: 400 });
   }
 
   return Response.json({ result: await agregarUsuarioAutorizado({ email, nombre, asignaciones }) });
@@ -172,6 +190,9 @@ export async function PATCH(request) {
     const appFueraDeAlcance = asignaciones.find((a) => !editables.has(a.app));
     if (appFueraDeAlcance) {
       return Response.json({ error: `No administrás ${appFueraDeAlcance.app}` }, { status: 403 });
+    }
+    if (subcontratistaSinProveedor(asignaciones)) {
+      return Response.json({ error: "Elegí el proveedor del subcontratista" }, { status: 400 });
     }
     const ajenas = (actual.asignaciones ?? []).filter((a) => !editables.has(a.app));
     cambios.asignaciones = [...ajenas, ...asignaciones];
