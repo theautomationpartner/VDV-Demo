@@ -989,8 +989,18 @@ export default function WhitelistAdminPage() {
     setForm((f) => ({ ...f, asignaciones: f.asignaciones.filter((_, i) => i !== index) }));
   };
 
+  // Un subcontratista sin proveedor entra pero no ve nada, y el error recien
+  // aparece cuando la persona intenta usar el Portal. Se avisa al guardar.
+  const faltaProveedor = form.asignaciones.some(
+    (a) => a.app === "portal-proveedor" && a.appRol === "subcontratista" && !a.proveedorName.trim(),
+  );
+
   const handleSave = async () => {
     if (!form.email.trim() || form.asignaciones.length === 0) return;
+    if (faltaProveedor) {
+      toast.error("Elegí el proveedor del subcontratista: sin eso la cuenta entra pero no ve nada.");
+      return;
+    }
     setSaving(true);
     try {
       const asignaciones = form.asignaciones.map((a) => ({
@@ -1365,8 +1375,12 @@ export default function WhitelistAdminPage() {
                       // editar un usuario viejo no hay que perderlo de vista.
                       <ProveedorPicker
                         valorTexto={a.proveedorName}
-                        etiqueta="Nombre del proveedor"
-                        ayuda="Sale del tablero de proveedores de monday."
+                        etiqueta="Nombre del proveedor *"
+                        ayuda={
+                          a.proveedorName.trim()
+                            ? "Sale del tablero de proveedores de monday."
+                            : "Obligatorio: es lo que decide qué datos ve esta cuenta."
+                        }
                         compacto
                         onElegir={(p) => updateAsignacion(index, { proveedorName: p.name })}
                       />
@@ -1379,7 +1393,7 @@ export default function WhitelistAdminPage() {
 
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Cancelar</DialogClose>
-            <Button onClick={handleSave} disabled={saving || !form.email.trim()}>
+            <Button onClick={handleSave} disabled={saving || !form.email.trim() || faltaProveedor}>
               {saving ? "Guardando..." : "Guardar"}
             </Button>
           </DialogFooter>
