@@ -2,7 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Clock, FileStack, Inbox } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  FileStack,
+  Inbox,
+  MessageSquareWarning,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePendientes } from "@/hooks/usePendientes";
@@ -62,6 +71,12 @@ function Fila({ item }) {
         {item.monto ? (
           <p className="text-xs tabular-nums text-muted-foreground">{fmt(item.monto)}</p>
         ) : null}
+        {item.observado ? (
+          <p className="flex items-start gap-1.5 text-xs text-yellow-400">
+            <MessageSquareWarning className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span>Lo devolviste con observaciones.</span>
+          </p>
+        ) : null}
         {item.motivo ? (
           <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -97,7 +112,11 @@ export default function MisPendientesPage() {
   const { items, cargando, activo } = usePendientes();
   const [verEsperando, setVerEsperando] = useState(false);
 
-  const ahora = items.filter((i) => i.habilitado);
+  // Tres estados distintos, y mezclarlos era el problema: lo que hay que hacer,
+  // lo que ya devolviste con observaciones (espera al proveedor) y lo que
+  // todavia no te toca porque falta el paso anterior.
+  const ahora = items.filter((i) => i.habilitado && !i.observado);
+  const observados = items.filter((i) => i.habilitado && i.observado);
   const esperando = items.filter((i) => !i.habilitado);
 
   return (
@@ -125,7 +144,7 @@ export default function MisPendientesPage() {
             Usuarios y Roles.
           </p>
         </Card>
-      ) : ahora.length === 0 && esperando.length === 0 ? (
+      ) : items.length === 0 ? (
         <Card className="border-border p-8">
           <div className="flex flex-col items-center gap-2 text-center">
             <CheckCircle2 className="h-6 w-6 text-green-400" aria-hidden />
@@ -141,7 +160,7 @@ export default function MisPendientesPage() {
                 <CheckCircle2 className="h-6 w-6 text-green-400" aria-hidden />
                 <p className="text-sm font-medium text-foreground">Nada para firmar ahora</p>
                 <p className="text-sm text-muted-foreground">
-                  Hay contratos que te tocan más adelante en el circuito.
+                  Hay contratos tuyos más abajo, pero ninguno depende de vos hoy.
                 </p>
               </div>
             </Card>
@@ -153,6 +172,21 @@ export default function MisPendientesPage() {
                 Para hacer ahora
               </h2>
               {ahora.map((item) => (
+                <Fila key={item.clave} item={item} />
+              ))}
+            </section>
+          )}
+
+          {observados.length > 0 && (
+            <section className="space-y-2">
+              <h2 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Devueltos con observaciones
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Ya los revisaste: esperan que el proveedor conteste. Cuando lo resuelva, dale el
+                visto bueno desde acá.
+              </p>
+              {observados.map((item) => (
                 <Fila key={item.clave} item={item} />
               ))}
             </section>
