@@ -7,6 +7,7 @@ import { ArrowLeft, FileText, CheckCircle2, Clock, AlertTriangle, ChevronRight }
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useContracts, clearSubcontractCache } from '@/hooks/portal-proveedor/useSubcontractData';
+import { aplicarVbRecientes } from '@/lib/client/vb-recientes';
 import ContractDetail from '@/components/portal-proveedor/ContractDetail';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -44,8 +45,17 @@ function Contratos() {
 
   const { items: itemsDelServidor, loading } = useContracts(userContext, recarga);
 
+  // Dos capas de parche, y hacen falta las dos:
+  //
+  //   aplicarVbRecientes -> los VB dados en los ultimos 10 minutos, guardados en
+  //     el navegador. Sobreviven a la navegacion, que es lo que `parches` no
+  //     hace: al ir a Mis Pendientes y volver, este contrato mostraba otra vez
+  //     POR REVISAR aunque monday ya lo tuviera en VB, y se podia aprobar dos
+  //     veces. Verificado contra monday, no deducido.
+  //   parches -> lo que se acaba de escribir en ESTA pantalla, que es todavia
+  //     mas fresco (no depende de releer localStorage) y por eso va ultimo.
   const items = useMemo(
-    () => itemsDelServidor.map((i) => (parches[i.id] ? { ...i, ...parches[i.id] } : i)),
+    () => aplicarVbRecientes(itemsDelServidor).map((i) => (parches[i.id] ? { ...i, ...parches[i.id] } : i)),
     [itemsDelServidor, parches],
   );
 
