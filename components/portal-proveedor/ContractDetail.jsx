@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useVbContrato } from "@/hooks/portal-proveedor/useVbContrato";
+import BotonArchivo from "./BotonArchivo";
 import { APROBADO, CON_OBS, pasosEnContrato, pasoHabilitado, motivoBloqueo } from "@/lib/contratos-vb";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -53,36 +54,6 @@ const getStatusBadge = (status) => {
   };
 };
 
-// Los archivos se piden a nuestro endpoint, no a monday directo: la URL que
-// monday devuelve exige sesion de monday, y un proveedor no la tiene - hacia
-// clic y terminaba en la pantalla de login. Ver app/api/monday/archivo.
-const urlArchivo = (itemId, columna) =>
-  `/api/monday/archivo?boardKey=FlujoContratacionSubcontratoBoard&itemId=${itemId}&columna=${columna}`;
-
-/**
- * Un solo boton: descargar.
- *
- * Se probo mostrar el archivo en el navegador (Content-Disposition inline) y
- * funciona, pero solo para PDF de menos de 4 MB: el documento a firmar es
- * .docx en 68 de 69 contratos y 3 de los 68 contratos firmados pasan ese
- * tamano. Un boton que a veces muestra y a veces baja confunde mas de lo que
- * ayuda, asi que por ahora se ofrece solo la descarga, que es consistente.
- */
-function BotonArchivo({ itemId, columna, etiqueta, destacado }) {
-  const estilo = destacado
-    ? "border-green-600/30 bg-green-600/10 text-green-400 hover:bg-green-600/20"
-    : "border-border bg-card text-foreground hover:bg-muted";
-  return (
-    <a
-      href={urlArchivo(itemId, columna)}
-      className={`mt-2 inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${estilo}`}
-    >
-      <Download className="h-4 w-4" />
-      {etiqueta}
-    </a>
-  );
-}
-
 // La firma en si ocurre en una herramienta externa y tiene que seguir ahi: un
 // clic en nuestra app no es una firma electronica. Lo que si podemos es acercar
 // al proveedor a ese momento - dejarle ver el documento que va a firmar y
@@ -99,6 +70,7 @@ function PendienteDeFirma({ contract }) {
       </p>
 
       <BotonArchivo
+        boardKey="FlujoContratacionSubcontratoBoard"
         itemId={contract.id}
         columna="contratoParaFirma"
         etiqueta="Descargar el documento a firmar"
@@ -115,6 +87,7 @@ function ContratoFirmado({ contract }) {
   return (
     <div className="mt-4">
       <BotonArchivo
+        boardKey="FlujoContratacionSubcontratoBoard"
         itemId={contract.id}
         columna="contratoFirmado"
         etiqueta="Descargar contrato firmado"

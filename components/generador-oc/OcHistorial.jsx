@@ -172,17 +172,18 @@ export default function OcHistorial({ currentUser }) {
    */
   const permisos = (item) => {
     const rol = currentUser?.rol;
-    const esGerenteGeneral = currentUser?.cargo?.trim().toLowerCase() === "gerente general";
+    // Aprueba cualquier orden, no solo las suyas. Antes esto se leia del cargo
+    // en el perfil de monday; ahora es una casilla en Usuarios y Roles, y
+    // ademas exige el rol Aprobador (ver lib/oc-roles.js).
+    const apruebaTodo = currentUser?.apruebaTodo === true && puedeAprobarOc(rol);
     const nombre = currentUser?.name;
     const esResponsable = contienePersona(item.responsable, nombre);
-    const designadoAprobador = esGerenteGeneral || contienePersona(item.aprobador, nombre);
-    // El Gerente General queda exento del rol, igual que en el servidor: es la
-    // excepcion heredada de la Vibe, y el cliente todavia no definio si sigue.
-    const esAprobador = designadoAprobador && (esGerenteGeneral || puedeAprobarOc(rol));
+    const designadoAprobador = contienePersona(item.aprobador, nombre);
+    const esAprobador = puedeAprobarOc(rol) && (apruebaTodo || designadoAprobador);
     const puedeGestionar =
       Boolean(currentUser?.id) &&
       puedeEmitirOc(rol) &&
-      (esGerenteGeneral || esResponsable || designadoAprobador);
+      (apruebaTodo || esResponsable || designadoAprobador);
     return {
       puedeGestionar,
       esAprobador: Boolean(currentUser?.id) && esAprobador,

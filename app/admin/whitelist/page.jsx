@@ -27,7 +27,14 @@ import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Pac
 import { cn } from "@/lib/utils";
 import { useObrasVales, useObrasContratos } from "@/hooks/useObras";
 import { OrdenesDeCompraMaxxaBoard, ProveedoresBoard, fetchAllItems } from "@/lib/board-sdk";
-import { OC_APP, OC_ROLES, etiquetaRolOc, normalizarRolOc, puedeEmitirOc } from "@/lib/oc-roles";
+import {
+  OC_APP,
+  OC_ROLES,
+  etiquetaRolOc,
+  normalizarRolOc,
+  puedeAprobarOc,
+  puedeEmitirOc,
+} from "@/lib/oc-roles";
 import { PASOS_VB, esSuperAprobador, pasoPorClave, pasosAsignados } from "@/lib/contratos-vb";
 
 const APP_LABELS = {
@@ -183,6 +190,7 @@ function nuevaAsignacion(app) {
     pasosContrato: [],
     superAprobador: false,
     mondayUserId: "",
+    apruebaCualquierOrden: false,
   };
 }
 
@@ -927,6 +935,7 @@ export default function WhitelistAdminPage() {
         pasosContrato: pasosAsignados(a.appConfig),
         superAprobador: a.appConfig?.superAprobador === true,
         mondayUserId: a.appConfig?.mondayUserId ? String(a.appConfig.mondayUserId) : "",
+        apruebaCualquierOrden: a.appConfig?.apruebaCualquierOrden === true,
       }));
     const tieneAppsOcultas = (u.asignaciones ?? []).length > asignaciones.length;
     setProveedorElegido(null);
@@ -1010,7 +1019,10 @@ export default function WhitelistAdminPage() {
           a.app === "vale-express"
             ? { obras: a.obras.split(",").map((s) => s.trim()).filter(Boolean), restrictObras: a.restrictObras }
             : a.app === OC_APP
-              ? { mondayUserId: a.mondayUserId ? Number(a.mondayUserId) : null }
+              ? {
+                  mondayUserId: a.mondayUserId ? Number(a.mondayUserId) : null,
+                  apruebaCualquierOrden: a.apruebaCualquierOrden === true,
+                }
               : {
                   proveedorName: a.proveedorName.trim() || null,
                   pasosContrato: a.pasosContrato ?? [],
@@ -1361,6 +1373,31 @@ export default function WhitelistAdminPage() {
                         value={a.mondayUserId}
                         onChange={(id) => updateAsignacion(index, { mondayUserId: id })}
                       />
+                    )}
+
+                    {/* Solo tiene sentido encima de Aprobador: es un poder de
+                        mas, no un rol aparte. Reemplaza a la regla vieja que le
+                        daba esto a quien tuviera el cargo "Gerente General" en
+                        monday (ver lib/oc-roles.js). */}
+                    {a.app === OC_APP && puedeAprobarOc(a.appRol) && (
+                      <label className="flex items-start gap-2 rounded-md border border-border/60 bg-background/40 p-2.5">
+                        <Switch
+                          size="sm"
+                          className="mt-0.5"
+                          checked={a.apruebaCualquierOrden}
+                          onCheckedChange={(v) =>
+                            updateAsignacion(index, { apruebaCualquierOrden: v === true })
+                          }
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-xs font-medium text-foreground">
+                            Puede aprobar cualquier orden
+                          </span>
+                          <span className="block text-[11px] text-muted-foreground">
+                            Aprueba aunque no figure como aprobador designado de esa orden.
+                          </span>
+                        </span>
+                      </label>
                     )}
 
                     {a.app === "portal-proveedor" && a.appRol === "subcontratista" && (

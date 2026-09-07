@@ -4,6 +4,10 @@ import { useState, useMemo } from 'react';
 import { ShoppingCart, FileText, Calendar, DollarSign, Building2, Hash, AlertCircle, ChevronDown, ChevronUp, TrendingUp, User, FileStack } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import BotonArchivo from "./BotonArchivo";
+
+/** El documento solo se le entrega al proveedor cuando la orden esta aprobada. */
+const esAprobada = (oc) => (oc?.estadoDocumento ?? "").trim().toUpperCase() === "APROBADO";
 
 const fmt = (v) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v || 0);
 
@@ -156,8 +160,30 @@ export default function OCDetail({ items, obraName, facturacionMap, factLoading 
                       value={oc.responsable}
                     />
                   )}
-                  {oc.docOc && (
-                    <DetailRow icon={<FileStack className="w-3.5 h-3.5" />} label="Documento OC" value={oc.docOc} />
+                  {/* El documento se ofrece SOLO si la orden esta aprobada.
+                      Antes se mostraba la URL de monday como texto: el
+                      proveedor la copiaba, monday le pedia un login que no
+                      tiene, y se quedaba sin poder abrir su propia orden.
+                      El limite de "solo aprobadas" es del requerimiento: el rol
+                      Aprobador controla la aprobacion Y el envio formal. El
+                      servidor lo verifica igual (verificarAccesoArchivo). */}
+                  {oc.docOc && esAprobada(oc) && (
+                    <div className="col-span-full">
+                      <BotonArchivo
+                        boardKey="OrdenesDeCompraMaxxaBoard"
+                        itemId={oc.id}
+                        columna="docOc"
+                        etiqueta="Descargar orden de compra"
+                        destacado
+                      />
+                    </div>
+                  )}
+                  {oc.docOc && !esAprobada(oc) && (
+                    <DetailRow
+                      icon={<FileStack className="w-3.5 h-3.5" />}
+                      label="Documento OC"
+                      value="Disponible cuando la orden esté aprobada"
+                    />
                   )}
                   {oc.comentarios && (
                     <DetailRow icon={<AlertCircle className="w-3.5 h-3.5" />} label="Comentarios" value={oc.comentarios} />
