@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut, UserCog, MoreHorizontal } from "lucide-react";
+import { ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut, UserCog, MoreHorizontal, Inbox } from "lucide-react";
 import { NAV_SECTIONS } from "@/lib/nav-config";
 import { esRutaPublica } from "@/lib/rutas-publicas";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ import { useUserRole, ROLES } from "@/hooks/vale-express/useUserRole";
 import { getGlobalEmail, getGlobalApps } from "@/lib/client/fixed-accounts";
 import { limpiarCachePersistente } from "@/lib/client/cache-persistente";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { usePendientes } from "@/hooks/usePendientes";
 
 const COLLAPSE_KEY = "sidebar_collapsed";
 
@@ -22,6 +23,24 @@ const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visibl
 // Portal Proveedor tiene su propio vocabulario de roles (no pasa por
 // hooks/vale-express/useUserRole.js), asi que no comparte el mapa ROLES de
 // arriba - se etiqueta aca mismo.
+const RUTA_PENDIENTES = "/mis-pendientes";
+
+/**
+ * "Mis Pendientes" no es una app: va ARRIBA de las tres, porque cruza a dos de
+ * ellas (los vistos buenos de contratos viven en Portal Proveedores y las
+ * ordenes por aprobar en OC Tracker) y porque el pedido del cliente es
+ * justamente que nadie se entera de lo que tiene que aprobar. Si fuera una
+ * pantalla mas adentro de una app, seria un lugar mas al que hay que acordarse
+ * de entrar.
+ *
+ * Solo aparece si esta persona puede deber algo: un subcontratista o alguien
+ * sin pasos asignados no la ve, asi no se le convierte en una pantalla vacia.
+ * Lo decide usePendientes -> puedeDeberContratos.
+ */
+function contarPendientes(pendientes) {
+  return pendientes.items.filter((i) => i.habilitado).length;
+}
+
 const PP_ROLE_LABELS = {
   super_admin: "Super Admin",
   admin: "Administrador",
@@ -257,6 +276,9 @@ export function AppSidebar() {
   const search = useSearchParams().toString();
   const roles = useSidebarRoles(pathname);
   const homeApps = useHomeApps(pathname);
+  // Una sola llamada para las dos vistas (rail y bottom nav): comparte el
+  // mismo traido del Portal que ya usan sus pantallas, cacheado 5 minutos.
+  const pendientes = usePendientes();
   const isWhitelistAdmin = canSeeWhitelist(roles);
   const { collapsed, toggleCollapsed, expand } = useSidebarCollapse();
   const currentUser = useCurrentUser(pathname, roles["vale-express"]);
@@ -372,6 +394,50 @@ export function AppSidebar() {
             {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
           </button>
         </div>
+
+        {pendientes.activo && (
+          <nav aria-label="Mis pendientes" className="group/pend relative px-2 pb-2">
+            <Link
+              href={RUTA_PENDIENTES}
+              aria-current={pathname === RUTA_PENDIENTES ? "page" : undefined}
+              className={cn(
+                "relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium transition-colors",
+                FOCUS_RING,
+                collapsed && "justify-center px-0",
+                pathname === RUTA_PENDIENTES
+                  ? "bg-[var(--sidebar-primary)] text-[var(--sidebar-primary-foreground)]"
+                  : "text-[color-mix(in_hsl,var(--sidebar-foreground)_85%,transparent)] hover:bg-[color-mix(in_hsl,var(--sidebar-foreground)_8%,transparent)] hover:text-[var(--sidebar-foreground)]"
+              )}
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_hsl,var(--sidebar-foreground)_12%,transparent)]">
+                <Inbox className="size-4" />
+              </span>
+              <span className={cn("flex-1 truncate text-left transition-opacity duration-200", collapsed && "hidden")}>
+                Mis Pendientes
+              </span>
+              {contarPendientes(pendientes) > 0 && (
+                <span
+                  className={cn(
+                    "rounded-full bg-red-500 text-center text-[10px] font-semibold tabular-nums text-white",
+                    collapsed
+                      ? "absolute right-1 top-1 min-w-4 px-1 leading-4"
+                      : "min-w-5 px-1.5 py-0.5"
+                  )}
+                >
+                  {contarPendientes(pendientes)}
+                </span>
+              )}
+            </Link>
+            {collapsed && (
+              <span
+                role="tooltip"
+                className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md border border-[var(--sidebar-border)] bg-[var(--sidebar)] px-2.5 py-1.5 text-xs font-medium text-[var(--sidebar-foreground)] opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/pend:translate-x-0 group-hover/pend:opacity-100 group-focus-within/pend:translate-x-0 group-focus-within/pend:opacity-100"
+              >
+                Mis Pendientes
+              </span>
+            )}
+          </nav>
+        )}
 
         <div
           className={cn(
@@ -576,6 +642,7 @@ export function AppSidebar() {
         search={search}
         visibleSections={visibleSections}
         activeSection={activeSection}
+        pendientes={pendientes}
         roles={roles}
         homeApps={homeApps}
         isWhitelistAdmin={isWhitelistAdmin}
@@ -604,6 +671,7 @@ function MobileNav({
   search,
   visibleSections,
   activeSection,
+  pendientes,
   roles,
   homeApps,
   isWhitelistAdmin,
@@ -630,6 +698,28 @@ function MobileNav({
         aria-label="Navegación principal"
         className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch border-t border-[var(--sidebar-border)] bg-[var(--sidebar)] pb-[env(safe-area-inset-bottom)] md:hidden"
       >
+        {pendientes.activo && (
+          <Link
+            href={RUTA_PENDIENTES}
+            aria-current={pathname === RUTA_PENDIENTES ? "page" : undefined}
+            className={cn(
+              "relative flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 transition-all active:scale-95",
+              FOCUS_RING,
+              pathname === RUTA_PENDIENTES
+                ? "text-[var(--sidebar-foreground)]"
+                : "text-[color-mix(in_hsl,var(--sidebar-foreground)_55%,transparent)]"
+            )}
+          >
+            <Inbox className="size-5 shrink-0" />
+            {contarPendientes(pendientes) > 0 && (
+              <span className="absolute right-1/2 top-1.5 min-w-4 translate-x-3.5 rounded-full bg-red-500 px-1 text-center text-[9px] font-semibold leading-4 tabular-nums text-white">
+                {contarPendientes(pendientes)}
+              </span>
+            )}
+            <span className="max-w-full truncate px-1 text-[10px] font-medium leading-none">Pendientes</span>
+          </Link>
+        )}
+
         {visibleSections.map((section) => {
           const isSectionActive = activeSection?.key === section.key;
           const SectionIcon = section.icon;

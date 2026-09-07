@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Building2,
   ChevronDown,
@@ -231,11 +231,27 @@ const getTimelineSteps = (c) => [
 export default function ContractDetail({
   items,
   obraName,
+  contratoAbierto = null,
   userContext,
   onCambio,
 }) {
-  const [expandedItems, setExpandedItems] = useState({});
+  // Cuando se llega desde Mis Pendientes, el contrato que hay que aprobar viene
+  // ya desplegado y la pantalla baja hasta el: en una obra con 40 contratos,
+  // abrirlo fuera de la vista no se distingue de no haberlo abierto.
+  const [expandedItems, setExpandedItems] = useState(() =>
+    contratoAbierto ? { [contratoAbierto]: true } : {},
+  );
   const toggle = (id) => setExpandedItems((p) => ({ ...p, [id]: !p[id] }));
+
+  const destacado = useRef(null);
+  const yaBajo = useRef(false);
+  useEffect(() => {
+    // Los contratos llegan despues del primer render, asi que el nodo todavia
+    // no existe cuando corre el efecto la primera vez. Una sola vez por visita.
+    if (!contratoAbierto || yaBajo.current || !destacado.current) return;
+    yaBajo.current = true;
+    destacado.current.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [contratoAbierto, items]);
 
   if (items.length === 0) {
     return (
@@ -259,8 +275,13 @@ export default function ContractDetail({
       {items.map((contract) => {
         const badge = getStatusBadge(contract.estadoContrato);
         const isOpen = expandedItems[contract.id];
+        const esElBuscado = contratoAbierto && String(contract.id) === String(contratoAbierto);
         return (
-          <Card key={contract.id} className="border-border overflow-hidden">
+          <Card
+            key={contract.id}
+            ref={esElBuscado ? destacado : null}
+            className={`border-border overflow-hidden ${esElBuscado ? "ring-1 ring-blue-500/40" : ""}`}
+          >
             <button
               type="button"
               onClick={() => toggle(contract.id)}

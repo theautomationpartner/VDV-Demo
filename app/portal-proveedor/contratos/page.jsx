@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, FileText, CheckCircle2, Clock, AlertTriangle, ChevronRight } from 'lucide-react';
 import { Card } from '@/components/ui/card';
@@ -19,11 +19,18 @@ function classifyContract(c) {
   return 'en_proceso';
 }
 
-export default function ContratosPage() {
+// Se puede llegar aca desde Mis Pendientes, que sabe exactamente que contrato
+// hay que aprobar: `?obra=` deja la pantalla parada en esa obra y `?contrato=`
+// abre esa tarjeta. Sin esto la bandeja te dice que hacer y despues te deja
+// buscandolo a mano entre los 40 contratos de la obra.
+function Contratos() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const obraPedida = searchParams.get('obra');
+  const contratoPedido = searchParams.get('contrato');
   const [userContext, setUserContext] = useState(null);
   const [recarga, setRecarga] = useState(0);
-  const [selectedObra, setSelectedObra] = useState(null);
+  const [selectedObra, setSelectedObra] = useState(obraPedida);
 
   useEffect(() => {
     const ctx = localStorage.getItem('pp_session');
@@ -141,6 +148,7 @@ export default function ContratosPage() {
             <ContractDetail
               items={selectedItems}
               obraName={selectedObra}
+              contratoAbierto={contratoPedido}
               userContext={userContext}
               onCambio={(cambio) => {
                 // El VB ya quedo escrito en monday, pero esta pantalla no lee
@@ -166,5 +174,13 @@ export default function ContratosPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ContratosPage() {
+  return (
+    <Suspense fallback={null}>
+      <Contratos />
+    </Suspense>
   );
 }
