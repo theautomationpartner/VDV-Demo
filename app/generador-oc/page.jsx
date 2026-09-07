@@ -233,7 +233,11 @@ function GeneradorOc() {
             <Button variant="ghost" onClick={volverALista}>
               ← Volver al Historial
             </Button>
-            {borradorActivo && (
+            {/* Por titulo y no por el objeto: al volver de la vista previa se
+                reusa `borradorActivo` para devolver los datos, y en una orden
+                nueva ese objeto no tiene titulo -el cartel decia "Retomando
+                borrador:" y nada-. */}
+            {borradorActivo?.titulo && (
               <p className="text-sm text-muted-foreground">
                 Retomando borrador: <span className="font-medium">{borradorActivo.titulo}</span>
               </p>
@@ -255,7 +259,17 @@ function GeneradorOc() {
         <OcPreview
           data={previewData}
           currentUser={usuario}
-          onBack={() => setVista("formulario")}
+          // Volver tiene que devolver la orden TAL COMO estaba al previsualizar.
+          // El formulario se desmonta al pasar a la vista previa, asi que al
+          // volver se reconstruye desde la prop `borrador`; si se le pasara el
+          // borrador guardado original, se perderia todo lo editado despues de
+          // haberlo retomado -esa copia es la del momento en que se abrio-.
+          onBack={() => {
+            setBorradorActivo((previo) =>
+              previo ? { ...previo, data: previewData } : { data: previewData },
+            );
+            setVista("formulario");
+          }}
           onSuccess={(itemId, numeroOc) => {
             setExito({ itemId, numeroOc });
             setVista("exito");

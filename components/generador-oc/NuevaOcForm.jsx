@@ -47,7 +47,6 @@ import {
   guardarBorrador,
   guardarBorradorAutomatico,
   leerBorradorAutomatico,
-  limpiarBorradorAutomatico,
 } from "@/lib/generador-oc/borradores";
 
 /**
@@ -315,7 +314,18 @@ export default function NuevaOcForm({ onPreview, currentUser, borrador = null, o
       return;
     }
 
-    limpiarBorradorAutomatico();
+    // Se GUARDA, no se limpia. Al pasar a la vista previa este formulario se
+    // desmonta, asi que "Volver" lo vuelve a construir desde cero: si el
+    // borrador automatico no esta, la orden entera se pierde. Antes se limpiaba
+    // aca -por adelantado, pensando en la orden ya emitida- y quien no habia
+    // apretado "Guardar borrador" perdia todo al volver.
+    //
+    // Guardarlo ademas cubre el ultimo tecleo: el autoguardado espera un
+    // segundo, y a la vista previa se puede llegar antes.
+    //
+    // Cuando la orden se emite de verdad, el borrador lo limpia onSuccess en
+    // app/generador-oc/page.jsx, que es donde corresponde.
+    guardarBorradorAutomatico(formData);
     onPreview({ ...formData, numeroOc });
   };
 
