@@ -11,6 +11,7 @@ import {
   FileStack,
   Inbox,
   MessageSquareWarning,
+  UserX,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -70,6 +71,15 @@ function Fila({ item }) {
         <p className="break-words text-sm font-medium leading-tight text-foreground">{item.titulo}</p>
         {item.monto ? (
           <p className="text-xs tabular-nums text-muted-foreground">{fmt(item.monto)}</p>
+        ) : null}
+        {item.sinCobertura ? (
+          <p className="flex items-start gap-1.5 text-xs text-red-400">
+            <UserX className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span>
+              Nadie tiene asignado {item.accion} en {item.obra}: te cae a vos por ser super
+              aprobador. Se configura en Usuarios y Roles.
+            </span>
+          </p>
         ) : null}
         {item.observado ? (
           <p className="flex items-start gap-1.5 text-xs text-yellow-400">

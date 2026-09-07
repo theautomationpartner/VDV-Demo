@@ -2,7 +2,43 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { claveDe, traerDatosPortal, yaTraido } from "@/hooks/portal-proveedor/portalDatos";
-import { pendientesDeContratos, puedeDeberContratos } from "@/lib/pendientes";
+import {
+  marcarSinCobertura,
+  pendientesDeContratos,
+  puedeDeberContratos,
+} from "@/lib/pendientes";
+
+const COBERTURA_TTL_MS = 5 * 60 * 1000;
+let _cobertura = { datos: null, time: 0, promise: null };
+
+/**
+ * Quien tiene asignado cada paso, para saber si un contrato esta cayendo en
+ * esta bandeja porque nadie mas lo tiene. Cambia solo cuando alguien edita
+ * Usuarios y Roles, asi que se cachea igual que el resto.
+ *
+ * Si falla se sigue sin ella: la bandeja funciona, solo que no marca los
+ * huecos. Es un aviso extra, no el contenido.
+ */
+async function traerCobertura() {
+  if (_cobertura.datos && Date.now() - _cobertura.time < COBERTURA_TTL_MS) return _cobertura.datos;
+  if (_cobertura.promise) return _cobertura.promise;
+
+  _cobertura.promise = (async () => {
+    try {
+      const res = await fetch("/api/contratos/cobertura");
+      if (!res.ok) return null;
+      const json = await res.json();
+      _cobertura = { datos: json?.result ?? null, time: Date.now(), promise: null };
+      return _cobertura.datos;
+    } catch (error) {
+      console.warn("[pendientes] no se pudo saber quien cubre cada paso:", error?.message);
+      _cobertura.promise = null;
+      return null;
+    }
+  })();
+
+  return _cobertura.promise;
+}
 
 /** La sesion del Portal, que es donde viven los pasos de contrato asignados. */
 function leerSesionPortal() {
@@ -50,10 +86,13 @@ export function usePendientes() {
     }
 
     try {
-      const datos = await traerDatosPortal(sesion);
+      const [datos, cobertura] = await Promise.all([
+        traerDatosPortal(sesion),
+        traerCobertura(),
+      ]);
       if (!vigente.current) return;
       setEstado({
-        items: pendientesDeContratos(datos.contratos, sesion),
+        items: marcarSinCobertura(pendientesDeContratos(datos.contratos, sesion), cobertura),
         cargando: false,
         activo: true,
       });
