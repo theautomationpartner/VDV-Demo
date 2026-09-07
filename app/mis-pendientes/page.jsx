@@ -15,7 +15,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePendientes } from "@/hooks/usePendientes";
-import { FUENTE_CONTRATOS } from "@/lib/pendientes";
+import { FUENTE_CONTRATOS, paraHacerAhora } from "@/lib/pendientes";
 
 const fmt = (v) =>
   new Intl.NumberFormat("es-CL", {
@@ -115,7 +115,7 @@ export default function MisPendientesPage() {
   // Tres estados distintos, y mezclarlos era el problema: lo que hay que hacer,
   // lo que ya devolviste con observaciones (espera al proveedor) y lo que
   // todavia no te toca porque falta el paso anterior.
-  const ahora = items.filter((i) => i.habilitado && !i.observado);
+  const ahora = paraHacerAhora(items);
   const observados = items.filter((i) => i.habilitado && i.observado);
   const esperando = items.filter((i) => !i.habilitado);
 

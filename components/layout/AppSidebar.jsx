@@ -12,6 +12,7 @@ import { getGlobalEmail, getGlobalApps } from "@/lib/client/fixed-accounts";
 import { limpiarCachePersistente } from "@/lib/client/cache-persistente";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { usePendientes } from "@/hooks/usePendientes";
+import { paraHacerAhora } from "@/lib/pendientes";
 
 const COLLAPSE_KEY = "sidebar_collapsed";
 
@@ -38,7 +39,7 @@ const RUTA_PENDIENTES = "/mis-pendientes";
  * Lo decide usePendientes -> puedeDeberContratos.
  */
 function contarPendientes(pendientes) {
-  return pendientes.items.filter((i) => i.habilitado).length;
+  return paraHacerAhora(pendientes.items).length;
 }
 
 const PP_ROLE_LABELS = {
