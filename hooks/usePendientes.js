@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { claveDe, traerDatosPortal, yaTraido } from "@/hooks/portal-proveedor/portalDatos";
 import { aplicarVbRecientes } from "@/lib/client/vb-recientes";
 import {
@@ -8,6 +9,17 @@ import {
   pendientesDeContratos,
   puedeDeberContratos,
 } from "@/lib/pendientes";
+
+/** La sesion del Portal, que es donde viven los pasos de contrato asignados. */
+function leerSesionPortal() {
+  if (typeof window === "undefined") return null;
+  try {
+    const crudo = localStorage.getItem("pp_session");
+    return crudo ? JSON.parse(crudo) : null;
+  } catch {
+    return null;
+  }
+}
 
 const COBERTURA_TTL_MS = 5 * 60 * 1000;
 let _cobertura = { datos: null, time: 0, promise: null };
@@ -41,45 +53,41 @@ async function traerCobertura() {
   return _cobertura.promise;
 }
 
-/** La sesion del Portal, que es donde viven los pasos de contrato asignados. */
-function leerSesionPortal() {
-  if (typeof window === "undefined") return null;
-  try {
-    const crudo = localStorage.getItem("pp_session");
-    return crudo ? JSON.parse(crudo) : null;
-  } catch {
-    return null;
-  }
+/**
+ * ESTADO COMPARTIDO, no uno por componente.
+ *
+ * Lo leen dos lugares a la vez: la bandeja y el numero del menu lateral. El
+ * menu vive en el layout y no se vuelve a montar al navegar, asi que con un
+ * estado por componente su contador se congelaba: despues de aprobar un
+ * contrato la pantalla mostraba 10 y el menu seguia diciendo 11, los dos a la
+ * vista al mismo tiempo. Un numero en el que no se puede confiar es peor que no
+ * ponerlo, porque la gente entra por ese numero.
+ */
+let compartido = { items: [], cargando: true, activo: false };
+const oyentes = new Set();
+let cargando = null;
+
+function publicar(nuevo) {
+  compartido = nuevo;
+  for (const avisar of oyentes) avisar(nuevo);
 }
 
-/**
- * Los pendientes de quien esta usando la app.
- *
- * Lo usan dos lugares con necesidades distintas: la pantalla, que los muestra,
- * y el menu lateral, que solo quiere el numero. Por eso se apoya en el mismo
- * traido del Portal que ya usan sus pantallas (una sola consulta cada 5
- * minutos, compartida) y pinta primero lo que haya en cache: el contador tiene
- * que aparecer al instante o no cumple su funcion, que es que la gente entre.
- *
- * `activo` es distinto de "no tiene pendientes": false significa que esta
- * persona no puede deber un VB de contrato -un subcontratista, alguien sin
- * pasos asignados- y entonces la seccion no va ni en el menu.
- */
-export function usePendientes() {
-  const [estado, setEstado] = useState({ items: [], cargando: true, activo: false });
-  const vigente = useRef(true);
+async function recargar() {
+  if (cargando) return cargando;
 
-  const cargar = useCallback(async () => {
+  cargando = (async () => {
     const sesion = leerSesionPortal();
 
     if (!puedeDeberContratos(sesion)) {
-      if (vigente.current) setEstado({ items: [], cargando: false, activo: false });
+      publicar({ items: [], cargando: false, activo: false });
       return;
     }
 
+    // Lo que ya esta en cache se pinta al instante: el contador tiene que
+    // aparecer enseguida o no cumple su funcion, que es que la gente entre.
     const cacheado = yaTraido(claveDe(sesion));
-    if (cacheado && vigente.current) {
-      setEstado({
+    if (cacheado) {
+      publicar({
         items: pendientesDeContratos(aplicarVbRecientes(cacheado.contratos), sesion),
         cargando: false,
         activo: true,
@@ -87,12 +95,8 @@ export function usePendientes() {
     }
 
     try {
-      const [datos, cobertura] = await Promise.all([
-        traerDatosPortal(sesion),
-        traerCobertura(),
-      ]);
-      if (!vigente.current) return;
-      setEstado({
+      const [datos, cobertura] = await Promise.all([traerDatosPortal(sesion), traerCobertura()]);
+      publicar({
         items: marcarSinCobertura(
           pendientesDeContratos(aplicarVbRecientes(datos.contratos), sesion),
           cobertura,
@@ -103,17 +107,41 @@ export function usePendientes() {
     } catch (error) {
       console.error("[pendientes] No se pudieron cargar:", error);
       // Con datos viejos en pantalla es mejor dejarlos que vaciar la lista.
-      if (vigente.current) setEstado((previo) => ({ ...previo, cargando: false, activo: true }));
+      publicar({ ...compartido, cargando: false, activo: true });
     }
+  })().finally(() => {
+    cargando = null;
+  });
+
+  return cargando;
+}
+
+/**
+ * Los pendientes de quien esta usando la app.
+ *
+ * Se releen en cada navegacion: es cuando cambia lo que hay para mostrar -se
+ * vuelve de aprobar un contrato, o de editar los roles- y no cuesta una
+ * consulta, porque los datos del Portal estan cacheados 5 minutos y el visto
+ * bueno recien dado se aplica desde el navegador.
+ *
+ * `activo` es distinto de "no tiene pendientes": false significa que esta
+ * persona no puede deber un VB de contrato -un subcontratista, alguien sin
+ * pasos asignados- y entonces la seccion no va ni en el menu.
+ */
+export function usePendientes() {
+  const pathname = usePathname();
+  const [estado, setEstado] = useState(compartido);
+
+  useEffect(() => {
+    oyentes.add(setEstado);
+    return () => {
+      oyentes.delete(setEstado);
+    };
   }, []);
 
   useEffect(() => {
-    vigente.current = true;
-    cargar();
-    return () => {
-      vigente.current = false;
-    };
-  }, [cargar]);
+    recargar();
+  }, [pathname]);
 
-  return { ...estado, recargar: cargar };
+  return { ...estado, recargar };
 }
