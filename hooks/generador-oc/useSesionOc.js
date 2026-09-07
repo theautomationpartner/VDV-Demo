@@ -49,6 +49,9 @@ export function useSesionOc() {
       name: sesion.userName || sesion.email,
       email: sesion.email ?? "",
       rol: sesion.role ?? null,
+      // Puede aprobar aunque no sea el aprobador designado. Antes esto salia
+      // del cargo del perfil de monday; ahora es una casilla (ver oc-roles.js).
+      apruebaTodo: sesion.apruebaCualquierOrden === true,
       cargo: null,
       telefono: "",
       foto: null,
