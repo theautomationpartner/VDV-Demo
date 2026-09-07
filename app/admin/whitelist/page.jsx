@@ -396,32 +396,63 @@ function ProveedorPicker({ elegido, valorTexto = "", etiqueta = "Proveedor", ayu
   );
 }
 
-function UsuarioMondayPicker({ value, onChange }) {
+/**
+ * La lista de usuarios de monday, pedida una sola vez por carga de pantalla.
+ * La usan el selector de cada asignacion y la validacion de guardado; antes
+ * cada selector la pedia por su cuenta.
+ */
+let promesaUsuariosMonday = null;
+function useUsuariosMonday() {
   const [usuarios, setUsuarios] = useState([]);
   const [cargando, setCargando] = useState(true);
-  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     let activo = true;
-    new OrdenesDeCompraMaxxaBoard().users
+    promesaUsuariosMonday ??= new OrdenesDeCompraMaxxaBoard().users
       .withPagination({ limit: 500 })
       .execute()
-      .then((lista) => {
-        if (!activo) return;
-        setUsuarios(
-          (lista ?? [])
-            .filter((u) => u.name && u.email)
-            .sort((a, b) => a.name.localeCompare(b.name, "es"))
-        );
-      })
-      .catch((err) => console.error("[whitelist] No se pudo cargar la lista de monday:", err))
-      .finally(() => activo && setCargando(false));
+      .then((lista) =>
+        (lista ?? [])
+          .filter((u) => u.name && u.email)
+          .sort((a, b) => a.name.localeCompare(b.name, "es")),
+      )
+      .catch((err) => {
+        console.error("[whitelist] No se pudo cargar la lista de monday:", err);
+        promesaUsuariosMonday = null; // que el proximo intento vuelva a pedirla
+        return [];
+      });
+
+    promesaUsuariosMonday.then((lista) => {
+      if (!activo) return;
+      setUsuarios(lista);
+      setCargando(false);
+    });
+
     return () => {
       activo = false;
     };
   }, []);
 
+  return { usuarios, cargando };
+}
+
+/** Un id guardado que ya no corresponde a ningun usuario vivo de monday. */
+function usuarioMondayDesaparecido(mondayUserId, usuarios, cargando) {
+  if (cargando || usuarios.length === 0) return false; // monday caido: no acusar a nadie
+  if (!(Number(mondayUserId) > 0)) return false; // eso es "sin vincular", otro caso
+  return !usuarios.some((u) => String(u.id) === String(mondayUserId));
+}
+
+function UsuarioMondayPicker({ value, onChange }) {
+  const { usuarios, cargando } = useUsuariosMonday();
+  const [open, setOpen] = useState(false);
+
   const elegido = usuarios.find((u) => String(u.id) === String(value));
+  // El id guardado apunta a una cuenta de monday que ya no existe. Sin esto el
+  // selector mostraba "Sin vincular", igual que si nunca se hubiera elegido: la
+  // pantalla se veia bien y monday rechazaba la orden al emitirla con
+  // "unable to assign person with id: ...". Paso de verdad con el id 113479326.
+  const desaparecido = usuarioMondayDesaparecido(value, usuarios, cargando);
 
   return (
     <div className="space-y-1">
@@ -432,8 +463,14 @@ function UsuarioMondayPicker({ value, onChange }) {
             <Button variant="outline" className="h-9 w-full justify-between text-xs font-normal" />
           }
         >
-          <span className="truncate">
-            {elegido ? elegido.name : cargando ? "Cargando…" : "Sin vincular"}
+          <span className={cn("truncate", desaparecido && "text-[hsl(var(--precio-alto))]")}>
+            {elegido
+              ? elegido.name
+              : cargando
+                ? "Cargando…"
+                : desaparecido
+                  ? `Ya no existe en monday (${value})`
+                  : "Sin vincular"}
           </span>
           <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
         </PopoverTrigger>
@@ -466,11 +503,23 @@ function UsuarioMondayPicker({ value, onChange }) {
           </Command>
         </PopoverContent>
       </Popover>
-      <p className="text-[11px] text-muted-foreground">
-        {elegido
-          ? "Las órdenes que emita quedan a su nombre en monday."
-          : "Sin vincular no puede emitir órdenes de compra."}
-      </p>
+      {desaparecido ? (
+        <p className="text-[11px] text-[hsl(var(--precio-alto))]">
+          Esa cuenta de monday fue eliminada. Elegí otra: mientras tanto, al emitir una orden monday
+          la rechaza.
+        </p>
+      ) : (
+        <p
+          className={cn(
+            "text-[11px]",
+            elegido ? "text-muted-foreground" : "text-[hsl(var(--precio-medio))]",
+          )}
+        >
+          {elegido
+            ? "Las órdenes que emita quedan a su nombre en monday."
+            : "Obligatorio: sin esto no puede emitir, editar ni aprobar órdenes."}
+        </p>
+      )}
     </div>
   );
 }
@@ -835,6 +884,9 @@ export default function WhitelistAdminPage() {
   const [togglingId, setTogglingId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  // La misma lista que usan los selectores de usuario de monday, para poder
+  // avisar al guardar si alguno quedo apuntando a una cuenta que ya no existe.
+  const { usuarios: usuariosMonday, cargando: cargandoMonday } = useUsuariosMonday();
 
   const cargar = useCallback(async () => {
     const res = await fetch("/api/auth/whitelist");
@@ -1009,8 +1061,13 @@ export default function WhitelistAdminPage() {
   // son columnas de PERSONA de monday, asi que sin ese vinculo el servidor le
   // rechaza emitir, editar y aprobar (ver requireGestionOc). Al rol Consulta no
   // le aplica: no escribe ordenes, y por eso el campo ni se le muestra.
-  const faltaUsuarioMonday = form.asignaciones.some(
-    (a) => a.app === OC_APP && puedeEmitirOc(a.appRol) && !(Number(a.mondayUserId) > 0),
+  const emitenEnOc = form.asignaciones.filter((a) => a.app === OC_APP && puedeEmitirOc(a.appRol));
+  const faltaUsuarioMonday = emitenEnOc.some((a) => !(Number(a.mondayUserId) > 0));
+  // Y un id que apunta a una cuenta de monday borrada es peor que no tener
+  // ninguno: la pantalla lo mostraba como "Sin vincular" y monday recien lo
+  // rechazaba al emitir la orden.
+  const usuarioMondayBorrado = emitenEnOc.some((a) =>
+    usuarioMondayDesaparecido(a.mondayUserId, usuariosMonday, cargandoMonday),
   );
 
   const handleSave = async () => {
@@ -1022,6 +1079,12 @@ export default function WhitelistAdminPage() {
     if (faltaUsuarioMonday) {
       toast.error(
         "Elegí el usuario de monday del OC Tracker: sin eso la persona no puede emitir, editar ni aprobar órdenes.",
+      );
+      return;
+    }
+    if (usuarioMondayBorrado) {
+      toast.error(
+        "El usuario de monday vinculado ya no existe. Elegí otro: monday rechaza las órdenes que salgan a nombre de una cuenta borrada.",
       );
       return;
     }
@@ -1384,17 +1447,10 @@ export default function WhitelistAdminPage() {
                         despues hace que las ordenes salgan a nombre de otro si
                         a esa cuenta le cambian el rol. */}
                     {a.app === OC_APP && puedeEmitirOc(a.appRol) && (
-                      <>
-                        <UsuarioMondayPicker
-                          value={a.mondayUserId}
-                          onChange={(id) => updateAsignacion(index, { mondayUserId: id })}
-                        />
-                        {!(Number(a.mondayUserId) > 0) && (
-                          <p className="text-[11px] text-[hsl(var(--precio-medio))]">
-                            Obligatorio: sin esto no puede emitir, editar ni aprobar órdenes.
-                          </p>
-                        )}
-                      </>
+                      <UsuarioMondayPicker
+                        value={a.mondayUserId}
+                        onChange={(id) => updateAsignacion(index, { mondayUserId: id })}
+                      />
                     )}
 
                     {/* Solo tiene sentido encima de Aprobador: es un poder de
