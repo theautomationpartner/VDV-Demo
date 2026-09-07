@@ -8,15 +8,13 @@ import {
   ChevronDown,
   ChevronRight,
   Clock,
-  FileStack,
   Inbox,
-  MessageSquareWarning,
   UserX,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePendientes } from "@/hooks/usePendientes";
-import { FUENTE_CONTRATOS, paraHacerAhora } from "@/lib/pendientes";
+import { paraHacerAhora } from "@/lib/pendientes";
 
 const fmt = (v) =>
   new Intl.NumberFormat("es-CL", {
@@ -24,8 +22,6 @@ const fmt = (v) =>
     currency: "CLP",
     maximumFractionDigits: 0,
   }).format(v || 0);
-
-const ICONO_FUENTE = { [FUENTE_CONTRATOS]: FileStack };
 
 /**
  * Cuanto hace que esta ahi, y cuanto tiene que preocuparte. Los umbrales
@@ -49,46 +45,47 @@ function Antiguedad({ dias }) {
   );
 }
 
+/**
+ * Dos renglones y nada mas: el nombre del contrato -que es lo que te dice de
+ * que estamos hablando- y debajo el paso, la obra y el monto juntos.
+ *
+ * Antes eran tres renglones con el paso arriba en una etiqueta. Se leia
+ * "VB ADMINISTRADOR" primero en todas las filas, que es justo el dato que no
+ * distingue una de otra, y entraban 7 en una pantalla. Al super aprobador le
+ * tocan 11: tenia que scrollear para ver la mitad de lo que le falta aprobar,
+ * que es exactamente lo que el pedido queria evitar.
+ *
+ * Los avisos (nadie asignado, falta el paso anterior) agregan un renglon, pero
+ * son la excepcion y no la regla. "Lo devolviste con observaciones" no esta:
+ * esas filas van en su propio grupo y el titulo del grupo ya lo dice.
+ */
 function Fila({ item }) {
-  const Icono = ICONO_FUENTE[item.fuente] ?? Inbox;
-
   const contenido = (
     <>
-      <Icono className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-      <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded border border-border bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-foreground">
-            {item.accion}
-          </span>
-          <span className="text-xs text-muted-foreground">{item.obra}</span>
-          <Antiguedad dias={item.dias} />
-          {item.pasosExtra > 0 ? (
-            <span className="text-xs text-muted-foreground">
-              +{item.pasosExtra} paso{item.pasosExtra > 1 ? "s" : ""} tuyo{item.pasosExtra > 1 ? "s" : ""} en este contrato
-            </span>
-          ) : null}
-        </div>
-        <p className="break-words text-sm font-medium leading-tight text-foreground">{item.titulo}</p>
-        {item.monto ? (
-          <p className="text-xs tabular-nums text-muted-foreground">{fmt(item.monto)}</p>
-        ) : null}
-        {item.sinCobertura ? (
-          <p className="flex items-start gap-1.5 text-xs text-red-400">
-            <UserX className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span>
-              Nadie tiene asignado {item.accion} en {item.obra}: te cae a vos por ser super
-              aprobador. Se configura en Usuarios y Roles.
-            </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <p className="min-w-0 flex-1 truncate text-sm font-medium leading-snug text-foreground">
+            {item.titulo}
           </p>
-        ) : null}
-        {item.observado ? (
-          <p className="flex items-start gap-1.5 text-xs text-yellow-400">
-            <MessageSquareWarning className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span>Lo devolviste con observaciones.</span>
+          <Antiguedad dias={item.dias} />
+        </div>
+        <p className="truncate text-xs leading-snug text-muted-foreground">
+          <span className="text-foreground/70">{item.accion}</span>
+          {" · "}
+          {item.obra}
+          {item.monto ? <span className="tabular-nums">{` · ${fmt(item.monto)}`}</span> : null}
+          {item.pasosExtra > 0
+            ? ` · +${item.pasosExtra} paso${item.pasosExtra > 1 ? "s" : ""} tuyo${item.pasosExtra > 1 ? "s" : ""} acá`
+            : null}
+        </p>
+        {item.sinCobertura ? (
+          <p className="mt-1 flex items-start gap-1.5 text-xs leading-snug text-red-400">
+            <UserX className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span>Nadie tiene asignado este paso en {item.obra}: se configura en Usuarios y Roles.</span>
           </p>
         ) : null}
         {item.motivo ? (
-          <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+          <p className="mt-1 flex items-start gap-1.5 text-xs leading-snug text-muted-foreground">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
             <span>{item.motivo}</span>
           </p>
@@ -101,7 +98,7 @@ function Fila({ item }) {
   // boton va a estar deshabilitado es prometer algo que no se puede hacer.
   if (!item.habilitado) {
     return (
-      <Card className="flex items-start gap-3 border-border p-3 opacity-70 md:p-4">{contenido}</Card>
+      <Card className="flex items-start gap-3 border-border px-3 py-2.5 opacity-70">{contenido}</Card>
     );
   }
 
@@ -109,10 +106,10 @@ function Fila({ item }) {
     <Card className="border-border transition-colors hover:border-foreground/20">
       <Link
         href={item.href}
-        className="flex items-start gap-3 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset md:p-4"
+        className="flex items-center gap-3 px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         {contenido}
-        <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
       </Link>
     </Card>
   );
@@ -177,7 +174,7 @@ export default function MisPendientesPage() {
           ) : null}
 
           {ahora.length > 0 && (
-            <section className="space-y-2">
+            <section className="space-y-1.5">
               <h2 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 Para hacer ahora
               </h2>
@@ -188,7 +185,7 @@ export default function MisPendientesPage() {
           )}
 
           {observados.length > 0 && (
-            <section className="space-y-2">
+            <section className="space-y-1.5">
               <h2 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 Devueltos con observaciones
               </h2>
@@ -203,7 +200,7 @@ export default function MisPendientesPage() {
           )}
 
           {esperando.length > 0 && (
-            <section className="space-y-2">
+            <section className="space-y-1.5">
               <button
                 type="button"
                 onClick={() => setVerEsperando((v) => !v)}
