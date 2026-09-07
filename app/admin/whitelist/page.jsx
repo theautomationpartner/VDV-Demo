@@ -1004,10 +1004,25 @@ export default function WhitelistAdminPage() {
     (a) => a.app === "portal-proveedor" && a.appRol === "subcontratista" && !a.proveedorName.trim(),
   );
 
+  // Un Comprador o Aprobador sin usuario de monday es una cuenta que entra al
+  // OC Tracker y no puede hacer nada: el Responsable y el APROBADOR de la orden
+  // son columnas de PERSONA de monday, asi que sin ese vinculo el servidor le
+  // rechaza emitir, editar y aprobar (ver requireGestionOc). Al rol Consulta no
+  // le aplica: no escribe ordenes, y por eso el campo ni se le muestra.
+  const faltaUsuarioMonday = form.asignaciones.some(
+    (a) => a.app === OC_APP && puedeEmitirOc(a.appRol) && !(Number(a.mondayUserId) > 0),
+  );
+
   const handleSave = async () => {
     if (!form.email.trim() || form.asignaciones.length === 0) return;
     if (faltaProveedor) {
       toast.error("Elegí el proveedor del subcontratista: sin eso la cuenta entra pero no ve nada.");
+      return;
+    }
+    if (faltaUsuarioMonday) {
+      toast.error(
+        "Elegí el usuario de monday del OC Tracker: sin eso la persona no puede emitir, editar ni aprobar órdenes.",
+      );
       return;
     }
     setSaving(true);
@@ -1369,10 +1384,17 @@ export default function WhitelistAdminPage() {
                         despues hace que las ordenes salgan a nombre de otro si
                         a esa cuenta le cambian el rol. */}
                     {a.app === OC_APP && puedeEmitirOc(a.appRol) && (
-                      <UsuarioMondayPicker
-                        value={a.mondayUserId}
-                        onChange={(id) => updateAsignacion(index, { mondayUserId: id })}
-                      />
+                      <>
+                        <UsuarioMondayPicker
+                          value={a.mondayUserId}
+                          onChange={(id) => updateAsignacion(index, { mondayUserId: id })}
+                        />
+                        {!(Number(a.mondayUserId) > 0) && (
+                          <p className="text-[11px] text-[hsl(var(--precio-medio))]">
+                            Obligatorio: sin esto no puede emitir, editar ni aprobar órdenes.
+                          </p>
+                        )}
+                      </>
                     )}
 
                     {/* Solo tiene sentido encima de Aprobador: es un poder de
@@ -1430,7 +1452,12 @@ export default function WhitelistAdminPage() {
 
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Cancelar</DialogClose>
-            <Button onClick={handleSave} disabled={saving || !form.email.trim() || faltaProveedor}>
+            {/* Lo que falta se avisa al apretar Guardar, no apagando el boton.
+                Un boton gris sin explicacion deja al admin adivinando cual de
+                los campos es el que lo traba - el toast de handleSave nombra el
+                campo. Antes faltaProveedor lo apagaba, y su toast, que ya estaba
+                escrito, no se llegaba a ver nunca. */}
+            <Button onClick={handleSave} disabled={saving || !form.email.trim()}>
               {saving ? "Guardando..." : "Guardar"}
             </Button>
           </DialogFooter>

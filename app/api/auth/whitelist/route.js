@@ -1,5 +1,5 @@
 import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
-import { OC_APP } from "@/lib/oc-roles";
+import { OC_APP, puedeEmitirOc } from "@/lib/oc-roles";
 import {
   listarUsuariosAutorizados,
   obtenerUsuarioAutorizado,
@@ -121,6 +121,25 @@ function subcontratistaSinProveedor(asignaciones = []) {
   );
 }
 
+/**
+ * Un Comprador o Aprobador sin usuario de monday tampoco sirve: el Responsable
+ * y el APROBADOR de la orden son columnas de PERSONA, asi que requireGestionOc
+ * le rechaza emitir, editar y aprobar. La pantalla ya no deja guardarlo, pero
+ * la regla vive aca tambien porque la pantalla se puede saltear.
+ *
+ * Al rol Consulta no le aplica: no escribe ordenes.
+ */
+function ocSinUsuarioMonday(asignaciones = []) {
+  return asignaciones.some(
+    (a) =>
+      a.app === OC_APP &&
+      puedeEmitirOc(a.appRol) &&
+      // Numero positivo, no "hay algo": mondayUserIdDeSesion hace `id ? ... : null`,
+      // asi que un 0 guardado pasa la validacion y despues no sirve para nada.
+      !(Number(a.appConfig?.mondayUserId) > 0),
+  );
+}
+
 export async function POST(request) {
   let access;
   try {
@@ -144,6 +163,9 @@ export async function POST(request) {
   }
   if (subcontratistaSinProveedor(asignaciones)) {
     return Response.json({ error: "Elegí el proveedor del subcontratista" }, { status: 400 });
+  }
+  if (ocSinUsuarioMonday(asignaciones)) {
+    return Response.json({ error: "Elegí el usuario de monday del OC Tracker" }, { status: 400 });
   }
 
   return Response.json({ result: await agregarUsuarioAutorizado({ email, nombre, asignaciones }) });
@@ -193,6 +215,9 @@ export async function PATCH(request) {
     }
     if (subcontratistaSinProveedor(asignaciones)) {
       return Response.json({ error: "Elegí el proveedor del subcontratista" }, { status: 400 });
+    }
+    if (ocSinUsuarioMonday(asignaciones)) {
+      return Response.json({ error: "Elegí el usuario de monday del OC Tracker" }, { status: 400 });
     }
     const ajenas = (actual.asignaciones ?? []).filter((a) => !editables.has(a.app));
     cambios.asignaciones = [...ajenas, ...asignaciones];
