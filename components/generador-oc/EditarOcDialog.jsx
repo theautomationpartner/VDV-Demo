@@ -50,10 +50,17 @@ import { formatearPago, CREDITO_OPCIONES } from "@/lib/generador-oc/fechas";
  * decodificarLinea descarta. Faltaban los botones, asi que una orden a la que
  * habia que sacarle o sumarle un item habia que rehacerla entera.
  *
- * Una linea agregada aca pide lo mismo que en el formulario de emision -que
- * material es y a que centro de costo se imputa-; las que ya venian de la orden
- * no, porque muchas ordenes viejas nunca tuvieron centro de costo cargado y
- * exigirselo ahora convertiria cualquier correccion de precio en un tramite.
+ * Toda linea se edita igual, venga de la orden o recien agregada: el material
+ * (o el texto libre, si la orden es de servicios), el centro de costo, la
+ * cantidad y el precio. Al principio las que ya estaban mostraban la
+ * descripcion como texto fijo, y corregir un material mal elegido obligaba a
+ * agregar la linea correcta y borrar la vieja -y en una orden de una sola linea
+ * ni eso, porque la ultima no se puede sacar-.
+ *
+ * Lo unico que sigue distinto es la validacion: a las lineas agregadas ahora se
+ * les exige centro de costo, a las que ya venian no. Muchas ordenes viejas nunca
+ * lo tuvieron cargado y pedirlo ahora convertiria cualquier correccion de precio
+ * en un tramite. Se puede completar igual, no es obligatorio.
  */
 /**
  * Lee un input de numero sacando el cero de adelante.
@@ -182,12 +189,17 @@ export default function EditarOcDialog({
     setItems((prev) => [...prev, { ...LINEA_NUEVA }]);
   };
 
+  // La unidad y el precio del material pisan a los de la linea, pero solo si el
+  // material los tiene: un material sin precio de lista dejaba la linea en cero,
+  // y en una orden ya emitida ese precio es el negociado, no un dato de relleno.
+  // Es la misma regla que selectMaterial en NuevaOcForm.
   const elegirMaterial = (index, material) => {
+    const actual = items[index] ?? {};
     actualizarLinea(index, {
       codigo: material.codigo,
       descripcion: material.nombre,
-      unidad: material.unidad || "",
-      precioUnitario: material.precioLista || 0,
+      unidad: material.unidad || actual.unidad || "",
+      precioUnitario: material.precioLista || actual.precioUnitario || 0,
     });
   };
 
@@ -372,9 +384,11 @@ export default function EditarOcDialog({
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
+                Cambiá el material, el centro de costo, la cantidad o el precio de cualquier línea.
                 {items.length === 1
-                  ? "Cambiá la cantidad o el precio. La única línea de la orden no se puede sacar: agregá otra primero."
-                  : "Cambiá la cantidad o el precio, o sacá una línea con el tacho. Se aplica al guardar."}
+                  ? " La única línea de la orden no se puede sacar, pero sí cambiarla por otra."
+                  : " Con el tacho la sacás."}{" "}
+                Se aplica al guardar.
               </p>
               <div className="overflow-x-auto rounded-md border">
                 <table className="w-full min-w-[520px] text-sm">
@@ -393,37 +407,28 @@ export default function EditarOcDialog({
                     {items.map((linea, i) => (
                       <tr key={linea.subitemId ?? `nueva-${i}`} className="border-t align-top">
                         <td className="min-w-[220px] px-2 py-1.5">
-                          {linea.nueva ? (
-                            <div className="space-y-1.5">
-                              {esServicio ? (
-                                <Input
-                                  placeholder="Describí el servicio…"
-                                  aria-label="Descripción del servicio"
-                                  value={linea.descripcion}
-                                  onChange={(e) =>
-                                    actualizarLinea(i, { descripcion: e.target.value })
-                                  }
-                                />
-                              ) : (
-                                <MaterialPicker
-                                  codigo={linea.codigo}
-                                  descripcion={linea.descripcion}
-                                  unidades={unidades}
-                                  categorias={categorias}
-                                  onSelect={(material) => elegirMaterial(i, material)}
-                                />
-                              )}
-                              <SelectorCentroCosto
-                                valor={linea.centroCosto ?? ""}
-                                onChange={(centro) => actualizarLinea(i, { centroCosto: centro })}
+                          <div className="space-y-1.5">
+                            {esServicio ? (
+                              <Input
+                                placeholder="Describí el servicio…"
+                                aria-label={`Descripción de ${nombreLinea(linea, i)}`}
+                                value={linea.descripcion}
+                                onChange={(e) => actualizarLinea(i, { descripcion: e.target.value })}
                               />
-                            </div>
-                          ) : (
-                            <>
-                              <p className="truncate font-medium">{linea.descripcion}</p>
-                              <p className="text-xs text-muted-foreground">{linea.unidad}</p>
-                            </>
-                          )}
+                            ) : (
+                              <MaterialPicker
+                                codigo={linea.codigo}
+                                descripcion={linea.descripcion}
+                                unidades={unidades}
+                                categorias={categorias}
+                                onSelect={(material) => elegirMaterial(i, material)}
+                              />
+                            )}
+                            <SelectorCentroCosto
+                              valor={linea.centroCosto ?? ""}
+                              onChange={(centro) => actualizarLinea(i, { centroCosto: centro })}
+                            />
+                          </div>
                         </td>
                         <td className="px-2 py-1.5">
                           <Input
