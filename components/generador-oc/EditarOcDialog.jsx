@@ -23,24 +23,37 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Pencil, Lock, Trash2 } from "lucide-react";
-import { getOcCompleta, editarOc, getObrasOc } from "@/lib/generador-oc/datos";
+import { Loader2, Pencil, Lock, Trash2, Plus } from "lucide-react";
+import {
+  getOcCompleta,
+  editarOc,
+  getObrasOc,
+  getMaterialOptions,
+} from "@/lib/generador-oc/datos";
 import SelectorAprobador from "./SelectorAprobador";
+import MaterialPicker from "./MaterialPicker";
+import SelectorCentroCosto from "./SelectorCentroCosto";
 import { DESPACHO_LABELS, formatearDespacho } from "@/lib/generador-oc/despacho";
 import { formatearPago, CREDITO_OPCIONES } from "@/lib/generador-oc/fechas";
 
 /**
  * Edicion de una orden ya emitida: obra, aprobador, despacho, forma de pago,
- * observaciones, notas internas, y las cantidades, precios y el quitado de
- * lineas.
+ * observaciones, notas internas, y las lineas -cantidad, precio, quitar y
+ * agregar-.
  *
  * El proveedor y la condicion de compra quedan bloqueados a proposito: cambiar
  * el proveedor de una orden ya emitida seria otra orden, no una correccion.
  *
- * Quitar una linea era lo unico que el servidor ya sabia hacer y la pantalla no
- * ofrecia: editarOc() sincroniza los subelementos por posicion y renombra los
- * que sobran a "Linea eliminada", que decodificarLinea descarta. Faltaba el
- * boton, asi que una orden con una linea de mas habia que rehacerla entera.
+ * Quitar y agregar lineas era lo unico que el servidor ya sabia hacer y la
+ * pantalla no ofrecia: editarOc() sincroniza los subelementos por posicion,
+ * crea los que faltan y renombra los que sobran a "Linea eliminada", que
+ * decodificarLinea descarta. Faltaban los botones, asi que una orden a la que
+ * habia que sacarle o sumarle un item habia que rehacerla entera.
+ *
+ * Una linea agregada aca pide lo mismo que en el formulario de emision -que
+ * material es y a que centro de costo se imputa-; las que ya venian de la orden
+ * no, porque muchas ordenes viejas nunca tuvieron centro de costo cargado y
+ * exigirselo ahora convertiria cualquier correccion de precio en un tramite.
  */
 /**
  * Lee un input de numero sacando el cero de adelante.
@@ -55,6 +68,22 @@ function leerNumero(e) {
   if (limpio !== e.target.value) e.target.value = limpio;
   return parseFloat(limpio) || 0;
 }
+
+// `nueva` no viaja a monday: codificarLinea solo mira descripcion, cantidad,
+// unidad, precio y descuento. Sirve para saber a que fila hay que ofrecerle el
+// buscador de materiales y a cual exigirle centro de costo.
+const LINEA_NUEVA = {
+  nueva: true,
+  codigo: "",
+  descripcion: "",
+  cantidad: 1,
+  unidad: "",
+  precioUnitario: 0,
+  centroCosto: "",
+};
+
+/** Como nombrar la fila en los textos de accesibilidad: una recien agregada todavia no tiene descripcion. */
+const nombreLinea = (linea, i) => linea.descripcion?.trim() || `la línea ${i + 1}`;
 
 export default function EditarOcDialog({
   itemId,
@@ -83,6 +112,9 @@ export default function EditarOcDialog({
   const [moneda, setMoneda] = useState("CLP");
   const [afectaIva, setAfectaIva] = useState(false);
   const [items, setItems] = useState([]);
+  const [esServicio, setEsServicio] = useState(false);
+  const [unidades, setUnidades] = useState([]);
+  const [categorias, setCategorias] = useState([]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -90,11 +122,18 @@ export default function EditarOcDialog({
     setCargando(true);
     setError(null);
 
-    Promise.all([getOcCompleta(itemId), getObrasOc().catch(() => [])])
-      .then(([datos, obrasRes]) => {
+    Promise.all([
+      getOcCompleta(itemId),
+      getObrasOc().catch(() => []),
+      getMaterialOptions().catch(() => ({ unidades: [], categorias: [] })),
+    ])
+      .then(([datos, obrasRes, materialRes]) => {
         if (!activo) return;
         setObras(obrasRes ?? []);
+        setUnidades(materialRes?.unidades ?? []);
+        setCategorias(materialRes?.categorias ?? []);
         if (!datos) return;
+        setEsServicio(datos.tipoOc === "SERVICIOS");
         setObra(datos.obra);
         setCondicionDeCompra(datos.condicionDeCompra);
         setProveedorNombre(datos.proveedor?.nombreComercial || datos.proveedor?.name || "");
@@ -139,6 +178,19 @@ export default function EditarOcDialog({
     setItems((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
   };
 
+  const agregarLinea = () => {
+    setItems((prev) => [...prev, { ...LINEA_NUEVA }]);
+  };
+
+  const elegirMaterial = (index, material) => {
+    actualizarLinea(index, {
+      codigo: material.codigo,
+      descripcion: material.nombre,
+      unidad: material.unidad || "",
+      precioUnitario: material.precioLista || 0,
+    });
+  };
+
   const neto = items.reduce(
     (sum, l) => sum + l.cantidad * l.precioUnitario * (1 - (l.descuento ?? 0) / 100),
     0,
@@ -158,6 +210,20 @@ export default function EditarOcDialog({
     }
     if (despachoTipo === "PROVEEDOR" && !despachoDireccion.trim()) {
       setError("Indicá la dirección de despacho.");
+      return;
+    }
+    // Solo a las lineas agregadas ahora: las que ya venian de la orden pueden
+    // no tener centro de costo, y no es este el momento de reclamarselo.
+    if (items.some((l) => l.nueva && !l.descripcion?.trim())) {
+      setError(
+        esServicio
+          ? "Describí el servicio de la línea que agregaste."
+          : "Elegí el material de la línea que agregaste.",
+      );
+      return;
+    }
+    if (items.some((l) => l.nueva && !l.centroCosto?.trim())) {
+      setError("Indicá el centro de costo de la línea que agregaste.");
       return;
     }
     if (items.some((l) => l.cantidad <= 0 || l.precioUnitario <= 0)) {
@@ -194,7 +260,7 @@ export default function EditarOcDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !guardando && onOpenChange(v)}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Pencil className="h-5 w-5 text-primary" />
@@ -298,9 +364,17 @@ export default function EditarOcDialog({
             </div>
 
             <div className="space-y-2 border-t pt-3">
-              <Label>Líneas</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label>Líneas</Label>
+                <Button type="button" size="sm" variant="outline" onClick={agregarLinea}>
+                  <Plus className="mr-1 h-4 w-4" />
+                  Agregar línea
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
-                Cambiá la cantidad o el precio, o sacá una línea con el tacho. Se aplica al guardar.
+                {items.length === 1
+                  ? "Cambiá la cantidad o el precio. La única línea de la orden no se puede sacar: agregá otra primero."
+                  : "Cambiá la cantidad o el precio, o sacá una línea con el tacho. Se aplica al guardar."}
               </p>
               <div className="overflow-x-auto rounded-md border">
                 <table className="w-full min-w-[520px] text-sm">
@@ -317,17 +391,46 @@ export default function EditarOcDialog({
                   </thead>
                   <tbody>
                     {items.map((linea, i) => (
-                      <tr key={linea.subitemId ?? i} className="border-t">
-                        <td className="px-2 py-1.5">
-                          <p className="truncate font-medium">{linea.descripcion}</p>
-                          <p className="text-xs text-muted-foreground">{linea.unidad}</p>
+                      <tr key={linea.subitemId ?? `nueva-${i}`} className="border-t align-top">
+                        <td className="min-w-[220px] px-2 py-1.5">
+                          {linea.nueva ? (
+                            <div className="space-y-1.5">
+                              {esServicio ? (
+                                <Input
+                                  placeholder="Describí el servicio…"
+                                  aria-label="Descripción del servicio"
+                                  value={linea.descripcion}
+                                  onChange={(e) =>
+                                    actualizarLinea(i, { descripcion: e.target.value })
+                                  }
+                                />
+                              ) : (
+                                <MaterialPicker
+                                  codigo={linea.codigo}
+                                  descripcion={linea.descripcion}
+                                  unidades={unidades}
+                                  categorias={categorias}
+                                  onSelect={(material) => elegirMaterial(i, material)}
+                                />
+                              )}
+                              <SelectorCentroCosto
+                                valor={linea.centroCosto ?? ""}
+                                onChange={(centro) => actualizarLinea(i, { centroCosto: centro })}
+                              />
+                            </div>
+                          ) : (
+                            <>
+                              <p className="truncate font-medium">{linea.descripcion}</p>
+                              <p className="text-xs text-muted-foreground">{linea.unidad}</p>
+                            </>
+                          )}
                         </td>
                         <td className="px-2 py-1.5">
                           <Input
                             type="number"
                             min={0}
                             step="0.01"
-                            aria-label={`Cantidad de ${linea.descripcion}`}
+                            aria-label={`Cantidad de ${nombreLinea(linea, i)}`}
                             className="h-8 w-24 text-right"
                             value={linea.cantidad}
                             onChange={(e) =>
@@ -340,7 +443,7 @@ export default function EditarOcDialog({
                             type="number"
                             min={0}
                             step="1"
-                            aria-label={`Precio unitario de ${linea.descripcion}`}
+                            aria-label={`Precio unitario de ${nombreLinea(linea, i)}`}
                             className="h-8 w-28 text-right"
                             value={linea.precioUnitario}
                             onChange={(e) =>
@@ -363,9 +466,9 @@ export default function EditarOcDialog({
                             title={
                               items.length === 1
                                 ? "La orden tiene que quedar con al menos una línea"
-                                : `Quitar ${linea.descripcion}`
+                                : `Quitar ${nombreLinea(linea, i)}`
                             }
-                            aria-label={`Quitar ${linea.descripcion}`}
+                            aria-label={`Quitar ${nombreLinea(linea, i)}`}
                             onClick={() => eliminarLinea(i)}
                           >
                             <Trash2 className="h-4 w-4" />
