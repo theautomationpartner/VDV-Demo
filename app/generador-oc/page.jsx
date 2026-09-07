@@ -47,24 +47,38 @@ function GeneradorOc() {
   // Compra" aunque estuvieras en el formulario, y al hacerle clic no pasaba
   // nada, porque para el navegador ya estabas ahi.
   const enFormulario = searchParams.get("nueva") === "1";
+  // Y dentro del formulario, en que paso: null (cargando), "preview" o "exito".
+  //
+  // Estos dos tambien viven en la URL, por lo mismo que ?nueva=1: antes la
+  // vista previa no la tocaba, asi que desde ahi el link "Nueva Orden" del menu
+  // no hacia nada -para el navegador ya estabas en esa direccion- y quedabas
+  // encerrado en la vista previa. Es la misma trampa que arriba, un paso mas
+  // adelante. De paso, ahora el boton Atras del navegador tambien saca.
+  const paso = enFormulario ? searchParams.get("paso") : null;
 
-  // Este efecto corre solo cuando la direccion CAMBIA entre historial y
-  // formulario. Mientras se emite (vista previa, confirmacion) la direccion no
-  // se toca, asi que no pisa nada de eso.
+  // Este efecto corre solo cuando la direccion CAMBIA.
   useEffect(() => {
-    if (enFormulario) {
-      // Se llega aca tanto por el link "Nueva Orden" del menu como por los
-      // botones de la pagina. El borrador que se este retomando no se toca.
-      setVista("formulario");
+    if (!enFormulario) {
+      setVista("lista");
       setPreviewData(null);
       setExito(null);
+      setBorradorActivo(null);
       return;
     }
-    setVista("lista");
-    setPreviewData(null);
-    setExito(null);
-    setBorradorActivo(null);
-  }, [enFormulario]);
+    // Se llega aca tanto por el link "Nueva Orden" del menu como por los
+    // botones de la pagina. El borrador que se este retomando no se toca.
+    if (paso === "preview") setVista("preview");
+    else if (paso === "exito") setVista("exito");
+    else setVista("formulario");
+  }, [enFormulario, paso]);
+
+  // La orden que se previsualiza y la que se acaba de emitir viven en memoria,
+  // no en la URL. Si se recarga la pagina parados en uno de esos pasos no hay
+  // nada que mostrar, asi que se cae al formulario en vez de quedar en blanco.
+  const vistaReal =
+    (vista === "preview" && !previewData) || (vista === "exito" && !exito)
+      ? "formulario"
+      : vista;
 
   const nuevaOrden = () => {
     setVista("formulario");
@@ -148,7 +162,7 @@ function GeneradorOc() {
               Sistema de generación y gestión de Órdenes de Compra VDV
             </p>
           </div>
-          {vista === "lista" && (
+          {vistaReal === "lista" && (
             <Button size="lg" onClick={nuevaOrden} className="w-full sm:w-auto">
               <Plus className="mr-2 h-5 w-5" />
               Nueva Orden de Compra
@@ -191,7 +205,7 @@ function GeneradorOc() {
         </Card>
       )}
 
-      {vista === "lista" && (
+      {vistaReal === "lista" && (
         <Tabs value={tabActiva} onValueChange={setTabActiva} className="space-y-6">
           {/* overflow-y-hidden a proposito: al poner overflow-x el navegador
               convierte el overflow-y en auto, y como la tira tiene alto fijo
@@ -227,7 +241,7 @@ function GeneradorOc() {
         </Tabs>
       )}
 
-      {vista === "formulario" && (
+      {vistaReal === "formulario" && (
         <div>
           <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
             <Button variant="ghost" onClick={volverALista}>
@@ -250,12 +264,13 @@ function GeneradorOc() {
             onPreview={(data) => {
               setPreviewData(data);
               setVista("preview");
+              router.push("/generador-oc?nueva=1&paso=preview");
             }}
           />
         </div>
       )}
 
-      {vista === "preview" && previewData && (
+      {vistaReal === "preview" && previewData && (
         <OcPreview
           data={previewData}
           currentUser={usuario}
@@ -269,10 +284,12 @@ function GeneradorOc() {
               previo ? { ...previo, data: previewData } : { data: previewData },
             );
             setVista("formulario");
+            router.push("/generador-oc?nueva=1");
           }}
           onSuccess={(itemId, numeroOc) => {
             setExito({ itemId, numeroOc });
             setVista("exito");
+            router.push("/generador-oc?nueva=1&paso=exito");
             // La orden ya esta emitida: su borrador deja de tener sentido.
             limpiarBorradorAutomatico();
             if (borradorGuardadoId) {
@@ -284,7 +301,7 @@ function GeneradorOc() {
         />
       )}
 
-      {vista === "exito" && exito && (
+      {vistaReal === "exito" && exito && (
         <OcSuccess
           numeroOc={exito.numeroOc}
           itemId={exito.itemId}
