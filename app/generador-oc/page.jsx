@@ -290,13 +290,24 @@ function GeneradorOc() {
             setExito({ itemId, numeroOc });
             setVista("exito");
             router.push("/generador-oc?nueva=1&paso=exito");
-            // La orden ya esta emitida: su borrador deja de tener sentido.
+            // La orden ya esta emitida: no hay nada que retomar. Se limpian las
+            // TRES copias, que antes no era obvio que fueran tres:
+            //
+            //   - el borrador automatico, en el navegador
+            //   - el borrador guardado a mano, si es que lo hay
+            //   - y `borradorActivo`, que vive en memoria
+            //
+            // Ese ultimo se limpiaba solo cuando habia un borrador guardado a
+            // mano, y con eso alcanzaba mientras era la unica forma de que
+            // tuviera algo. Desde que "Volver y Editar" lo usa para devolver la
+            // orden al formulario, tambien lo tiene sin borrador de por medio:
+            // se emitia la orden, se entraba a "Nueva Orden" y aparecia cargada
+            // la que se acababa de emitir.
             limpiarBorradorAutomatico();
-            if (borradorGuardadoId) {
-              eliminar(borradorGuardadoId);
-              setBorradorGuardadoId(null);
-              setBorradorActivo(null);
-            }
+            if (borradorGuardadoId) eliminar(borradorGuardadoId);
+            setBorradorGuardadoId(null);
+            setBorradorActivo(null);
+            setPreviewData(null);
           }}
         />
       )}
