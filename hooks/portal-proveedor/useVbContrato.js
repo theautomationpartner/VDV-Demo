@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { FlujoContratacionSubcontratoBoard } from '@/lib/board-sdk';
 import { APROBADO, CON_OBS } from '@/lib/contratos-vb';
+import { recordarVb } from '@/lib/client/vb-recientes';
 
 const board = new FlujoContratacionSubcontratoBoard();
 
@@ -24,7 +25,13 @@ export function useVbContrato() {
   const registrar = useCallback(async ({ contratoId, paso, aprueba, comentario, quien }) => {
     setGuardando(contratoId + paso.campo);
     try {
-      await board.item(contratoId).update({ [paso.campo]: aprueba ? APROBADO : CON_OBS }).execute();
+      const valor = aprueba ? APROBADO : CON_OBS;
+      await board.item(contratoId).update({ [paso.campo]: valor }).execute();
+
+      // La foto del servidor tarda hasta 5 minutos en tener esto. Sin el
+      // registro, Mis Pendientes sigue mostrando el contrato como pendiente
+      // cuando volves de aprobarlo. Ver lib/client/vb-recientes.js.
+      recordarVb(contratoId, paso.campo, valor);
 
       const nota = aprueba
         ? `${paso.label}: VB dado por ${quien || 'un usuario del Portal'}.`

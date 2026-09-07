@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { claveDe, traerDatosPortal, yaTraido } from "@/hooks/portal-proveedor/portalDatos";
+import { aplicarVbRecientes } from "@/lib/client/vb-recientes";
 import {
   marcarSinCobertura,
   pendientesDeContratos,
@@ -79,7 +80,7 @@ export function usePendientes() {
     const cacheado = yaTraido(claveDe(sesion));
     if (cacheado && vigente.current) {
       setEstado({
-        items: pendientesDeContratos(cacheado.contratos, sesion),
+        items: pendientesDeContratos(aplicarVbRecientes(cacheado.contratos), sesion),
         cargando: false,
         activo: true,
       });
@@ -92,7 +93,10 @@ export function usePendientes() {
       ]);
       if (!vigente.current) return;
       setEstado({
-        items: marcarSinCobertura(pendientesDeContratos(datos.contratos, sesion), cobertura),
+        items: marcarSinCobertura(
+          pendientesDeContratos(aplicarVbRecientes(datos.contratos), sesion),
+          cobertura,
+        ),
         cargando: false,
         activo: true,
       });
