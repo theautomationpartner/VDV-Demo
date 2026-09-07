@@ -103,7 +103,7 @@ function Fila({ item }) {
   }
 
   return (
-    <Card className="border-border transition-colors hover:border-foreground/20">
+    <Card className="border-border py-0 transition-colors hover:border-foreground/20">
       <Link
         href={item.href}
         className="flex items-center gap-3 px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
