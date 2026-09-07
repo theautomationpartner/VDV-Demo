@@ -866,6 +866,22 @@ export async function POST(request) {
 
     return Response.json({ error: `Operacion desconocida: "${op}"` }, { status: 400 });
   } catch (err) {
+    // Una escritura que falla no dejaba ningun rastro: la respuesta llevaba el
+    // error al navegador de quien la hizo y nadie mas se enteraba. Cuando el
+    // cliente reporto "no puedo emitir una OC" no habia forma de saber quien
+    // fue ni que estaba haciendo - la orden nunca llego a crearse, asi que en
+    // monday tampoco quedaba nada.
+    //
+    // Se anota lo justo para poder rastrearlo en los logs de Vercel: quien,
+    // sobre que tablero y que operacion. Los valores de las columnas NO, que es
+    // donde vive el dato del cliente.
+    if (op !== "items" && op !== "columnOptions") {
+      console.error(
+        `[monday] ${op} fallo en ${boardKey}` +
+          (params?.itemId ? ` (item ${params.itemId})` : "") +
+          ` para ${sesion?.email ?? "sesion desconocida"}: ${err.message}`,
+      );
+    }
     return Response.json({ error: err.message }, { status: err.status ?? 500 });
   }
 }
