@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Pencil, Lock } from "lucide-react";
+import { Loader2, Pencil, Lock, Trash2 } from "lucide-react";
 import { getOcCompleta, editarOc, getObrasOc } from "@/lib/generador-oc/datos";
 import SelectorAprobador from "./SelectorAprobador";
 import { DESPACHO_LABELS, formatearDespacho } from "@/lib/generador-oc/despacho";
@@ -31,10 +31,16 @@ import { formatearPago, CREDITO_OPCIONES } from "@/lib/generador-oc/fechas";
 
 /**
  * Edicion de una orden ya emitida: obra, aprobador, despacho, forma de pago,
- * observaciones, notas internas y las cantidades y precios de las lineas.
+ * observaciones, notas internas, y las cantidades, precios y el quitado de
+ * lineas.
  *
  * El proveedor y la condicion de compra quedan bloqueados a proposito: cambiar
  * el proveedor de una orden ya emitida seria otra orden, no una correccion.
+ *
+ * Quitar una linea era lo unico que el servidor ya sabia hacer y la pantalla no
+ * ofrecia: editarOc() sincroniza los subelementos por posicion y renombra los
+ * que sobran a "Linea eliminada", que decodificarLinea descarta. Faltaba el
+ * boton, asi que una orden con una linea de mas habia que rehacerla entera.
  */
 /**
  * Lee un input de numero sacando el cero de adelante.
@@ -125,6 +131,14 @@ export default function EditarOcDialog({
     setItems((prev) => prev.map((linea, i) => (i === index ? { ...linea, ...cambios } : linea)));
   };
 
+  // Se saca de la lista y recien al guardar se escribe en monday. La ultima no
+  // se puede sacar: editarOc() solo sincroniza los subelementos cuando le llega
+  // al menos una linea, asi que una orden vaciada se guardaria con las lineas
+  // viejas intactas y el monto sin recalcular.
+  const eliminarLinea = (index) => {
+    setItems((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
+  };
+
   const neto = items.reduce(
     (sum, l) => sum + l.cantidad * l.precioUnitario * (1 - (l.descuento ?? 0) / 100),
     0,
@@ -187,8 +201,8 @@ export default function EditarOcDialog({
             Editar OC {numeroOc}
           </DialogTitle>
           <DialogDescription>
-            Ajustá obra, aprobador, despacho, forma de pago, observaciones y las cantidades o
-            precios de las líneas. El proveedor y la condición de compra no se pueden modificar.
+            Ajustá obra, aprobador, despacho, forma de pago, observaciones y las líneas: cantidad,
+            precio, o quitarlas. El proveedor y la condición de compra no se pueden modificar.
           </DialogDescription>
         </DialogHeader>
 
@@ -284,15 +298,21 @@ export default function EditarOcDialog({
             </div>
 
             <div className="space-y-2 border-t pt-3">
-              <Label>Líneas — cantidad y precio</Label>
+              <Label>Líneas</Label>
+              <p className="text-xs text-muted-foreground">
+                Cambiá la cantidad o el precio, o sacá una línea con el tacho. Se aplica al guardar.
+              </p>
               <div className="overflow-x-auto rounded-md border">
-                <table className="w-full min-w-[480px] text-sm">
+                <table className="w-full min-w-[520px] text-sm">
                   <thead className="bg-muted/50 text-xs text-muted-foreground">
                     <tr>
                       <th className="px-2 py-1.5 text-left font-medium">Descripción</th>
                       <th className="px-2 py-1.5 text-right font-medium">Cantidad</th>
                       <th className="px-2 py-1.5 text-right font-medium">Precio ({moneda})</th>
                       <th className="px-2 py-1.5 text-right font-medium">Subtotal</th>
+                      <th className="w-10 px-2 py-1.5">
+                        <span className="sr-only">Quitar</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -333,11 +353,29 @@ export default function EditarOcDialog({
                             linea.cantidad * linea.precioUnitario * (1 - (linea.descuento ?? 0) / 100),
                           )}
                         </td>
+                        <td className="px-1 py-1.5 text-right">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            disabled={items.length === 1}
+                            title={
+                              items.length === 1
+                                ? "La orden tiene que quedar con al menos una línea"
+                                : `Quitar ${linea.descripcion}`
+                            }
+                            aria-label={`Quitar ${linea.descripcion}`}
+                            onClick={() => eliminarLinea(i)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
                       </tr>
                     ))}
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="px-2 py-4 text-center text-muted-foreground">
+                        <td colSpan={5} className="px-2 py-4 text-center text-muted-foreground">
                           Esta orden no tiene líneas registradas.
                         </td>
                       </tr>
