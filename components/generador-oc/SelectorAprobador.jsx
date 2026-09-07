@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, AlertTriangle } from "lucide-react";
 import { getUsuariosAprobadores } from "@/lib/generador-oc/datos";
 
 /**
@@ -19,6 +19,13 @@ import { getUsuariosAprobadores } from "@/lib/generador-oc/datos";
  *
  * La lista trae solo a quienes tienen el rol Aprobador en el OC Tracker, y sin
  * el emisor: nadie aprueba su propia orden. Ver getUsuariosAprobadores.
+ *
+ * Al EDITAR una orden vieja, el aprobador que ya tiene puede no estar en esa
+ * lista: alcanza con que le hayan sacado el rol, o que nunca lo haya tenido
+ * (las ordenes cargadas a mano en monday designan a cualquiera). Sin un
+ * <SelectItem> que le corresponda, Base UI muestra el value crudo -el id de
+ * monday, "36851962"- en vez del nombre; ver components/ui/select.jsx. Se lo
+ * agrega igual, avisando que esa persona hoy no puede firmar.
  */
 export default function SelectorAprobador({ valor, onChange, emisorId }) {
   const [usuarios, setUsuarios] = useState([]);
@@ -67,7 +74,13 @@ export default function SelectorAprobador({ valor, onChange, emisorId }) {
     );
   }
 
-  if (usuarios.length === 0) {
+  // El que ya figura en la orden, cuando no esta entre los que pueden aprobar.
+  const fueraDeLista =
+    valor && !usuarios.some((u) => String(u.id) === String(valor.id)) ? valor : null;
+
+  // Si la orden ya tiene un aprobador, el desplegable se dibuja igual aunque no
+  // haya nadie mas: sin el, la pantalla no mostraria a quien tiene designado.
+  if (usuarios.length === 0 && !fueraDeLista) {
     return (
       <div className="space-y-2">
         <Label>Aprobador *</Label>
@@ -93,6 +106,11 @@ export default function SelectorAprobador({ valor, onChange, emisorId }) {
           <SelectValue placeholder="Seleccionar quién aprueba esta orden" />
         </SelectTrigger>
         <SelectContent>
+          {fueraDeLista && (
+            <SelectItem value={String(fueraDeLista.id)}>
+              {fueraDeLista.name} — sin rol Aprobador
+            </SelectItem>
+          )}
           {usuarios.map((u) => (
             <SelectItem key={u.id} value={String(u.id)}>
               {u.name}
@@ -101,12 +119,20 @@ export default function SelectorAprobador({ valor, onChange, emisorId }) {
           ))}
         </SelectContent>
       </Select>
-      {valor && (
+      {fueraDeLista ? (
+        <p className="flex items-start gap-1.5 text-xs text-[hsl(var(--precio-medio))]">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span>
+            {fueraDeLista.name} no tiene el rol Aprobador en el OC Tracker, así que no va a poder
+            firmar esta orden. Elegí a otra persona, o dale el rol en Usuarios y Roles.
+          </span>
+        </p>
+      ) : valor ? (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
           Al emitir, la orden queda pendiente y {valor.name.split(" ")[0]} recibirá la notificación.
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
