@@ -23,6 +23,7 @@ import {
   getObrasOc,
   getCondicionesOc,
   getMaterialOptions,
+  getUsuariosMonday,
 } from "@/lib/generador-oc/datos";
 import MaterialPicker from "./MaterialPicker";
 import FichaProveedor, { datosFaltantes } from "./FichaProveedor";
@@ -261,6 +262,19 @@ export default function NuevaOcForm({ onPreview, currentUser, borrador = null, o
     formData.moneda,
   );
   const [materialHistorial, setMaterialHistorial] = useState(null);
+  // Los usuarios vivos de monday, para no dejar emitir con un aprobador dado de
+  // baja. Es la misma consulta cacheada que usa SelectorAprobador.
+  const [aprobadoresEnMonday, setAprobadoresEnMonday] = useState([]);
+
+  useEffect(() => {
+    let activo = true;
+    getUsuariosMonday()
+      .then((lista) => activo && setAprobadoresEnMonday(lista ?? []))
+      .catch((e) => console.error("[generador-oc] No se pudo leer la lista de monday:", e));
+    return () => {
+      activo = false;
+    };
+  }, []);
 
   const handlePreview = () => {
     if (!formData.proveedor || !formData.obra || formData.items.length === 0) {
@@ -269,6 +283,19 @@ export default function NuevaOcForm({ onPreview, currentUser, borrador = null, o
     }
     if (!formData.aprobador) {
       toast.error("Seleccione quién debe aprobar esta orden de compra");
+      return;
+    }
+    // El aprobador puede venir del borrador automatico, que guarda el formulario
+    // entero y lo restaura meses despues (ver borradores.js). Si en el medio
+    // dieron de baja a esa persona en monday, la orden se arma completa y recien
+    // falla al emitirse, con el error crudo de monday. Se corta antes.
+    if (
+      aprobadoresEnMonday.length > 0 &&
+      !aprobadoresEnMonday.some((u) => String(u.id) === String(formData.aprobador.id))
+    ) {
+      toast.error(
+        `La cuenta de monday de ${formData.aprobador.name} ya no existe. Elegí a otra persona como aprobador.`,
+      );
       return;
     }
     if (formData.items.some((item) => !item.descripcion.trim())) {

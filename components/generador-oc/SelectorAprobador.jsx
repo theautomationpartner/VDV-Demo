@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
-import { getUsuariosAprobadores } from "@/lib/generador-oc/datos";
+import { getUsuariosAprobadores, getUsuariosMonday } from "@/lib/generador-oc/datos";
 
 /**
  * Quien tiene que aprobar esta orden. Se elige entre los usuarios de monday,
@@ -20,15 +20,25 @@ import { getUsuariosAprobadores } from "@/lib/generador-oc/datos";
  * La lista trae solo a quienes tienen el rol Aprobador en el OC Tracker, y sin
  * el emisor: nadie aprueba su propia orden. Ver getUsuariosAprobadores.
  *
- * Al EDITAR una orden vieja, el aprobador que ya tiene puede no estar en esa
- * lista: alcanza con que le hayan sacado el rol, o que nunca lo haya tenido
- * (las ordenes cargadas a mano en monday designan a cualquiera). Sin un
- * <SelectItem> que le corresponda, Base UI muestra el value crudo -el id de
- * monday, "36851962"- en vez del nombre; ver components/ui/select.jsx. Se lo
- * agrega igual, avisando que esa persona hoy no puede firmar.
+ * El aprobador que ya viene cargado puede no estar en esa lista, y por dos
+ * motivos distintos que se arreglan distinto:
+ *
+ *   - le sacaron el rol Aprobador -> se lo vuelven a dar, o se elige a otro
+ *   - la cuenta de monday ya no existe -> hay que elegir a otro, si o si
+ *
+ * El segundo caso llego de produccion: monday devolvia "unable to assign person
+ * with id: 113479326" al emitir. Ese id es una cuenta borrada que sobrevive en
+ * el borrador automatico del formulario (localStorage, ver borradores.js), que
+ * guarda el aprobador entero y lo restaura tal cual meses despues.
+ *
+ * Ademas, sin un <SelectItem> que le corresponda, Base UI muestra el value
+ * crudo -el id de monday- en vez del nombre; ver components/ui/select.jsx.
  */
 export default function SelectorAprobador({ valor, onChange, emisorId }) {
   const [usuarios, setUsuarios] = useState([]);
+  // Todos los usuarios vivos de monday, no solo los que aprueban: es lo que
+  // permite distinguir "le falta el rol" de "esa cuenta ya no existe".
+  const [enMonday, setEnMonday] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(false);
 
@@ -37,9 +47,11 @@ export default function SelectorAprobador({ valor, onChange, emisorId }) {
     setCargando(true);
     setError(false);
 
-    getUsuariosAprobadores(emisorId)
-      .then((lista) => {
-        if (activo) setUsuarios(lista ?? []);
+    Promise.all([getUsuariosAprobadores(emisorId), getUsuariosMonday().catch(() => [])])
+      .then(([lista, todos]) => {
+        if (!activo) return;
+        setUsuarios(lista ?? []);
+        setEnMonday(todos ?? []);
       })
       .catch((e) => {
         console.error("[generador-oc] Error al cargar aprobadores:", e);
@@ -78,6 +90,14 @@ export default function SelectorAprobador({ valor, onChange, emisorId }) {
   const fueraDeLista =
     valor && !usuarios.some((u) => String(u.id) === String(valor.id)) ? valor : null;
 
+  // Y de esos, los que directamente ya no existen en monday. Si la lista de
+  // monday no se pudo traer se asume que existe: mejor dejar pasar una orden
+  // que monday va a rechazar igual, que trabar a todos porque se cayo la API.
+  const borradoEnMonday =
+    Boolean(fueraDeLista) &&
+    enMonday.length > 0 &&
+    !enMonday.some((u) => String(u.id) === String(fueraDeLista.id));
+
   // Si la orden ya tiene un aprobador, el desplegable se dibuja igual aunque no
   // haya nadie mas: sin el, la pantalla no mostraria a quien tiene designado.
   if (usuarios.length === 0 && !fueraDeLista) {
@@ -108,7 +128,7 @@ export default function SelectorAprobador({ valor, onChange, emisorId }) {
         <SelectContent>
           {fueraDeLista && (
             <SelectItem value={String(fueraDeLista.id)}>
-              {fueraDeLista.name} — sin rol Aprobador
+              {fueraDeLista.name} — {borradoEnMonday ? "ya no existe en monday" : "sin rol Aprobador"}
             </SelectItem>
           )}
           {usuarios.map((u) => (
@@ -119,7 +139,15 @@ export default function SelectorAprobador({ valor, onChange, emisorId }) {
           ))}
         </SelectContent>
       </Select>
-      {fueraDeLista ? (
+      {borradoEnMonday ? (
+        <p className="flex items-start gap-1.5 text-xs text-[hsl(var(--precio-alto))]">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span>
+            La cuenta de monday de {fueraDeLista.name} fue eliminada. Elegí a otra persona: monday
+            rechaza la orden si la emitís así.
+          </span>
+        </p>
+      ) : fueraDeLista ? (
         <p className="flex items-start gap-1.5 text-xs text-[hsl(var(--precio-medio))]">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
           <span>
