@@ -27,6 +27,7 @@ import { getOcs, getObrasOc, actualizarEstadoOc } from "@/lib/generador-oc/datos
 import EstadoOcCell from "./EstadoOcCell";
 import VerDocumentoOc from "./VerDocumentoOc";
 import { puedeAprobarOc, puedeEmitirOc } from "@/lib/oc-roles";
+import { contienePersona } from "@/lib/generador-oc/personas";
 import AprobarOcDialog from "./AprobarOcDialog";
 import EditarOcDialog from "./EditarOcDialog";
 
@@ -56,14 +57,6 @@ function nombreProveedor(item) {
 function personas(valor) {
   if (!valor) return "—";
   return String(valor);
-}
-
-function contienePersona(valor, nombre) {
-  if (!valor || !nombre) return false;
-  return String(valor)
-    .split(",")
-    .map((s) => s.trim())
-    .includes(nombre);
 }
 
 export default function OcHistorial({ currentUser }) {
