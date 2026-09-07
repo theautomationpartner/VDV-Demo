@@ -29,7 +29,7 @@ import OcSuccess from "@/components/generador-oc/OcSuccess";
 function GeneradorOc() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { usuario, cargando } = useSesionOc();
+  const { usuario, cargando, perfilDesconocido } = useSesionOc();
 
   const [vista, setVista] = useState("lista");
   const [previewData, setPreviewData] = useState(null);
@@ -169,6 +169,24 @@ function GeneradorOc() {
           <p className="text-sm">
             Tu cuenta todavía no está vinculada a un usuario de monday, así que podés ver las
             órdenes pero no emitir. Un administrador puede vincularla en Usuarios y Roles.
+          </p>
+        </Card>
+      )}
+
+      {/* El vínculo existe pero apunta a una cuenta de monday eliminada. Sin
+          este aviso la pantalla se comportaba como si la persona no fuera
+          responsable ni aprobadora de ninguna orden -sin lápiz, sin desplegable
+          de estado- y no había forma de darse cuenta de por qué. */}
+      {usuario.id && perfilDesconocido && (
+        <Card className="mb-6 flex items-start gap-3 border-[hsl(var(--precio-alto))]/40 bg-[hsl(var(--precio-alto-soft))] p-4">
+          <AlertTriangle
+            className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--precio-alto))]"
+            aria-hidden
+          />
+          <p className="text-sm">
+            Tu cuenta está vinculada al usuario de monday <strong>{usuario.id}</strong>, que ya no
+            existe. Hasta que un administrador lo corrija en Usuarios y Roles no vas a poder emitir
+            órdenes, ni aprobar ni editar las que tengas asignadas.
           </p>
         </Card>
       )}

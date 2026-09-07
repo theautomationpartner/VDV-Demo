@@ -28,6 +28,11 @@ export function useSesionOc() {
   const [usuario, setUsuario] = useState(null);
   // "Todavia no se si tenes acceso". Se resuelve en el primer tick, sin red.
   const [cargando, setCargando] = useState(true);
+  // El id de monday de la sesion no corresponde a ningun usuario vivo: la
+  // cuenta fue eliminada en monday y el vinculo quedo guardado. La pantalla
+  // dejaba de ofrecer el lapiz y el desplegable de estado sin decir por que, y
+  // al emitir monday devolvia "unable to assign person with id: ...".
+  const [perfilDesconocido, setPerfilDesconocido] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -68,7 +73,10 @@ export function useSesionOc() {
       .then((lista) => {
         if (!activo) return;
         const perfil = lista.find((u) => u.id === base.id);
-        if (!perfil) return;
+        if (!perfil) {
+          setPerfilDesconocido(true);
+          return;
+        }
         setUsuario({
           ...base,
           name: perfil.name || base.name,
@@ -88,5 +96,5 @@ export function useSesionOc() {
     };
   }, []);
 
-  return { usuario, cargando };
+  return { usuario, cargando, perfilDesconocido };
 }
