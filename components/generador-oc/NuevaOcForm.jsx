@@ -63,6 +63,19 @@ function leerNumero(e) {
   return parseFloat(limpio) || 0;
 }
 
+/**
+ * Si el formulario tiene algo que valga la pena guardar.
+ *
+ * Se mira antes de escribir el borrador: guardar un formulario en blanco no
+ * agrega nada y en cambio pisa el borrador anterior, que es trabajo real.
+ */
+function tieneAlgoCargado(datos) {
+  if (datos.proveedor || datos.obra?.trim() || datos.comentarios?.trim()) return true;
+  return (datos.items ?? []).some(
+    (linea) => linea.descripcion?.trim() || (linea.precioUnitario ?? 0) > 0,
+  );
+}
+
 const LINEA_VACIA = {
   codigo: "",
   descripcion: "",
@@ -129,7 +142,13 @@ export default function NuevaOcForm({ onPreview, currentUser, borrador = null, o
   }, [borrador]);
 
   // Autoguardado: la red por si se cierra la pestana sin querer.
+  //
+  // Un formulario vacio NO se guarda. Este efecto corre un segundo despues de
+  // cada cambio, tambien cuando el formulario se monta en blanco -y ahi pisaba
+  // el borrador bueno con nada, dejando la orden irrecuperable. Alcanzaba con
+  // pasar un segundo en un formulario nuevo para perder lo anterior.
   useEffect(() => {
+    if (!tieneAlgoCargado(formData)) return undefined;
     const timer = setTimeout(() => {
       guardarBorradorAutomatico(formData);
       // Si ya lo guardaste a mano, ese borrador se mantiene al dia solo.
