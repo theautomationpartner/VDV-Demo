@@ -191,7 +191,6 @@ function nuevaAsignacion(app) {
     superAprobador: false,
     mondayUserId: "",
     apruebaCualquierOrden: false,
-    apruebaSusOrdenes: false,
   };
 }
 
@@ -989,7 +988,6 @@ export default function WhitelistAdminPage() {
         superAprobador: a.appConfig?.superAprobador === true,
         mondayUserId: a.appConfig?.mondayUserId ? String(a.appConfig.mondayUserId) : "",
         apruebaCualquierOrden: a.appConfig?.apruebaCualquierOrden === true,
-        apruebaSusOrdenes: a.appConfig?.apruebaSusOrdenes === true,
       }));
     const tieneAppsOcultas = (u.asignaciones ?? []).length > asignaciones.length;
     setProveedorElegido(null);
@@ -1102,7 +1100,6 @@ export default function WhitelistAdminPage() {
               ? {
                   mondayUserId: a.mondayUserId ? Number(a.mondayUserId) : null,
                   apruebaCualquierOrden: a.apruebaCualquierOrden === true,
-                  apruebaSusOrdenes: a.apruebaSusOrdenes === true,
                 }
               : {
                   proveedorName: a.proveedorName.trim() || null,
@@ -1475,35 +1472,9 @@ export default function WhitelistAdminPage() {
                             Puede aprobar cualquier orden
                           </span>
                           <span className="block text-[11px] text-muted-foreground">
-                            Aprueba aunque no figure como aprobador designado de esa orden.
-                          </span>
-                        </span>
-                      </label>
-                    )}
-
-                    {/* Por defecto la lista de aprobadores excluye a quien
-                        emite: nadie cierra solo su propio circuito. Esta casilla
-                        es la excepcion que pidio el cliente, porque una sola
-                        cuenta emite el 89% de las ordenes. Siguen siendo dos
-                        momentos: firma al emitir y despues firma al aprobar. */}
-                    {a.app === OC_APP && puedeAprobarOc(a.appRol) && (
-                      <label className="flex items-start gap-2 rounded-md border border-border/60 bg-background/40 p-2.5">
-                        <Switch
-                          size="sm"
-                          className="mt-0.5"
-                          checked={a.apruebaSusOrdenes}
-                          onCheckedChange={(v) =>
-                            updateAsignacion(index, { apruebaSusOrdenes: v === true })
-                          }
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-xs font-medium text-foreground">
-                            Puede aprobar sus propias órdenes
-                          </span>
-                          <span className="block text-[11px] text-muted-foreground">
-                            Se puede elegir a sí mismo como aprobador. Firma al emitir, la orden
-                            queda pendiente, y después la aprueba y firma de nuevo desde el
-                            historial.
+                            Aprueba aunque no figure como aprobador designado de esa orden, y puede
+                            elegirse a sí mismo al emitir. Firma al emitir y de nuevo al aprobar:
+                            son dos momentos, nunca la misma pantalla.
                           </span>
                         </span>
                       </label>
