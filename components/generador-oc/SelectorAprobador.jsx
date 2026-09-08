@@ -34,7 +34,7 @@ import { getUsuariosAprobadores, getUsuariosMonday } from "@/lib/generador-oc/da
  * Ademas, sin un <SelectItem> que le corresponda, Base UI muestra el value
  * crudo -el id de monday- en vez del nombre; ver components/ui/select.jsx.
  */
-export default function SelectorAprobador({ valor, onChange, emisorId }) {
+export default function SelectorAprobador({ valor, onChange, emisorId, puedeAprobarSusOrdenes = false }) {
   const [usuarios, setUsuarios] = useState([]);
   // Todos los usuarios vivos de monday, no solo los que aprueban: es lo que
   // permite distinguir "le falta el rol" de "esa cuenta ya no existe".
@@ -47,7 +47,10 @@ export default function SelectorAprobador({ valor, onChange, emisorId }) {
     setCargando(true);
     setError(false);
 
-    Promise.all([getUsuariosAprobadores(emisorId), getUsuariosMonday().catch(() => [])])
+    Promise.all([
+      getUsuariosAprobadores(emisorId, puedeAprobarSusOrdenes),
+      getUsuariosMonday().catch(() => []),
+    ])
       .then(([lista, todos]) => {
         if (!activo) return;
         setUsuarios(lista ?? []);
@@ -64,7 +67,7 @@ export default function SelectorAprobador({ valor, onChange, emisorId }) {
     return () => {
       activo = false;
     };
-  }, [emisorId]);
+  }, [emisorId, puedeAprobarSusOrdenes]);
 
   if (cargando) {
     return (

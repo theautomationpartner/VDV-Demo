@@ -21,12 +21,40 @@ import { fechaLarga } from "@/lib/generador-oc/fechas";
  * Cierra el ciclo de la orden: quien esta asignado como aprobador firma aca, se
  * regenera el PDF con las dos firmas y la orden queda APROBADA.
  *
- * OJO con la firma de quien emitio: el PDF se rearma desde cero y el dibujo
- * original no se guarda en ningun lado, asi que en el documento aprobado ese
- * recuadro queda con la linea vacia (el nombre, el cargo, la fecha y el codigo
- * si estan). Es asi tambien en la Vibe original. Para conservarlo habria que
- * guardar la imagen de la firma al emitir.
+ * La firma de quien emitio se recupera de la columna FIRMA EMISOR, donde la
+ * guardo la emision. Antes no se guardaba en ningun lado y el PDF aprobado
+ * salia con ese recuadro vacio: se notaba poco porque las dos firmas se hacian
+ * en el mismo minuto, pero ahora que son dos momentos separados el documento
+ * final habria quedado con una sola firma dibujada.
+ *
+ * Las ordenes emitidas antes de que existiera esa columna no la tienen: ahi se
+ * sigue como antes, con el nombre y la fecha pero sin dibujo.
  */
+
+/** Baja la firma guardada y la deja como data URL, que es lo que quiere el PDF. */
+async function traerFirmaEmisor(itemId) {
+  try {
+    const params = new URLSearchParams({
+      boardKey: "OrdenesDeCompraMaxxaBoard",
+      itemId: String(itemId),
+      columna: "firmaEmisor",
+    });
+    const res = await fetch(`/api/monday/archivo?${params}`);
+    if (!res.ok) return undefined;
+    const blob = await res.blob();
+    if (!blob.size) return undefined;
+    return await new Promise((resolve) => {
+      const lector = new FileReader();
+      lector.onload = () => resolve(String(lector.result));
+      lector.onerror = () => resolve(undefined);
+      lector.readAsDataURL(blob);
+    });
+  } catch (error) {
+    // Sin la firma el PDF sale igual, con el recuadro vacio como antes.
+    console.warn("[generador-oc] No se pudo recuperar la firma del emisor:", error?.message);
+    return undefined;
+  }
+}
 export default function AprobarOcDialog({
   itemId,
   numeroOc,
@@ -71,6 +99,10 @@ export default function AprobarOcDialog({
     setError(null);
 
     try {
+      // La firma que dibujo quien emitio, para que el documento aprobado tenga
+      // las dos de verdad. Si la orden es anterior a la columna, viene vacia.
+      const firmaEmisor = await traerFirmaEmisor(itemId);
+
       const pdfBlob = await generateOcPdf({
         numeroOc: datos.numeroOc,
         fechaEmision: fechaLarga(datos.validezDesde),
@@ -105,6 +137,7 @@ export default function AprobarOcDialog({
           cargo: datos.responsable.cargo ?? undefined,
           codigo: datos.codigoValidacion,
           fechaIso: datos.fechaEmisionIso,
+          imagen: firmaEmisor,
         }),
         firmaAprobador: buildFirmaDigital({
           nombre: currentUser.name,

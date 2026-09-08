@@ -747,6 +747,7 @@ export default function NuevaOcForm({ onPreview, currentUser, borrador = null, o
             valor={formData.aprobador}
             onChange={(aprobador) => setFormData((prev) => ({ ...prev, aprobador }))}
             emisorId={currentUser?.id}
+            puedeAprobarSusOrdenes={currentUser?.apruebaSusOrdenes === true}
           />
         </div>
       </Card>
