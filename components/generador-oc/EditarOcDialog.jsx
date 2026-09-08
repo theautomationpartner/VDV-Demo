@@ -34,6 +34,7 @@ import SelectorAprobador from "./SelectorAprobador";
 import MaterialPicker from "./MaterialPicker";
 import SelectorCentroCosto from "./SelectorCentroCosto";
 import { DESPACHO_LABELS, formatearDespacho } from "@/lib/generador-oc/despacho";
+import { excedeNombre } from "@/lib/generador-oc/linea-oc";
 import { formatearPago, CREDITO_OPCIONES } from "@/lib/generador-oc/fechas";
 
 /**
@@ -236,6 +237,20 @@ export default function EditarOcDialog({
     }
     if (items.some((l) => l.nueva && !l.centroCosto?.trim())) {
       setError("Indicá el centro de costo de la línea que agregaste.");
+      return;
+    }
+    // Igual que al emitir: monday guarda la linea como el nombre de un
+    // subelemento y rechaza los de mas de 255 caracteres. Aca ademas cortaria
+    // la edicion entera por la mitad, porque editarOc corta al primer error.
+    const largas = items
+      .map((l, i) => ({ numero: i + 1, sobra: excedeNombre(l, moneda) }))
+      .filter((x) => x.sobra > 0);
+    if (largas.length > 0) {
+      setError(
+        largas.length === 1
+          ? `La descripción de la línea ${largas[0].numero} es muy larga: sacale ${largas[0].sobra} caracteres. Más larga que eso, monday no la guarda.`
+          : `Las líneas ${largas.map((l) => l.numero).join(", ")} tienen la descripción muy larga. Más largas que eso, monday no las guarda.`,
+      );
       return;
     }
     if (items.some((l) => l.cantidad <= 0 || l.precioUnitario <= 0)) {
