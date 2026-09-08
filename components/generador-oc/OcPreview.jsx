@@ -111,11 +111,20 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
       // que quien la emitio se entere AHORA, no cuando el proveedor pregunte.
       // Sin este aviso, la OC 2201 salio con 4 de sus 5 lineas y nadie lo supo
       // hasta tres dias despues. El cartel no se cierra solo a proposito.
+      const nombres = (ls) => ls.map((l) => `“${l.descripcion.slice(0, 60)}…”`).join(", ");
       if (result.lineasFallidas?.length > 0) {
-        const cuales = result.lineasFallidas.map((l) => `“${l.descripcion}”`).join(", ");
         toast.error(
-          `La orden ${result.numeroOc} se emitió, pero monday rechazó ${result.lineasFallidas.length === 1 ? "esta línea" : "estas líneas"}: ${cuales}. ` +
+          `La orden ${result.numeroOc} se emitió, pero monday no guardó ${result.lineasFallidas.length === 1 ? "esta línea" : "estas líneas"}: ${nombres(result.lineasFallidas)}. ` +
             "El total quedó completo pero el detalle no: entrá a editar la orden y cargala de nuevo.",
+          { duration: Infinity },
+        );
+      }
+      // Distinto caso, distinto mensaje: la linea ESTA, solo le falta un dato.
+      // Decirle que la cargue de nuevo la duplicaria.
+      if (result.lineasIncompletas?.length > 0) {
+        toast.warning(
+          `La orden ${result.numeroOc} se emitió con todas sus líneas, pero a ${result.lineasIncompletas.length === 1 ? "una" : `${result.lineasIncompletas.length}`} le faltó el centro de costo: ${nombres(result.lineasIncompletas)}. ` +
+            "No la cargues de nuevo: entrá a editar la orden y elegí el centro de costo.",
           { duration: Infinity },
         );
       }
