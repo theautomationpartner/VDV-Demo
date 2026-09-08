@@ -59,7 +59,7 @@ export async function GET(request) {
 
   if (AUTH_LAYERS_ENABLED) {
     try {
-      await verificarAccesoArchivo(sesion, boardKey, { itemId });
+      await verificarAccesoArchivo(sesion, boardKey, { itemId, columna });
     } catch (err) {
       if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
       throw err;
