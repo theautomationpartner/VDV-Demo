@@ -270,6 +270,12 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
       // MISMO numero en vez del siguiente.
       if (creada && !documentoAdjunto) {
         try {
+          // El borrado reintenta hasta ~15 segundos si la red esta caida, asi
+          // que puede tardar: decir que esta pasando en vez de dejar el boton
+          // girando en silencio.
+          setError(
+            `No se pudo adjuntar el documento de la orden ${creada.numeroOc}. Deshaciéndola para no perder el número…`,
+          );
           await borrarOcIncompleta(creada.itemId);
           setOcCreada(null);
           setError(
