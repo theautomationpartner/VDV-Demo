@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { generateOcPdf, buildFirmaDigital, calcularTotalLinea } from "@/lib/generador-oc/pdf";
-import { createOc, uploadOcPdf } from "@/lib/generador-oc/datos";
+import { createOc, uploadFirmaEmisor, uploadOcPdf } from "@/lib/generador-oc/datos";
 import { toast } from "sonner";
 import SignaturePad from "./SignaturePad";
 import { EMPRESA, FACTURACION, LOGO_URL } from "@/lib/generador-oc/empresa";
@@ -34,6 +34,16 @@ function DatoProveedor({ label, valor, className }) {
  * puede volver atras: al confirmar se crea el item en monday, se genera el PDF
  * y se adjunta, y ya queda pendiente de aprobacion.
  */
+/** El dibujo del lienzo viene como data URL; monday quiere un archivo. */
+function dataUrlABlob(dataUrl) {
+  const [cabecera, base64] = String(dataUrl ?? "").split(",");
+  const tipo = cabecera?.match(/:(.*?);/)?.[1] ?? "image/png";
+  const binario = atob(base64 ?? "");
+  const bytes = new Uint8Array(binario.length);
+  for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
+  return new Blob([bytes], { type: tipo });
+}
+
 export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
   const [emitting, setEmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -42,7 +52,6 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
   // orden.
   const [ocCreada, setOcCreada] = useState(null);
   const [firmaEmisor, setFirmaEmisor] = useState(null);
-  const [firmaAprobador, setFirmaAprobador] = useState(null);
 
   const neto = data.items.reduce((sum, item) => sum + calcularTotalLinea(item), 0);
   const iva = data.afectaIva ? neto * 0.19 : 0;
@@ -75,7 +84,6 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
       if (!data.proveedor) throw new Error("Falta el proveedor");
       if (!data.aprobador) throw new Error("Debe seleccionar un aprobador para esta orden");
       if (!firmaEmisor) throw new Error("Falta la firma de quien emite la orden");
-      if (!firmaAprobador) throw new Error("Falta la firma de quien aprueba la orden");
 
       const despachoTexto = formatearDespacho(data.despacho);
       const pagoTexto = formatearPago(data.pago);
@@ -166,10 +174,15 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
           fechaIso: result.fechaFirmaIso,
           imagen: firmaEmisor,
         }),
+        // SIN imagen a proposito: el aprobador todavia no firmo. El PDF dibuja
+        // el recuadro con su nombre y "Pendiente de firma", y se completa
+        // cuando el aprobador entre al historial y firme de verdad. Antes
+        // quien emitia dibujaba la firma del aprobador -en la OC 2203 las dos
+        // salieron el mismo minuto, con Pablo sin haberla visto-, que es
+        // exactamente lo que el cliente pidio corregir.
         firmaAprobador: {
           nombre: data.aprobador.name,
           cargo: data.aprobador.cargo ?? undefined,
-          imagen: firmaAprobador,
         },
         urlValidacion: `${window.location.origin}/validar/${result.itemId}?codigo=${encodeURIComponent(result.codigoValidacion)}`,
       });
@@ -180,6 +193,26 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
         result.itemId,
         new File([pdfBlob], nombreArchivo, { type: "application/pdf" }),
       );
+
+      // 4. La firma de quien emite, guardada aparte.
+      //
+      // Cuando el aprobador firme, el PDF se rearma desde cero leyendo monday y
+      // el dibujo original no existiria en ningun lado: el documento aprobado
+      // salia con el recuadro de quien emite vacio. Guardarlo es lo unico que
+      // permite que el documento final tenga las DOS firmas de verdad, que es
+      // todo el punto de separar los dos momentos.
+      //
+      // Si falla no se corta: la orden ya esta emitida y su PDF adjunto.
+      try {
+        await uploadFirmaEmisor(
+          result.itemId,
+          new File([dataUrlABlob(firmaEmisor)], `firma_emisor_OC_${result.numeroOc}.png`, {
+            type: "image/png",
+          }),
+        );
+      } catch (errorFirma) {
+        console.warn("[generador-oc] No se pudo guardar la firma del emisor:", errorFirma?.message);
+      }
 
       onSuccess(result.itemId, result.numeroOc);
     } catch (err) {
@@ -405,21 +438,22 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
                 <p className="mt-1 text-[11px] text-muted-foreground">{currentUser.cargo}</p>
               )}
             </div>
-            <div>
-              <SignaturePad
-                value={firmaAprobador}
-                onChange={setFirmaAprobador}
-                label={`Quien aprueba — ${data.aprobador?.name ?? "No asignado"}`}
-                disabled={!data.aprobador}
-              />
+            <div className="rounded-md border border-dashed border-border bg-muted/30 p-4">
+              <p className="text-xs font-medium text-foreground">
+                Quien aprueba — {data.aprobador?.name ?? "No asignado"}
+              </p>
               {data.aprobador?.cargo && (
-                <p className="mt-1 text-[11px] text-muted-foreground">{data.aprobador.cargo}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">{data.aprobador.cargo}</p>
               )}
+              <p className="mt-3 text-[11px] text-muted-foreground">
+                Firma cuando apruebe la orden, desde el historial. Acá no se dibuja.
+              </p>
             </div>
           </div>
           <p className="mt-3 max-w-lg text-[11px] text-muted-foreground">
-            Ambas firmas quedan estampadas en el PDF junto con la fecha y el código de validación,
-            que se genera con el número definitivo al emitir.
+            Tu firma queda estampada en el PDF junto con la fecha y el código de validación, que se
+            genera con el número definitivo al emitir. La orden sale como PENDIENTE y el recuadro de
+            quien aprueba dice “Pendiente de firma” hasta que la firme.
           </p>
         </div>
 
@@ -444,15 +478,9 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
         </Card>
       )}
 
-      {!error && (!firmaEmisor || !firmaAprobador) && (
+      {!error && !firmaEmisor && (
         <p className="text-center text-xs text-muted-foreground sm:text-right">
-          Falta
-          {!firmaEmisor && !firmaAprobador
-            ? "n ambas firmas"
-            : firmaEmisor
-              ? " la firma de quien aprueba"
-              : " la firma de quien emite"}{" "}
-          para poder emitir la orden.
+          Falta tu firma para poder emitir la orden.
         </p>
       )}
 
@@ -463,7 +491,7 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
         <Button
           size="lg"
           onClick={handleEmit}
-          disabled={emitting || !!ocCreada || !firmaEmisor || !firmaAprobador}
+          disabled={emitting || !!ocCreada || !firmaEmisor}
           className="w-full sm:w-auto"
         >
           {emitting ? (
