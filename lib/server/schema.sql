@@ -74,3 +74,20 @@ CREATE INDEX IF NOT EXISTS idx_auditoria_creado_en ON auditoria (creado_en DESC)
 -- cuenta o por IP sin escanear toda la tabla.
 CREATE INDEX IF NOT EXISTS idx_auditoria_usuario_accion ON auditoria (usuario_id, accion, creado_en);
 CREATE INDEX IF NOT EXISTS idx_auditoria_ip_accion ON auditoria (ip, accion, creado_en);
+
+-- Numeracion de las Ordenes de Compra. Una sola fila.
+--
+-- Antes el numero se calculaba leyendo el maximo del tablero en el momento de
+-- emitir. La lista de items de monday tarda unos segundos en mostrar un item
+-- recien creado, asi que dos emisiones seguidas leian el mismo maximo: el
+-- 08-sep dos ordenes salieron las dos con el numero 2215, con dos segundos de
+-- diferencia. Repartir el numero desde aca es lo unico que lo garantiza.
+--
+-- monday sigue mandando como PISO (ver lib/server/folios-oc.js): las ordenes
+-- que se cargan a mano en el tablero no pasan por la app.
+CREATE TABLE IF NOT EXISTS oc_folios (
+  id                INTEGER PRIMARY KEY,
+  ultimo            INTEGER NOT NULL,
+  actualizado       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT oc_folios_una_sola_fila CHECK (id = 1)
+);
