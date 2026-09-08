@@ -276,7 +276,7 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
           setError(
             `No se pudo adjuntar el documento de la orden ${creada.numeroOc}. Deshaciéndola para no perder el número…`,
           );
-          await borrarOcIncompleta(creada.itemId);
+          await borrarOcIncompleta(creada.itemId, creada.numeroOc);
           setOcCreada(null);
           setError(
             `No se pudo generar el documento de la orden ${creada.numeroOc}: ${err?.message || "error desconocido"}. ` +
