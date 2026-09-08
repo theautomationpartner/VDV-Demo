@@ -429,9 +429,26 @@ function serializarValorColumna(value) {
   return String(value);
 }
 
+/**
+ * El desplegable CENTRO COSTO existe en dos tableros -las ordenes y sus lineas-
+ * y no tienen las mismas etiquetas: hoy el de ordenes tiene 73 y el de lineas
+ * 65. El formulario ofrece la union de los dos (ver getCentrosCosto), asi que
+ * elegir una de las 8 que solo estan arriba hacia que monday contestara "The
+ * dropdown label 'ADICIONAL FELIX MO' does not exist" y la linea quedaba sin
+ * centro de costo, sin que nadie se enterara.
+ *
+ * Se habilita solo para el tablero de lineas, y solo puede pasar con valores
+ * que ya venian de un desplegable controlado -no de texto libre-, asi que no
+ * hay forma de que se creen etiquetas por un tipeo.
+ */
+function creaEtiquetasQueFaltan(boardKey) {
+  return boardKey === "SubelementosDeOrdenesDeCompraMaxxaBoard";
+}
+
 async function handleItemUpdate(boardKey, schema, params) {
   const boardId = getBoardIdOrThrow(schema, boardKey);
   const { itemId, values = {} } = params;
+  const crearEtiquetas = creaEtiquetasQueFaltan(boardKey);
 
   const entries = Object.entries(values);
   if (!entries.length) return { id: itemId };
@@ -463,7 +480,7 @@ async function handleItemUpdate(boardKey, schema, params) {
       ([columnId, valor], i) =>
         `c${i}: change_simple_column_value(item_id: $itemId, board_id: $boardId, column_id: ${JSON.stringify(
           columnId
-        )}, value: ${JSON.stringify(valor)}) { id }`
+        )}, value: ${JSON.stringify(valor)}${crearEtiquetas ? ", create_labels_if_missing: true" : ""}) { id }`
     );
     await mondayFetch(
       `mutation ($itemId: ID!, $boardId: ID!) { ${mutationParts.join("\n")} }`,
@@ -474,7 +491,7 @@ async function handleItemUpdate(boardKey, schema, params) {
   if (Object.keys(relaciones).length) {
     await mondayFetch(
       `mutation ($itemId: ID!, $boardId: ID!, $values: JSON!) {
-        change_multiple_column_values(item_id: $itemId, board_id: $boardId, column_values: $values) { id }
+        change_multiple_column_values(item_id: $itemId, board_id: $boardId, column_values: $values${crearEtiquetas ? ", create_labels_if_missing: true" : ""}) { id }
       }`,
       { itemId, boardId, values: JSON.stringify(relaciones) }
     );
@@ -635,12 +652,22 @@ async function handleSubitemCreate(params) {
   );
   const creado = data.create_subitem;
 
+  // El subelemento YA existe: si alguna de sus columnas no se puede escribir,
+  // no se tira el error para arriba. Quien llama tiene que poder distinguir
+  // "la linea no se guardo" de "la linea se guardo pero le falto un dato": si
+  // se confunden, el aviso invita a cargarla de nuevo y se duplica.
+  let valoresFallidos = null;
   if (Object.keys(values).length) {
-    const subSchema = getBoardSchema(subBoardKey);
-    await handleItemUpdate(subBoardKey, subSchema, { itemId: creado.id, values });
+    try {
+      const subSchema = getBoardSchema(subBoardKey);
+      await handleItemUpdate(subBoardKey, subSchema, { itemId: creado.id, values });
+    } catch (error) {
+      console.error("[monday] subelemento creado pero sin sus columnas:", error?.message);
+      valoresFallidos = error?.message ?? "No se pudieron escribir las columnas de la línea";
+    }
   }
 
-  return { id: creado.id, name: creado.name };
+  return { id: creado.id, name: creado.name, valoresFallidos };
 }
 
 /**
