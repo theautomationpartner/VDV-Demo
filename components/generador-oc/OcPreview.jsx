@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { generateOcPdf, buildFirmaDigital, calcularTotalLinea } from "@/lib/generador-oc/pdf";
 import { createOc, uploadOcPdf } from "@/lib/generador-oc/datos";
+import { toast } from "sonner";
 import SignaturePad from "./SignaturePad";
 import { EMPRESA, FACTURACION, LOGO_URL } from "@/lib/generador-oc/empresa";
 import { formatearDespacho } from "@/lib/generador-oc/despacho";
@@ -105,6 +106,19 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
         items: data.items,
       });
       setOcCreada({ itemId: result.itemId, numeroOc: result.numeroOc });
+
+      // La orden ya existe en monday: no se puede deshacer. Lo unico correcto es
+      // que quien la emitio se entere AHORA, no cuando el proveedor pregunte.
+      // Sin este aviso, la OC 2201 salio con 4 de sus 5 lineas y nadie lo supo
+      // hasta tres dias despues. El cartel no se cierra solo a proposito.
+      if (result.lineasFallidas?.length > 0) {
+        const cuales = result.lineasFallidas.map((l) => `“${l.descripcion}”`).join(", ");
+        toast.error(
+          `La orden ${result.numeroOc} se emitió, pero monday rechazó ${result.lineasFallidas.length === 1 ? "esta línea" : "estas líneas"}: ${cuales}. ` +
+            "El total quedó completo pero el detalle no: entrá a editar la orden y cargala de nuevo.",
+          { duration: Infinity },
+        );
+      }
 
       // 2. El PDF, ya con el numero definitivo y las dos firmas.
       const pdfBlob = await generateOcPdf({
