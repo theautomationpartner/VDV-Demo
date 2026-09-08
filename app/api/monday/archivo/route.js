@@ -131,6 +131,24 @@ export async function GET(request) {
         { status: 502 },
       );
 
+    // La firma de quien emitio no la abre una persona: la pide la propia app
+    // con fetch, para volver a estamparla en el PDF cuando el aprobador firma.
+    // Ahi un redirect no sirve: el navegador lo sigue, pero S3 no manda
+    // cabeceras CORS y el fetch falla con un error de red. Se devuelven los
+    // bytes desde el mismo origen. Son unos 20 KB, no una descarga pesada.
+    if (columna === "firmaEmisor") {
+      const archivo = await fetch(asset.public_url);
+      if (!archivo.ok) {
+        return Response.json({ error: "No se pudo bajar la firma" }, { status: 502 });
+      }
+      return new Response(archivo.body, {
+        headers: {
+          "Content-Type": archivo.headers.get("content-type") ?? "image/png",
+          "Cache-Control": "private, max-age=300",
+        },
+      });
+    }
+
     return Response.redirect(asset.public_url, 302);
   } catch (err) {
     console.error("[archivo] no se pudo resolver:", err?.message);
