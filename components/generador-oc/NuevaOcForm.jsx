@@ -35,7 +35,7 @@ import ResumenAhorroOc from "./precios/ResumenAhorroOc";
 import HistorialMaterialPanel from "./precios/HistorialMaterialPanel";
 import { useAnalisisPrecios } from "@/hooks/generador-oc/useAnalisisPrecios";
 import { calcularTotalLinea } from "@/lib/generador-oc/pdf";
-import { excedeNombre, maxDescripcion } from "@/lib/generador-oc/linea-oc";
+import { MAX_DESCRIPCION } from "@/lib/generador-oc/linea-oc";
 import { DESPACHO_LABELS } from "@/lib/generador-oc/despacho";
 import {
   VALIDEZ_OPCIONES,
@@ -117,27 +117,25 @@ function construirFormData(base) {
 }
 
 /**
- * Avisa cuando la descripcion se esta pasando del largo que monday acepta.
- *
- * Solo aparece cerca del limite: un contador siempre visible en cada linea es
- * ruido. El presupuesto no es fijo, depende de la propia linea -la cantidad, la
- * unidad, el precio y el descuento tambien ocupan lugar en el nombre-, por eso
- * se calcula por linea y no con un numero a ojo.
+ * Avisa solo cerca del tope. Las descripciones largas ya se guardan enteras -en
+ * su propia columna, ver linea-oc.js-, asi que el limite dejo de ser los 255
+ * caracteres del nombre y pasaron a ser 2.000, que no es de monday sino
+ * nuestro: nadie describe un trabajo en dos mil caracteres, y un pegado
+ * accidental de veinte paginas no tiene que terminar en el PDF del proveedor.
  */
-function ContadorDescripcion({ item, moneda }) {
+function ContadorDescripcion({ item }) {
   const usados = String(item.descripcion ?? "").trim().length;
-  const tope = maxDescripcion(item, moneda);
-  if (usados < tope - 40) return null;
+  if (usados < MAX_DESCRIPCION - 200) return null;
 
-  const sobra = usados - tope;
+  const sobra = usados - MAX_DESCRIPCION;
   return sobra > 0 ? (
     <p className="text-[11px] font-medium text-destructive">
-      Te pasaste por {sobra} {sobra === 1 ? "caracter" : "caracteres"}. monday no guarda
-      descripciones más largas: la línea se perdería.
+      Te pasaste por {sobra} {sobra === 1 ? "caracter" : "caracteres"}. El máximo son{" "}
+      {MAX_DESCRIPCION.toLocaleString("es-CL")}.
     </p>
   ) : (
     <p className="text-[11px] text-[hsl(var(--precio-medio))]">
-      Te quedan {tope - usados} caracteres.
+      Te quedan {MAX_DESCRIPCION - usados} caracteres.
     </p>
   );
 }
@@ -357,13 +355,16 @@ export default function NuevaOcForm({ onPreview, currentUser, borrador = null, o
     // enterara. Se corta aca, antes de emitir, que es el unico momento en que
     // todavia se puede arreglar.
     const largas = formData.items
-      .map((item, i) => ({ numero: i + 1, sobra: excedeNombre(item, formData.moneda) }))
+      .map((item, i) => ({
+        numero: i + 1,
+        sobra: String(item.descripcion ?? "").trim().length - MAX_DESCRIPCION,
+      }))
       .filter((x) => x.sobra > 0);
     if (largas.length > 0) {
       toast.error(
         largas.length === 1
-          ? `La descripción de la línea ${largas[0].numero} es muy larga: sacale ${largas[0].sobra} caracteres. Más larga que eso, monday no la guarda y la orden saldría incompleta.`
-          : `Hay ${largas.length} líneas con la descripción muy larga (${largas.map((l) => l.numero).join(", ")}). Más largas que eso, monday no las guarda y la orden saldría incompleta.`,
+          ? `La descripción de la línea ${largas[0].numero} tiene ${largas[0].sobra} caracteres de más. El máximo son ${MAX_DESCRIPCION.toLocaleString("es-CL")}.`
+          : `Las líneas ${largas.map((l) => l.numero).join(", ")} tienen la descripción más larga que ${MAX_DESCRIPCION.toLocaleString("es-CL")} caracteres.`,
       );
       return;
     }
@@ -830,7 +831,7 @@ export default function NuevaOcForm({ onPreview, currentUser, borrador = null, o
                         onSelect={(material) => selectMaterial(index, material)}
                       />
                     )}
-                    <ContadorDescripcion item={item} moneda={formData.moneda} />
+                    <ContadorDescripcion item={item} />
                   </div>
 
                   <div className="col-span-8 min-w-0 space-y-1.5 md:col-span-4">

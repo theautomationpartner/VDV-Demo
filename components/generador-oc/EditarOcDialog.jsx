@@ -34,7 +34,7 @@ import SelectorAprobador from "./SelectorAprobador";
 import MaterialPicker from "./MaterialPicker";
 import SelectorCentroCosto from "./SelectorCentroCosto";
 import { DESPACHO_LABELS, formatearDespacho } from "@/lib/generador-oc/despacho";
-import { excedeNombre } from "@/lib/generador-oc/linea-oc";
+import { MAX_DESCRIPCION } from "@/lib/generador-oc/linea-oc";
 import { formatearPago, CREDITO_OPCIONES } from "@/lib/generador-oc/fechas";
 
 /**
@@ -243,13 +243,16 @@ export default function EditarOcDialog({
     // subelemento y rechaza los de mas de 255 caracteres. Aca ademas cortaria
     // la edicion entera por la mitad, porque editarOc corta al primer error.
     const largas = items
-      .map((l, i) => ({ numero: i + 1, sobra: excedeNombre(l, moneda) }))
+      .map((l, i) => ({
+        numero: i + 1,
+        sobra: String(l.descripcion ?? "").trim().length - MAX_DESCRIPCION,
+      }))
       .filter((x) => x.sobra > 0);
     if (largas.length > 0) {
       setError(
         largas.length === 1
-          ? `La descripción de la línea ${largas[0].numero} es muy larga: sacale ${largas[0].sobra} caracteres. Más larga que eso, monday no la guarda.`
-          : `Las líneas ${largas.map((l) => l.numero).join(", ")} tienen la descripción muy larga. Más largas que eso, monday no las guarda.`,
+          ? `La descripción de la línea ${largas[0].numero} tiene ${largas[0].sobra} caracteres de más. El máximo son ${MAX_DESCRIPCION.toLocaleString("es-CL")}.`
+          : `Las líneas ${largas.map((l) => l.numero).join(", ")} pasan los ${MAX_DESCRIPCION.toLocaleString("es-CL")} caracteres.`,
       );
       return;
     }
