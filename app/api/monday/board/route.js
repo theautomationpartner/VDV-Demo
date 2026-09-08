@@ -4,6 +4,7 @@ import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/serve
 import {
   verificarAccesoMutacion,
   verificarAccesoLectura,
+  verificarAccesoRollbackOc,
   filtrarPorObrasPermitidas,
   accesoBoardErrorToResponse,
   BoardAccessError,
@@ -514,7 +515,31 @@ async function handleItemCreate(boardKey, schema, params) {
 
   const entries = Object.entries(values);
   if (entries.length) {
-    await handleItemUpdate(boardKey, schema, { itemId, values });
+    // monday crea el item ANTES de escribir las columnas, asi que si alguna
+    // falla el item queda igual: con su nombre y su numero, y sin proveedor,
+    // responsable ni aprobador. Eso fue la OC 2204 y la 2205 del 7-sep - dos
+    // intentos fallidos que se quedaron con el folio, y la orden real nunca se
+    // emitio. Como quien llama recibe un error, vuelve a intentar y saca el
+    // numero siguiente.
+    //
+    // Un item a medio crear no le sirve a nadie: se borra y recien ahi se tira
+    // el error. Borrarlo devuelve el numero, porque el proximo sale del maximo
+    // del tablero.
+    try {
+      await handleItemUpdate(boardKey, schema, { itemId, values });
+    } catch (error) {
+      try {
+        await mondayFetch(`mutation ($itemId: ID!) { delete_item(item_id: $itemId) { id } }`, {
+          itemId,
+        });
+      } catch (errorBorrado) {
+        // Quedo el item huerfano y no se pudo limpiar. Que el mensaje lo diga:
+        // si no, se reintenta a ciegas y se van dos numeros en vez de uno.
+        console.error("[monday] item a medio crear que no se pudo borrar:", errorBorrado?.message);
+        error.itemHuerfano = itemId;
+      }
+      throw error;
+    }
   }
 
   if (returnColumns.length) {
@@ -528,6 +553,64 @@ async function handleItemCreate(boardKey, schema, params) {
   }
 
   return { id: itemId, name: data.create_item.name };
+}
+
+/**
+ * Deshace una orden que quedo a medio emitir.
+ *
+ * El numero de OC sale del maximo del tablero, asi que un item huerfano se
+ * queda con el folio para siempre: la 2204 y la 2205 son dos intentos de la
+ * misma orden, que despues nunca se emitio. Borrarlo devuelve el numero.
+ *
+ * Las tres condiciones no son decorativas: sin ellas esto seria un "borrar
+ * cualquier orden de compra" disfrazado. Se verifican contra monday, no contra
+ * lo que diga el navegador.
+ */
+const MINUTOS_PARA_DESHACER = 15;
+
+async function handleOcRollback(boardKey, schema, params) {
+  const { itemId } = params;
+  if (!itemId) throw new Error("Falta 'itemId'");
+
+  const colEstado = resolveColumnId(boardKey, "estadoDocumento");
+  const colDoc = resolveColumnId(boardKey, "docOc");
+
+  const data = await mondayFetch(
+    `query ($itemId: ID!, $ids: [String!]) {
+      items (ids: [$itemId]) {
+        id
+        created_at
+        column_values (ids: $ids) { id text }
+      }
+    }`,
+    { itemId: String(itemId), ids: [colEstado, colDoc] },
+  );
+
+  const item = data.items?.[0];
+  if (!item) {
+    // Ya no existe: el resultado que se buscaba. No es un error.
+    return { borrado: false, motivo: "La orden ya no está en el tablero." };
+  }
+
+  const valores = Object.fromEntries((item.column_values ?? []).map((c) => [c.id, c.text ?? ""]));
+  const estado = valores[colEstado] ?? "";
+  const doc = valores[colDoc] ?? "";
+
+  if (doc.trim()) {
+    throw new Error("Esa orden ya tiene su documento adjunto: no se puede deshacer.");
+  }
+  if (estado && estado.toUpperCase() !== "PENDIENTE") {
+    throw new Error(`Esa orden está en ${estado}: no se puede deshacer.`);
+  }
+  const minutos = (Date.now() - new Date(item.created_at).getTime()) / 60000;
+  if (!(minutos < MINUTOS_PARA_DESHACER)) {
+    throw new Error("Esa orden ya no es reciente: no se puede deshacer desde la app.");
+  }
+
+  await mondayFetch(`mutation ($itemId: ID!) { delete_item (item_id: $itemId) { id } }`, {
+    itemId: String(itemId),
+  });
+  return { borrado: true };
 }
 
 async function handleUsersMe() {
@@ -887,6 +970,18 @@ export async function POST(request) {
         }
       }
       return Response.json({ result: await handleNotify(boardKey, schema, params) });
+    }
+
+    if (op === "ocRollback") {
+      if (AUTH_LAYERS_ENABLED) {
+        try {
+          verificarAccesoRollbackOc(sesion, boardKey);
+        } catch (err) {
+          if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
+          throw err;
+        }
+      }
+      return Response.json({ result: await handleOcRollback(boardKey, schema, params) });
     }
 
     if (op === "usersList") return Response.json({ result: await handleUsersList(params) });

@@ -6,7 +6,14 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { generateOcPdf, buildFirmaDigital, calcularTotalLinea } from "@/lib/generador-oc/pdf";
-import { createOc, uploadFirmaEmisor, uploadOcPdf } from "@/lib/generador-oc/datos";
+import {
+  borrarOcIncompleta,
+  createOc,
+  notificarAprobador,
+  uploadFirmaEmisor,
+  uploadOcPdf,
+  uploadOcPdfEmision,
+} from "@/lib/generador-oc/datos";
 import { toast } from "sonner";
 import SignaturePad from "./SignaturePad";
 import { EMPRESA, FACTURACION, LOGO_URL } from "@/lib/generador-oc/empresa";
@@ -80,6 +87,12 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
     setEmitting(true);
     setError(null);
 
+    // Locales, no estado: `setOcCreada` no actualiza `ocCreada` dentro de esta
+    // misma funcion, asi que el catch nunca se enteraba de que la orden ya
+    // existia y mostraba el mensaje generico.
+    let creada = null;
+    let documentoAdjunto = false;
+
     try {
       if (!data.proveedor) throw new Error("Falta el proveedor");
       if (!data.aprobador) throw new Error("Debe seleccionar un aprobador para esta orden");
@@ -113,7 +126,8 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
         comentarios: data.comentarios,
         items: data.items,
       });
-      setOcCreada({ itemId: result.itemId, numeroOc: result.numeroOc });
+      creada = { itemId: result.itemId, numeroOc: result.numeroOc };
+      setOcCreada(creada);
 
       // La orden ya existe en monday: no se puede deshacer. Lo unico correcto es
       // que quien la emitio se entere AHORA, no cuando el proveedor pregunte.
@@ -137,7 +151,7 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
         );
       }
 
-      // 2. El PDF, ya con el numero definitivo y las dos firmas.
+      // 2. El PDF, ya con el numero definitivo y la firma de quien emite.
       const pdfBlob = await generateOcPdf({
         numeroOc: result.numeroOc,
         fechaEmision: formatDate(fechaEmision),
@@ -189,10 +203,43 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
 
       // 3. El PDF adjunto en la columna DOC OC de la orden.
       const nombreArchivo = `OC_${result.numeroOc}_${data.proveedor.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
-      await uploadOcPdf(
-        result.itemId,
-        new File([pdfBlob], nombreArchivo, { type: "application/pdf" }),
-      );
+      const archivoPdf = new File([pdfBlob], nombreArchivo, { type: "application/pdf" });
+      await uploadOcPdf(result.itemId, archivoPdf);
+      // Desde aca la orden ya es valida: tiene su documento. Si algo falla mas
+      // adelante NO se deshace.
+      documentoAdjunto = true;
+
+      // 3b. La misma copia, guardada aparte. DOC OC se va a reemplazar por el
+      // documento firmado cuando el aprobador entre, y esta es la unica forma
+      // de poder comparar despues que se emitio con que se aprobo. No es
+      // critica: si falla, la orden esta igual.
+      try {
+        await uploadOcPdfEmision(result.itemId, archivoPdf);
+      } catch (errorCopia) {
+        console.warn(
+          "[generador-oc] No se pudo guardar la copia de emisión:",
+          errorCopia?.message,
+        );
+      }
+
+      // 3c. Recien ahora se le avisa al aprobador: si la emision se hubiera
+      // deshecho, la notificacion apuntaria a un item borrado.
+      try {
+        await notificarAprobador({
+          itemId: result.itemId,
+          numeroOc: result.numeroOc,
+          aprobadorId: data.aprobador.id,
+          proveedor: data.proveedor.nombreComercial || data.proveedor.name,
+          obra: data.obra,
+          moneda: data.moneda,
+          total: result.total,
+        });
+      } catch (errorAviso) {
+        console.error(
+          "[generador-oc] La OC se emitió pero no se pudo notificar al aprobador:",
+          errorAviso?.message,
+        );
+      }
 
       // 4. La firma de quien emite, guardada aparte.
       //
@@ -217,11 +264,32 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
       onSuccess(result.itemId, result.numeroOc);
     } catch (err) {
       console.error("[generador-oc] Error al emitir OC:", err);
-      if (ocCreada) {
-        // El item ya existe: lo que fallo es el PDF o su adjunto. Decirlo tal
-        // cual, porque volver a emitir crearia una segunda orden.
+
+      // La orden llego a crearse pero se quedo sin documento: no sirve, y peor,
+      // se queda con el numero. Se deshace para que el proximo intento saque el
+      // MISMO numero en vez del siguiente.
+      if (creada && !documentoAdjunto) {
+        try {
+          await borrarOcIncompleta(creada.itemId);
+          setOcCreada(null);
+          setError(
+            `No se pudo generar el documento de la orden ${creada.numeroOc}: ${err?.message || "error desconocido"}. ` +
+              "La orden no quedó emitida y el número sigue libre: podés volver a intentar.",
+          );
+          return;
+        } catch (errorRollback) {
+          console.error("[generador-oc] No se pudo deshacer la orden:", errorRollback);
+          setError(
+            `La orden ${creada.numeroOc} se creó en monday, pero no se pudo adjuntar el PDF: ${err?.message || "error desconocido"}. No vuelvas a emitir: se duplicaría. Avisá al equipo para adjuntarlo.`,
+          );
+          return;
+        }
+      }
+
+      if (creada) {
+        // Ya tiene documento: la orden es valida y lo que fallo es posterior.
         setError(
-          `La orden ${ocCreada.numeroOc} se creó en monday, pero no se pudo adjuntar el PDF: ${err?.message || "error desconocido"}. No vuelvas a emitir: se duplicaría. Avisá al equipo para adjuntarlo.`,
+          `La orden ${creada.numeroOc} se emitió, pero algo falló después: ${err?.message || "error desconocido"}. No vuelvas a emitir: se duplicaría.`,
         );
       } else {
         setError(err?.message || "Ocurrió un error al crear la Orden de Compra");
