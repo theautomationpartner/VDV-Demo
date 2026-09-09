@@ -128,8 +128,6 @@ function Fila({ item }) {
 
 export default function MisPendientesPage() {
   const { items, cargando, activo, ocHuerfanas } = usePendientes();
-  // DIAGNOSTICO TEMPORAL: esto lo imprime la PAGINA, no el hook compartido.
-  console.log("[PAGINA mis-pendientes] render. cargando:", cargando, "| activo:", activo, "| items:", items?.length, "| ocHuerfanas:", ocHuerfanas);
   const [verEsperando, setVerEsperando] = useState(false);
 
   // Tres estados distintos, y mezclarlos era el problema: lo que hay que hacer,
