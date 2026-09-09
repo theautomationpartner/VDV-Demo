@@ -139,14 +139,11 @@ const oyentes = new Set();
 let cargando = null;
 
 function publicar(nuevo) {
-  console.log("[pendientes] publicar()", nuevo, "| oyentes suscritos:", oyentes.size);
   compartido = nuevo;
   for (const avisar of oyentes) avisar(nuevo);
 }
 
 async function recargar() {
-  // DIAGNOSTICO TEMPORAL - sacar despues de encontrar el cuelgue de testconsulta.
-  console.log("[pendientes] recargar() llamado. cargando en curso?", !!cargando);
   if (cargando) return cargando;
 
   cargando = (async () => {
@@ -154,10 +151,8 @@ async function recargar() {
     const sesionOc = leerSesionOc();
     const conContratos = puedeDeberContratos(sesion);
     const conOc = puedeVerOc(sesionOc);
-    console.log("[pendientes] sesion portal:", sesion, "| sesion oc:", sesionOc, "| conContratos:", conContratos, "| conOc:", conOc);
 
     if (!conContratos && !conOc) {
-      console.log("[pendientes] publicando estado inactivo (sin contratos ni oc)");
       publicar({ items: [], cargando: false, activo: false, ocHuerfanas: 0 });
       return;
     }
@@ -201,7 +196,6 @@ async function recargar() {
       publicar({ ...compartido, cargando: false, activo: true });
     }
   })().finally(() => {
-    console.log("[pendientes] recargar() termino.");
     cargando = null;
   });
 
@@ -225,7 +219,6 @@ export function usePendientes() {
   const [estado, setEstado] = useState(compartido);
 
   useEffect(() => {
-    console.log("[pendientes] componente se suscribe. compartido actual:", compartido);
     oyentes.add(setEstado);
 
     // Ponerse al dia con lo que haya pasado ENTRE el render y este efecto.
@@ -250,7 +243,6 @@ export function usePendientes() {
   }, []);
 
   useEffect(() => {
-    console.log("[pendientes] efecto de pathname dispara recargar(). pathname:", pathname);
     recargar();
   }, [pathname]);
 
