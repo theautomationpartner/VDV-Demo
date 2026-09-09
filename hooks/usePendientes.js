@@ -12,7 +12,7 @@ import {
   pendientesDeContratos,
   pendientesDeOc,
   puedeDeberContratos,
-  puedeDeberOc,
+  puedeVerOc,
 } from "@/lib/pendientes";
 
 function leerSesion(clave) {
@@ -126,7 +126,7 @@ async function recargar() {
     const sesion = leerSesionPortal();
     const sesionOc = leerSesionOc();
     const conContratos = puedeDeberContratos(sesion);
-    const conOc = puedeDeberOc(sesionOc);
+    const conOc = puedeVerOc(sesionOc);
 
     if (!conContratos && !conOc) {
       publicar({ items: [], cargando: false, activo: false, ocHuerfanas: 0 });
