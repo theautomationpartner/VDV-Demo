@@ -55,7 +55,11 @@ async function traerOrdenes() {
         return [];
       }
       const json = await res.json();
-      const ordenes = json?.result?.ordenes ?? [];
+      // OJO: este endpoint devuelve { ordenes, facturas, calculadoEn } AL RAS.
+      // No usa el sobre { result } de /api/monday/board. Leerlo como
+      // json.result.ordenes daba siempre una lista vacia, y por eso la seccion
+      // de ordenes y el aviso de las que no tienen dueño no aparecian nunca.
+      const ordenes = json?.ordenes ?? [];
       _oc = { datos: ordenes, time: Date.now(), promise: null };
       return ordenes;
     } catch (error) {
