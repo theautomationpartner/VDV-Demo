@@ -15,6 +15,26 @@ import {
   puedeVerOc,
 } from "@/lib/pendientes";
 
+/**
+ * Un fetch con techo de tiempo.
+ *
+ * Sin esto, un pedido que se cuelga en la red -o un servidor que tarda de
+ * mas- deja la bandeja mostrando el esqueleto de carga PARA SIEMPRE: no hay
+ * timeout nativo en fetch(). Mejor mostrar "sin pendientes" a los pocos
+ * segundos que quedar pegado, sobre todo porque esto corre en cada
+ * navegacion, no una sola vez.
+ */
+const TIMEOUT_MS = 10000;
+async function fetchConTiempo(url, opciones) {
+  const control = new AbortController();
+  const reloj = setTimeout(() => control.abort(), TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...opciones, signal: control.signal });
+  } finally {
+    clearTimeout(reloj);
+  }
+}
+
 function leerSesion(clave) {
   if (typeof window === "undefined") return null;
   try {
@@ -49,7 +69,7 @@ async function traerOrdenes() {
 
   _oc.promise = (async () => {
     try {
-      const res = await fetch("/api/oc-tracker/datos");
+      const res = await fetchConTiempo("/api/oc-tracker/datos");
       if (!res.ok) {
         _oc = { datos: [], time: Date.now(), promise: null };
         return [];
@@ -89,7 +109,7 @@ async function traerCobertura() {
 
   _cobertura.promise = (async () => {
     try {
-      const res = await fetch("/api/contratos/cobertura");
+      const res = await fetchConTiempo("/api/contratos/cobertura");
       if (!res.ok) return null;
       const json = await res.json();
       _cobertura = { datos: json?.result ?? null, time: Date.now(), promise: null };
