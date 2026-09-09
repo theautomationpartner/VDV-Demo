@@ -227,6 +227,23 @@ export function usePendientes() {
   useEffect(() => {
     console.log("[pendientes] componente se suscribe. compartido actual:", compartido);
     oyentes.add(setEstado);
+
+    // Ponerse al dia con lo que haya pasado ENTRE el render y este efecto.
+    //
+    // React dibuja todos los componentes primero y recien despues corre los
+    // efectos, en orden. El menu lateral -que va antes en el arbol- se
+    // suscribe, llama a recargar(), y para una cuenta sin nada que aprobar eso
+    // se resuelve SIN esperar ninguna consulta: publicar() sale ahi mismo, con
+    // un solo oyente suscrito. Cuando le toca el turno a la pantalla, el aviso
+    // ya paso y no va a haber otro, asi que se quedaba con el `cargando: true`
+    // que habia leido al dibujarse. Para siempre: el esqueleto de carga no se
+    // iba mas, sin ningun error ni pedido colgado, y con el menu al lado
+    // mostrando el estado correcto.
+    //
+    // setEstado con el mismo valor no cuesta nada: React descarta el update si
+    // el objeto es identico.
+    setEstado(compartido);
+
     return () => {
       oyentes.delete(setEstado);
     };
