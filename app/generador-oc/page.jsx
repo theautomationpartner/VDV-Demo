@@ -55,6 +55,8 @@ function GeneradorOc() {
   // encerrado en la vista previa. Es la misma trampa que arriba, un paso mas
   // adelante. De paso, ahora el boton Atras del navegador tambien saca.
   const paso = enFormulario ? searchParams.get("paso") : null;
+  // ?oc=2216 abre el historial ya filtrado en esa orden: es como Mis
+  // Pendientes te trae hasta la que tenes que firmar.
 
   // Este efecto corre solo cuando la direccion CAMBIA.
   useEffect(() => {
@@ -224,7 +226,7 @@ function GeneradorOc() {
             <TabsTrigger value="precios">Consultar precios</TabsTrigger>
           </TabsList>
           <TabsContent value="historial">
-            <OcHistorial currentUser={usuario} />
+            <OcHistorial currentUser={usuario} ocInicial={searchParams.get("oc")} />
           </TabsContent>
           <TabsContent value="borradores">
             <BorradoresPanel

@@ -59,12 +59,15 @@ function personas(valor) {
   return String(valor);
 }
 
-export default function OcHistorial({ currentUser }) {
+export default function OcHistorial({ currentUser, ocInicial }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [cursor, setCursor] = useState(null);
-  const [search, setSearch] = useState("");
+  // `ocInicial` viene de ?oc=2216, que es como Mis Pendientes te trae hasta una
+  // orden puntual. Sin esto la bandeja te dice cual firmar y te deja
+  // buscandola a mano entre 452.
+  const [search, setSearch] = useState(ocInicial ?? "");
   const [obraFilter, setObraFilter] = useState(TODAS);
   const [estadoFilter, setEstadoFilter] = useState(TODAS);
   const [obras, setObras] = useState([]);

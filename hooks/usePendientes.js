@@ -5,20 +5,67 @@ import { usePathname } from "next/navigation";
 import { claveDe, traerDatosPortal, yaTraido } from "@/hooks/portal-proveedor/portalDatos";
 import { aplicarVbRecientes } from "@/lib/client/vb-recientes";
 import {
+  contratosEsperandoFirma,
   marcarSinCobertura,
+  ocSinAprobador,
+  ordenarPendientes,
   pendientesDeContratos,
+  pendientesDeOc,
   puedeDeberContratos,
+  puedeDeberOc,
 } from "@/lib/pendientes";
 
-/** La sesion del Portal, que es donde viven los pasos de contrato asignados. */
-function leerSesionPortal() {
+function leerSesion(clave) {
   if (typeof window === "undefined") return null;
   try {
-    const crudo = localStorage.getItem("pp_session");
+    const crudo = localStorage.getItem(clave);
     return crudo ? JSON.parse(crudo) : null;
   } catch {
     return null;
   }
+}
+
+/** La sesion del Portal, que es donde viven los pasos de contrato asignados. */
+const leerSesionPortal = () => leerSesion("pp_session");
+
+/** La del OC Tracker, que es donde vive el vinculo con el usuario de monday. */
+const leerSesionOc = () => leerSesion("og_session");
+
+/**
+ * Las ordenes del tablero, de la foto que ya mantiene la tarea programada.
+ *
+ * Se pide una sola vez cada 5 minutos y se comparte: esto lo llama la bandeja y
+ * el contador del menu, y el menu se vuelve a evaluar en cada navegacion.
+ *
+ * Si devuelve 403 esta persona no tiene el OC Tracker asignado: no es un error,
+ * es que esa fuente no le corresponde.
+ */
+const OC_TTL_MS = 5 * 60 * 1000;
+let _oc = { datos: null, time: 0, promise: null };
+
+async function traerOrdenes() {
+  if (_oc.datos && Date.now() - _oc.time < OC_TTL_MS) return _oc.datos;
+  if (_oc.promise) return _oc.promise;
+
+  _oc.promise = (async () => {
+    try {
+      const res = await fetch("/api/oc-tracker/datos");
+      if (!res.ok) {
+        _oc = { datos: [], time: Date.now(), promise: null };
+        return [];
+      }
+      const json = await res.json();
+      const ordenes = json?.result?.ordenes ?? [];
+      _oc = { datos: ordenes, time: Date.now(), promise: null };
+      return ordenes;
+    } catch (error) {
+      console.warn("[pendientes] no se pudieron traer las órdenes:", error?.message);
+      _oc.promise = null;
+      return [];
+    }
+  })();
+
+  return _oc.promise;
 }
 
 const COBERTURA_TTL_MS = 5 * 60 * 1000;
@@ -63,7 +110,7 @@ async function traerCobertura() {
  * vista al mismo tiempo. Un numero en el que no se puede confiar es peor que no
  * ponerlo, porque la gente entra por ese numero.
  */
-let compartido = { items: [], cargando: true, activo: false };
+let compartido = { items: [], cargando: true, activo: false, ocHuerfanas: 0 };
 const oyentes = new Set();
 let cargando = null;
 
@@ -77,30 +124,45 @@ async function recargar() {
 
   cargando = (async () => {
     const sesion = leerSesionPortal();
+    const sesionOc = leerSesionOc();
+    const conContratos = puedeDeberContratos(sesion);
+    const conOc = puedeDeberOc(sesionOc);
 
-    if (!puedeDeberContratos(sesion)) {
-      publicar({ items: [], cargando: false, activo: false });
+    if (!conContratos && !conOc) {
+      publicar({ items: [], cargando: false, activo: false, ocHuerfanas: 0 });
       return;
     }
 
     // Lo que ya esta en cache se pinta al instante: el contador tiene que
     // aparecer enseguida o no cumple su funcion, que es que la gente entre.
-    const cacheado = yaTraido(claveDe(sesion));
+    const cacheado = conContratos ? yaTraido(claveDe(sesion)) : null;
     if (cacheado) {
       publicar({
-        items: pendientesDeContratos(aplicarVbRecientes(cacheado.contratos), sesion),
+        items: ordenarPendientes([
+          ...pendientesDeContratos(aplicarVbRecientes(cacheado.contratos), sesion),
+          ...contratosEsperandoFirma(cacheado.contratos, sesion),
+        ]),
         cargando: false,
         activo: true,
       });
     }
 
     try {
-      const [datos, cobertura] = await Promise.all([traerDatosPortal(sesion), traerCobertura()]);
+      const [datos, cobertura, ordenes] = await Promise.all([
+        conContratos ? traerDatosPortal(sesion) : Promise.resolve({ contratos: [] }),
+        conContratos ? traerCobertura() : Promise.resolve(null),
+        conOc ? traerOrdenes() : Promise.resolve([]),
+      ]);
+      const contratos = aplicarVbRecientes(datos.contratos);
       publicar({
-        items: marcarSinCobertura(
-          pendientesDeContratos(aplicarVbRecientes(datos.contratos), sesion),
-          cobertura,
-        ),
+        items: ordenarPendientes([
+          ...marcarSinCobertura(pendientesDeContratos(contratos, sesion), cobertura),
+          ...contratosEsperandoFirma(contratos, sesion),
+          ...pendientesDeOc(ordenes, sesionOc),
+        ]),
+        // No son filas: es un aviso de que hay ordenes que no le van a caer a
+        // nadie. Ver ocSinAprobador.
+        ocHuerfanas: ocSinAprobador(ordenes, sesionOc),
         cargando: false,
         activo: true,
       });
