@@ -102,7 +102,12 @@ function Fila({ item }) {
 
   // Lo bloqueado se muestra pero no se linkea: llevarte a una pantalla donde el
   // boton va a estar deshabilitado es prometer algo que no se puede hacer.
-  if (!item.habilitado) {
+  //
+  // Lo que espera la firma del proveedor SI se linkea, aunque no sea accionable
+  // en el sentido de aprobar: la ficha del contrato muestra el documento que se
+  // mando a firmar y a que correo, que es exactamente lo que hace falta para ir
+  // a perseguir al que lo tiene hace 45 dias.
+  if (!item.habilitado && !item.esperandoFirma) {
     return (
       <Card className="flex items-start gap-3 border-border px-3 py-2.5 opacity-70">{contenido}</Card>
     );
