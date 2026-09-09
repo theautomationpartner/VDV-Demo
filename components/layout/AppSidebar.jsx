@@ -35,8 +35,9 @@ const RUTA_PENDIENTES = "/mis-pendientes";
  * de entrar.
  *
  * Solo aparece si esta persona puede deber algo: un subcontratista o alguien
- * sin pasos asignados no la ve, asi no se le convierte en una pantalla vacia.
- * Lo decide usePendientes -> puedeDeberContratos.
+ * sin pasos de contrato asignados NI ordenes que aprobar no la ve, asi no se le
+ * convierte en una pantalla vacia. Lo decide usePendientes -> puedeDeberContratos
+ * o puedeDeberOc.
  */
 function contarPendientes(pendientes) {
   return paraHacerAhora(pendientes.items).length;

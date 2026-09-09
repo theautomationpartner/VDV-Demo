@@ -16,12 +16,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { usePendientes } from "@/hooks/usePendientes";
 import { paraHacerAhora } from "@/lib/pendientes";
 
-const fmt = (v) =>
-  new Intl.NumberFormat("es-CL", {
+// Los contratos son siempre en pesos; las ordenes de compra pueden estar en UF
+// o en dolares, y mostrar "US$ 1.200" como "$ 1.200" cambia el numero por 1.000.
+const fmt = (v, moneda = "CLP") => {
+  if (moneda === "UF") return `UF ${(v || 0).toLocaleString("es-CL", { maximumFractionDigits: 2 })}`;
+  return new Intl.NumberFormat("es-CL", {
     style: "currency",
-    currency: "CLP",
+    currency: moneda === "USD" ? "USD" : "CLP",
     maximumFractionDigits: 0,
   }).format(v || 0);
+};
 
 /**
  * Cuanto hace que esta ahi, y cuanto tiene que preocuparte. Los umbrales
@@ -73,7 +77,9 @@ function Fila({ item }) {
           <span className="text-foreground/70">{item.accion}</span>
           {" · "}
           {item.obra}
-          {item.monto ? <span className="tabular-nums">{` · ${fmt(item.monto)}`}</span> : null}
+          {item.monto ? (
+            <span className="tabular-nums">{` · ${fmt(item.monto, item.moneda)}`}</span>
+          ) : null}
           {item.pasosExtra > 0
             ? ` · +${item.pasosExtra} paso${item.pasosExtra > 1 ? "s" : ""} tuyo${item.pasosExtra > 1 ? "s" : ""} acá`
             : null}
@@ -116,7 +122,7 @@ function Fila({ item }) {
 }
 
 export default function MisPendientesPage() {
-  const { items, cargando, activo } = usePendientes();
+  const { items, cargando, activo, ocHuerfanas } = usePendientes();
   const [verEsperando, setVerEsperando] = useState(false);
 
   // Tres estados distintos, y mezclarlos era el problema: lo que hay que hacer,
@@ -124,7 +130,11 @@ export default function MisPendientesPage() {
   // todavia no te toca porque falta el paso anterior.
   const ahora = paraHacerAhora(items);
   const observados = items.filter((i) => i.habilitado && i.observado);
-  const esperando = items.filter((i) => !i.habilitado);
+  // Los cinco VB dados y el documento en la mano del proveedor. Antes estos
+  // contratos DESAPARECIAN de la bandeja, aunque el circuito no hubiera
+  // terminado: es lo que reporto el cliente.
+  const enFirma = items.filter((i) => i.esperandoFirma);
+  const esperando = items.filter((i) => !i.habilitado && !i.esperandoFirma);
 
   return (
     <div className="mx-auto max-w-[900px] space-y-5 p-4 md:p-6">
@@ -151,7 +161,7 @@ export default function MisPendientesPage() {
             Usuarios y Roles.
           </p>
         </Card>
-      ) : items.length === 0 ? (
+      ) : items.length === 0 && ocHuerfanas === 0 ? (
         <Card className="border-border p-8">
           <div className="flex flex-col items-center gap-2 text-center">
             <CheckCircle2 className="h-6 w-6 text-green-400" aria-hidden />
@@ -167,7 +177,9 @@ export default function MisPendientesPage() {
                 <CheckCircle2 className="h-6 w-6 text-green-400" aria-hidden />
                 <p className="text-sm font-medium text-foreground">Nada para firmar ahora</p>
                 <p className="text-sm text-muted-foreground">
-                  Hay contratos tuyos más abajo, pero ninguno depende de vos hoy.
+                  {items.length > 0
+                    ? "Hay cosas tuyas más abajo, pero ninguna depende de vos hoy."
+                    : "No hay nada esperando tu aprobación."}
                 </p>
               </div>
             </Card>
@@ -194,6 +206,41 @@ export default function MisPendientesPage() {
                 visto bueno desde acá.
               </p>
               {observados.map((item) => (
+                <Fila key={item.clave} item={item} />
+              ))}
+            </section>
+          )}
+
+          {ocHuerfanas > 0 && (
+            <Card className="border-border px-3 py-2.5">
+              <p className="flex items-start gap-1.5 text-xs leading-snug text-muted-foreground">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-yellow-400" aria-hidden />
+                <span>
+                  Hay <span className="font-medium text-foreground">{ocHuerfanas}</span> órdenes de
+                  compra en PENDIENTE sin aprobador asignado. No le aparecen a nadie acá porque
+                  nadie las tiene a cargo.{" "}
+                  <Link
+                    href="/generador-oc"
+                    className="text-foreground underline underline-offset-2"
+                  >
+                    Verlas en el historial
+                  </Link>
+                  .
+                </span>
+              </p>
+            </Card>
+          )}
+
+          {enFirma.length > 0 && (
+            <section className="space-y-1.5">
+              <h2 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Esperando la firma del proveedor
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Ya tienen los cinco vistos buenos. El documento está en manos del representante
+                legal del proveedor y se firma fuera de la app.
+              </p>
+              {enFirma.map((item) => (
                 <Fila key={item.clave} item={item} />
               ))}
             </section>
