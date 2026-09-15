@@ -12,6 +12,32 @@ import { seedAppSessionFromEmail } from "@/lib/client/fixed-accounts";
 import { esRutaPublica } from "@/lib/rutas-publicas";
 
 /**
+ * Un crash de la funcion serverless, un deploy caido o un proxy/red intermedios
+ * pueden devolver HTML en vez del JSON que esperan estos formularios. Sin este
+ * chequeo, `res.json()` explota con un "Unexpected token '<'..." crudo del
+ * parser, y ESO es lo que terminaba viendo la persona en pantalla en vez de un
+ * mensaje entendible.
+ */
+async function parsearRespuesta(res, contexto) {
+  const texto = await res.text();
+  try {
+    return JSON.parse(texto);
+  } catch {
+    console.error("[auth] Respuesta no-JSON del servidor:", res.status, texto.slice(0, 200));
+    // "keepalive" para que el aviso salga aunque la persona ya haya navegado
+    // lejos de esta pantalla. Sin `await` y sin `.catch` con logica: si este
+    // aviso tambien falla, no hay nada mas que intentar - que no rompa el flujo.
+    fetch("/api/auth/client-error", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contexto, status: res.status, snippet: texto, url: res.url }),
+      keepalive: true,
+    }).catch(() => {});
+    throw new Error("Hubo un problema de conexión con el servidor. Probá de nuevo en un momento.");
+  }
+}
+
+/**
  * Login propio de la app (whitelist de emails + 2FA) - se monta una sola vez en
  * app/layout.js, ENVOLVIENDO las 3 apps (OC Tracker, Vale Express, Portal
  * Proveedor comparten esta misma puerta). No depende de monday.com para nada de
@@ -173,7 +199,7 @@ function EmailScreen({ onAuthorized, onBlocked }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),
       });
-      const json = await res.json();
+      const json = await parsearRespuesta(res, "login");
       if (!res.ok) {
         if (res.status === 401) return onBlocked();
         throw new Error(json.error ?? "Error al verificar el correo");
@@ -238,7 +264,7 @@ function SetupScreen({ preAuthToken, onDone }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ preAuthToken }),
         });
-        const json = await res.json();
+        const json = await parsearRespuesta(res, "mfa-setup");
         if (!res.ok) throw new Error(json.error ?? "Error iniciando el setup de 2FA");
         setQrDataUrl(json.qrDataUrl);
         setSecretBase32(json.secretBase32);
@@ -261,7 +287,7 @@ function SetupScreen({ preAuthToken, onDone }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ preAuthToken, code: code.trim(), remember }),
       });
-      const json = await res.json();
+      const json = await parsearRespuesta(res, "mfa-confirm");
       if (!res.ok) throw new Error(json.error ?? "Código inválido");
       setConfirmedJson(json);
       setRecoveryCodes(json.recoveryCodes);
@@ -368,7 +394,7 @@ function CodeScreen({ preAuthToken, onDone, onNeedsSetup }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = await res.json();
+      const json = await parsearRespuesta(res, "mfa-verify");
       if (!res.ok) throw new Error(json.error ?? "Código inválido");
       if (json.status === "needs_setup") return onNeedsSetup();
       onDone(json);
