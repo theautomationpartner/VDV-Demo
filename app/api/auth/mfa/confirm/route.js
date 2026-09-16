@@ -27,6 +27,14 @@ export async function POST(request) {
     const resultado = await confirmarSetupMfa(usuario.id, code);
     if (!resultado.ok) {
       await auditarEvento(usuario.id, usuario.email, "mfa_setup_fallido", ip);
+      // Mirando varios intentos seguidos de la misma persona, el desfase dice si
+      // el reloj de su celular esta corrido (se repite parecido) o si esta
+      // reescribiendo un codigo viejo (crece en cada intento).
+      console.warn("[mfa-rechazo] setup", {
+        email: usuario.email,
+        motivo: resultado.reason,
+        desfaseSegundos: resultado.desfaseSegundos,
+      });
       return Response.json({ error: mensajeDeRechazo(resultado.reason) }, { status: 400 });
     }
 
