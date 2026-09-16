@@ -40,6 +40,13 @@ export async function POST(request) {
       const error = recoveryCode
         ? "Ese código de recuperación no es válido o ya lo usaste."
         : mensajeDeRechazo(resultado.reason);
+      if (!recoveryCode) {
+        console.warn("[mfa-rechazo] login", {
+          email: usuario.email,
+          motivo: resultado.reason,
+          desfaseSegundos: resultado.desfaseSegundos,
+        });
+      }
       return Response.json({ error }, { status: 400 });
     }
 
