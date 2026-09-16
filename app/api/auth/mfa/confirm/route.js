@@ -1,5 +1,5 @@
 import { verificarPreAuthToken, crearSesion, datosApp } from "@/lib/server/session";
-import { confirmarSetupMfa } from "@/lib/server/totp";
+import { confirmarSetupMfa, mensajeDeRechazo } from "@/lib/server/totp";
 import { marcarUltimoAcceso, auditarEvento } from "@/lib/server/whitelist";
 import { verificarLimite, RateLimitError, obtenerIp } from "@/lib/server/rate-limit";
 
@@ -27,7 +27,7 @@ export async function POST(request) {
     const resultado = await confirmarSetupMfa(usuario.id, code);
     if (!resultado.ok) {
       await auditarEvento(usuario.id, usuario.email, "mfa_setup_fallido", ip);
-      return Response.json({ error: "Código inválido" }, { status: 400 });
+      return Response.json({ error: mensajeDeRechazo(resultado.reason) }, { status: 400 });
     }
 
     await crearSesion(usuario, { remember: Boolean(remember) });

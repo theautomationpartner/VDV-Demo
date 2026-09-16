@@ -1,5 +1,10 @@
 import { verificarPreAuthToken, crearSesion, datosApp } from "@/lib/server/session";
-import { verificarCodigoMfa, verificarCodigoRecuperacion, invalidarMfaConfirmado } from "@/lib/server/totp";
+import {
+  verificarCodigoMfa,
+  verificarCodigoRecuperacion,
+  invalidarMfaConfirmado,
+  mensajeDeRechazo,
+} from "@/lib/server/totp";
 import { marcarUltimoAcceso, auditarEvento } from "@/lib/server/whitelist";
 import { verificarLimite, RateLimitError, obtenerIp } from "@/lib/server/rate-limit";
 
@@ -30,7 +35,12 @@ export async function POST(request) {
 
     if (!resultado.ok) {
       await auditarEvento(usuario.id, usuario.email, "mfa_fallido", ip);
-      return Response.json({ error: "Código inválido o vencido" }, { status: 400 });
+      // Con codigo de recuperacion no hay motivo que diagnosticar: o esta en la
+      // lista de los 10 sin usar, o no esta.
+      const error = recoveryCode
+        ? "Ese código de recuperación no es válido o ya lo usaste."
+        : mensajeDeRechazo(resultado.reason);
+      return Response.json({ error }, { status: 400 });
     }
 
     if (recoveryCode) {
