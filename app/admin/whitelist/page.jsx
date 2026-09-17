@@ -165,6 +165,38 @@ function initialsFor(text) {
 }
 
 /**
+ * Cuando entro por ultima vez, en castellano. El dato ya venia de la base
+ * (`ultimo_acceso`, que se escribe en cada login) y ya llegaba hasta aca, pero
+ * no se mostraba: para saber si alguien a quien le dimos de alta pudo entrar de
+ * verdad habia que ir a buscarlo a los logs del servidor.
+ *
+ * "Nunca entró" es el caso que mas importa ver de un vistazo: es el que todavia
+ * esta trabado con su configuracion.
+ */
+function ultimoAccesoTexto(valor) {
+  if (!valor) return { texto: "Nunca entró", nunca: true };
+
+  const fecha = new Date(valor);
+  if (Number.isNaN(fecha.getTime())) return { texto: "Nunca entró", nunca: true };
+
+  const minutos = Math.floor((Date.now() - fecha.getTime()) / 60000);
+  if (minutos < 1) return { texto: "Entró recién", nunca: false };
+  if (minutos < 60) return { texto: `Entró hace ${minutos} min`, nunca: false };
+
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return { texto: `Entró hace ${horas} h`, nunca: false };
+
+  const dias = Math.floor(horas / 24);
+  if (dias === 1) return { texto: "Entró ayer", nunca: false };
+  if (dias < 30) return { texto: `Entró hace ${dias} días`, nunca: false };
+
+  return {
+    texto: `Entró el ${fecha.toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" })}`,
+    nunca: false,
+  };
+}
+
+/**
  * Con que rol arranca una asignacion recien agregada.
  *
  * Para las dos apps viejas es el primero de la lista, que es Super Admin - se
@@ -739,6 +771,14 @@ function UsuarioCard({ u, onEdit, onDelete, onToggleEstado, togglingId, mostrarA
             {u.nombre ?? "Sin nombre"}
           </div>
           <div className="text-xs text-muted-foreground truncate font-mono">{u.email}</div>
+          {(() => {
+            const { texto, nunca } = ultimoAccesoTexto(u.ultimo_acceso);
+            return (
+              <div className={cn("text-[11px] truncate mt-0.5", nunca ? "text-amber-500" : "text-muted-foreground")}>
+                {texto}
+              </div>
+            );
+          })()}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {u.puedeAdministrarCompleto ? (
