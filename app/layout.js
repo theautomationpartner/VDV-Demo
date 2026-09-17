@@ -3,6 +3,7 @@ import "./globals.css";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthGate } from "@/components/auth/AuthGate";
+import { ActualizacionAutomatica } from "@/components/ActualizacionAutomatica";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -50,6 +51,9 @@ export default function RootLayout({ children }) {
           <main className="min-w-0 flex-1 pb-28 md:pb-0">{children}</main>
         </AuthGate>
         <Toaster richColors position="top-center" />
+        {/* No dibuja nada: deja la pantalla en la version publicada, recargando
+            solo en momentos donde no hay nada escrito que perder. */}
+        <ActualizacionAutomatica />
       </body>
     </html>
   );
