@@ -10,15 +10,18 @@ import { verificarLimite, RateLimitError, obtenerIp } from "@/lib/server/rate-li
  */
 export async function POST(request) {
   const body = await request.json().catch(() => ({}));
+  const ip = obtenerIp(request);
+
   const usuario = verificarPreAuthToken(body?.preAuthToken);
   if (!usuario) {
+    // Quedarse 10 minutos en la pantalla del QR alcanza para llegar aca, y
+    // desde afuera se ve igual que "el codigo no anda".
+    await auditarEvento(null, null, "sesion_de_login_vencida", ip, { paso: "mfa_setup" });
     return Response.json({ error: "Sesion de login vencida, volve a escribir tu email" }, { status: 401 });
   }
 
   const { code, remember } = body ?? {};
   if (!code) return Response.json({ error: "Falta 'code'" }, { status: 400 });
-
-  const ip = obtenerIp(request);
 
   try {
     // Mismo limite que /mfa/verify: 5 intentos fallidos cada 15 min por cuenta.
@@ -26,12 +29,10 @@ export async function POST(request) {
 
     const resultado = await confirmarSetupMfa(usuario.id, code);
     if (!resultado.ok) {
-      await auditarEvento(usuario.id, usuario.email, "mfa_setup_fallido", ip);
       // Mirando varios intentos seguidos de la misma persona, el desfase dice si
       // el reloj de su celular esta corrido (se repite parecido) o si esta
       // reescribiendo un codigo viejo (crece en cada intento).
-      console.warn("[mfa-rechazo] setup", {
-        email: usuario.email,
+      await auditarEvento(usuario.id, usuario.email, "mfa_setup_fallido", ip, {
         motivo: resultado.reason,
         desfaseSegundos: resultado.desfaseSegundos,
       });
@@ -45,6 +46,7 @@ export async function POST(request) {
     return Response.json({ recoveryCodes: resultado.recoveryCodes, id: usuario.id, email: usuario.email, rol: usuario.rol, ...datosApp(usuario) });
   } catch (err) {
     if (err instanceof RateLimitError) {
+      await auditarEvento(usuario.id, usuario.email, "bloqueado_por_intentos", ip, { paso: "mfa_setup" });
       return Response.json({ error: err.message }, { status: 429 });
     }
     console.error("[/api/auth/mfa/confirm]", err);

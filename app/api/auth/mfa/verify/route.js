@@ -15,13 +15,15 @@ import { verificarLimite, RateLimitError, obtenerIp } from "@/lib/server/rate-li
  */
 export async function POST(request) {
   const body = await request.json().catch(() => ({}));
+  const ip = obtenerIp(request);
+
   const usuario = verificarPreAuthToken(body?.preAuthToken);
   if (!usuario) {
+    await auditarEvento(null, null, "sesion_de_login_vencida", ip, { paso: "mfa_login" });
     return Response.json({ error: "Sesion de login vencida, volve a escribir tu email" }, { status: 401 });
   }
 
   const { code, recoveryCode, remember } = body ?? {};
-  const ip = obtenerIp(request);
 
   try {
     // 5 intentos fallidos cada 15 min por cuenta - se cuenta por usuario_id,
@@ -34,19 +36,15 @@ export async function POST(request) {
       : await verificarCodigoMfa(usuario.id, code);
 
     if (!resultado.ok) {
-      await auditarEvento(usuario.id, usuario.email, "mfa_fallido", ip);
       // Con codigo de recuperacion no hay motivo que diagnosticar: o esta en la
       // lista de los 10 sin usar, o no esta.
+      await auditarEvento(usuario.id, usuario.email, "mfa_fallido", ip, {
+        motivo: recoveryCode ? "codigo_de_recuperacion_invalido" : resultado.reason,
+        desfaseSegundos: resultado.desfaseSegundos ?? null,
+      });
       const error = recoveryCode
         ? "Ese código de recuperación no es válido o ya lo usaste."
         : mensajeDeRechazo(resultado.reason);
-      if (!recoveryCode) {
-        console.warn("[mfa-rechazo] login", {
-          email: usuario.email,
-          motivo: resultado.reason,
-          desfaseSegundos: resultado.desfaseSegundos,
-        });
-      }
       return Response.json({ error }, { status: 400 });
     }
 
@@ -71,6 +69,7 @@ export async function POST(request) {
     return Response.json({ status: "ready", id: usuario.id, email: usuario.email, rol: usuario.rol, ...datosApp(usuario) });
   } catch (err) {
     if (err instanceof RateLimitError) {
+      await auditarEvento(usuario.id, usuario.email, "bloqueado_por_intentos", ip, { paso: "mfa_login" });
       return Response.json({ error: err.message }, { status: 429 });
     }
     console.error("[/api/auth/mfa/verify]", err);

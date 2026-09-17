@@ -48,6 +48,7 @@ export async function POST(request) {
     return Response.json({ status: configurado ? "needs_code" : "needs_setup", preAuthToken });
   } catch (err) {
     if (err instanceof RateLimitError) {
+      await auditarEvento(null, email, "bloqueado_por_intentos", ip, { paso: "login" });
       return Response.json({ error: err.message }, { status: 429 });
     }
     if (err instanceof NoAutorizado) {

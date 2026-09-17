@@ -7,7 +7,7 @@ import { obtenerIp } from "@/lib/server/rate-limit";
  * nunca, porque no queda ningun rastro en los logs de Vercel (ver
  * parsearRespuesta en components/auth/AuthGate.jsx). Este endpoint es SOLO un
  * buzon: recibe ese dato y lo deja en console.error para que aparezca en
- * Vercel -> Observability, buscando "[auth-client-error]".
+ * Vercel -> Logs, buscando "[auth]".
  *
  * A proposito no exige sesion (el fallo puede pasar ANTES de tener una) ni
  * escribe en la base - un texto corto en los logs alcanza para diagnosticar.
@@ -17,14 +17,19 @@ export async function POST(request) {
   const { contexto, status, snippet, url } = body ?? {};
   const ip = obtenerIp(request);
 
-  console.error("[auth-client-error]", {
-    contexto: String(contexto ?? "desconocido").slice(0, 60),
-    status: Number(status) || null,
-    url: String(url ?? "").slice(0, 200),
-    snippet: String(snippet ?? "").slice(0, 300),
-    ip,
-    userAgent: request.headers.get("user-agent")?.slice(0, 200) ?? null,
-  });
+  // Mismo marcador que el resto del login (ver lib/server/whitelist.js): con
+  // filtrar "[auth]" en Vercel -> Logs sale la historia completa, esto incluido.
+  console.log(
+    "[auth]",
+    JSON.stringify({
+      accion: "respuesta_no_json",
+      ip,
+      paso: String(contexto ?? "desconocido").slice(0, 60),
+      status: Number(status) || null,
+      url: String(url ?? "").slice(0, 200),
+      respuesta: String(snippet ?? "").slice(0, 300),
+    })
+  );
 
   return new Response(null, { status: 204 });
 }
