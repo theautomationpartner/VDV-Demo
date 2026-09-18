@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getUsuariosMonday } from "@/lib/generador-oc/datos";
+import { perfilDeEquipoVdv } from "@/lib/generador-oc/equipo-vdv";
 
 /**
  * Quien esta emitiendo la orden.
@@ -67,23 +68,31 @@ export function useSesionOc() {
 
     if (!base.id) return undefined;
 
-    // El perfil completa lo que falta cuando llega. Es la misma consulta que
-    // usa el selector de aprobador, asi que se pide una sola vez (ver cache).
-    getUsuariosMonday()
-      .then((lista) => {
+    // El perfil completa lo que falta cuando llega. Se piden los dos lados a la
+    // vez: monday -misma consulta que usa el selector de aprobador, cacheada- y
+    // el tablero "Equipo VDV".
+    //
+    // El CARGO y el TELEFONO salen primero del directorio y recien despues del
+    // perfil de monday. Ese perfil muere con la licencia, y son los dos datos
+    // que van impresos debajo de la firma del PDF: hasta ahora la firma de
+    // quien APRUEBA salia sin cargo cuando monday no lo tenia cargado, mientras
+    // que la de quien emite ya lo tomaba del directorio (ver getOcCompleta).
+    // Quedaban leyendo de lugares distintos.
+    Promise.all([getUsuariosMonday(), perfilDeEquipoVdv(base.email).catch(() => null)])
+      .then(([lista, delDirectorio]) => {
         if (!activo) return;
         const perfil = lista.find((u) => u.id === base.id);
-        if (!perfil) {
-          setPerfilDesconocido(true);
-          return;
-        }
+        // Sigue avisando cuando el id de monday ya no existe: mientras la orden
+        // escriba columnas de PERSONA, emitir con ese id igual va a fallar.
+        if (!perfil) setPerfilDesconocido(true);
+        if (!perfil && !delDirectorio) return;
         setUsuario({
           ...base,
-          name: perfil.name || base.name,
-          email: perfil.email || base.email,
-          cargo: perfil.cargo,
-          telefono: perfil.telefono,
-          foto: perfil.foto,
+          name: perfil?.name || base.name,
+          email: perfil?.email || base.email,
+          cargo: delDirectorio?.cargo ?? perfil?.cargo ?? null,
+          telefono: delDirectorio?.telefono || perfil?.telefono || "",
+          foto: perfil?.foto ?? null,
         });
       })
       .catch((error) => {
