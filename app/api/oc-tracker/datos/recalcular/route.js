@@ -1,5 +1,6 @@
 import { verificarAcceso, AccesoError } from "@/lib/server/auth-guard";
 import { esLlamadaDeCron } from "@/lib/server/cron-guard";
+import { dentroDeFranja } from "@/lib/server/franja-horaria";
 import { verificarAccesoLectura, BoardAccessError } from "@/lib/server/board-access-policy";
 import { leerDatosOc, recalcularDatosOc } from "@/lib/server/oc-tracker-snapshot";
 
@@ -25,6 +26,14 @@ export const maxDuration = 300;
  */
 async function manejar(request) {
   const deCron = esLlamadaDeCron(request);
+
+  // Fuera de la franja horaria la tarea programada no hace nada: corta antes de
+  // tocar Postgres o monday. Ver lib/server/franja-horaria.js - es lo que deja
+  // que la base se apague de noche. Un pedido manual si funciona a cualquier
+  // hora: es la salida para quien entra temprano.
+  if (deCron && !dentroDeFranja()) {
+    return Response.json({ ok: true, omitido: "fuera-de-horario" });
+  }
 
   if (!deCron) {
     if (DEMO_MODE) return Response.json({ ok: true, omitido: "demo" });

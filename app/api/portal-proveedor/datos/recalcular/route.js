@@ -1,5 +1,7 @@
 import { verificarAcceso, AccesoError } from "@/lib/server/auth-guard";
 import { esLlamadaDeCron } from "@/lib/server/cron-guard";
+import { dentroDeFranja } from "@/lib/server/franja-horaria";
+import { PORTAL_APP } from "@/lib/server/board-access-policy";
 import { leerDatosPortal, recalcularDatosPortal } from "@/lib/server/portal-snapshot";
 
 const DEMO_MODE = process.env.DEMO_MODE === "true";
@@ -22,11 +24,27 @@ export const maxDuration = 300;
 async function manejar(request) {
   const deCron = esLlamadaDeCron(request);
 
+  // Fuera de la franja horaria la tarea programada no hace nada: corta antes de
+  // tocar Postgres o monday. Ver lib/server/franja-horaria.js - es lo que deja
+  // que la base se apague de noche. Un pedido manual si funciona a cualquier
+  // hora: es la salida para quien entra temprano.
+  if (deCron && !dentroDeFranja()) {
+    return Response.json({ ok: true, omitido: "fuera-de-horario" });
+  }
+
   if (!deCron) {
     if (DEMO_MODE) return Response.json({ ok: true, omitido: "demo" });
     if (!AUTH_LAYERS_ENABLED) return Response.json({ error: "No autorizado" }, { status: 401 });
     try {
-      await verificarAcceso(request);
+      const sesion = await verificarAcceso(request);
+      // Un subcontratista NO puede forzar el recalculo: son cinco tableros
+      // enteros de monday por click. Hasta ahora ninguna pantalla llamaba a
+      // esta ruta, asi que la puerta abierta no se notaba; con un boton visible
+      // en el Dashboard si. Los demas roles del Portal son gente de VDV.
+      const asignacion = sesion?.asignaciones?.find((a) => a.app === PORTAL_APP);
+      if (!asignacion || asignacion.appRol === "subcontratista") {
+        return Response.json({ error: "No autorizado" }, { status: 401 });
+      }
     } catch (err) {
       if (err instanceof AccesoError) return Response.json({ error: "No autorizado" }, { status: 401 });
       throw err;

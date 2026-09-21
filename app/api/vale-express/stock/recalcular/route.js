@@ -1,10 +1,19 @@
 import { verificarAcceso, AccesoError } from "@/lib/server/auth-guard";
 import { esLlamadaDeCron } from "@/lib/server/cron-guard";
-import { recalcularStock } from "@/lib/server/stock-snapshot";
+import { dentroDeFranja } from "@/lib/server/franja-horaria";
+import { leerMarcaDeStock, recalcularStock } from "@/lib/server/stock-snapshot";
 
 const DEMO_MODE = process.env.DEMO_MODE === "true";
 const AUTH_LAYERS_ENABLED = process.env.AUTH_LAYERS_ENABLED === "true";
 const ROLES_QUE_PUEDEN_FORZAR = ["super_admin", "admin"];
+
+/**
+ * Cuanto tiene que tener el snapshot para que un usuario pueda forzar el
+ * recalculo. Recalcular el stock son tres tableros enteros y cerca de un
+ * minuto: es el mas caro de los tres, y hasta ahora era el unico sin freno.
+ * La tarea programada no pasa por este limite.
+ */
+const MINIMO_ENTRE_FORZADOS_MS = 60 * 1000;
 
 // Recalcular es traer los tres tableros enteros de monday: cerca de un minuto.
 export const maxDuration = 300;
@@ -40,8 +49,28 @@ async function autorizado(request) {
 }
 
 async function manejar(request) {
+  const deCron = esLlamadaDeCron(request);
+
+  // Fuera de la franja horaria la tarea programada no hace nada: corta antes de
+  // tocar Postgres o monday. Ver lib/server/franja-horaria.js - es lo que deja
+  // que la base se apague de noche. Un pedido manual si funciona a cualquier
+  // hora: es la salida para quien entra temprano.
+  if (deCron && !dentroDeFranja()) {
+    return Response.json({ ok: true, omitido: "fuera-de-horario" });
+  }
+
   if (!await autorizado(request)) {
     return Response.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  if (!deCron) {
+    const calculadoEn = await leerMarcaDeStock();
+    if (calculadoEn) {
+      const antiguedad = Date.now() - new Date(calculadoEn).getTime();
+      if (antiguedad < MINIMO_ENTRE_FORZADOS_MS) {
+        return Response.json({ ok: true, omitido: "reciente", calculadoEn });
+      }
+    }
   }
 
   const desde = Date.now();
