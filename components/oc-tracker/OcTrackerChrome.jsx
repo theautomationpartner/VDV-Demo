@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, BarChart3, RefreshCw, FileText, FileX, AlertTriangle } from "lucide-react";
+import { UltimaActualizacion } from "@/components/UltimaActualizacion";
 import { cn } from "@/lib/utils";
 import { useOCDataContext } from "@/hooks/oc-tracker/OCDataContext";
 
@@ -18,7 +19,7 @@ const views = [
 
 export function OcTrackerChrome({ children }) {
   const pathname = usePathname();
-  const { loading, error, refetching, refetch, ocsSobreconsumidas, facturasSinOC, ocsSinFacturas } = useOCDataContext();
+  const { loading, error, refetching, calculadoEn, refetch, ocsSobreconsumidas, facturasSinOC, ocsSinFacturas } = useOCDataContext();
 
   const badgeCounts = {
     ocsSobreconsumidas: ocsSobreconsumidas?.length ?? 0,
@@ -69,16 +70,11 @@ export function OcTrackerChrome({ children }) {
               <h1 className="text-xl sm:text-3xl font-semibold tracking-tight truncate">Control Consumo OC</h1>
               <p className="text-xs sm:text-sm text-muted-foreground mt-1">Seguimiento de órdenes de compra y facturación</p>
             </div>
-            <Button
-              onClick={() => refetch()}
-              variant="outline"
-              size="sm"
-              disabled={refetching}
-              className="shrink-0 min-h-12 sm:min-h-9"
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5 sm:mr-1.5", refetching && "animate-spin")} />
-              <span className="hidden sm:inline">Actualizar</span>
-            </Button>
+            <UltimaActualizacion
+              calculadoEn={calculadoEn}
+              onActualizar={() => refetch()}
+              actualizando={refetching}
+            />
           </div>
 
           {/* Mobile: en vez de repetir la nav completa (ya vive en el bottom

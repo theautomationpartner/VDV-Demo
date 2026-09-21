@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { OrdenesDeCompraMaxxaBoard, reviveDates } from "@/lib/board-sdk";
 import { leerCache, guardarCache, borrarCachesDe } from "@/lib/client/cache-persistente";
+import { toast } from "sonner";
 
 // Solo para escribir el estado de una orden (updateOCStatus, mas abajo). La
 // LECTURA de los dos tableros ya no pasa por aca: la hace el servidor y llega
@@ -23,7 +24,7 @@ const ordenesBoard = new OrdenesDeCompraMaxxaBoard();
  * un F5. `promise` evita que dos pantallas que montan a la vez disparen dos
  * veces la misma consulta.
  */
-let _cache = { ordenes: null, facturas: null, time: 0, promise: null };
+let _cache = { ordenes: null, facturas: null, calculadoEn: null, time: 0, promise: null };
 const CACHE_TTL = 5 * 60 * 1000;
 const CLAVE_STORAGE = "oc-tracker:todo";
 
@@ -45,6 +46,7 @@ function yaTraido() {
 
   _cache.ordenes = guardado.datos.ordenes;
   _cache.facturas = guardado.datos.facturas;
+  _cache.calculadoEn = guardado.datos.calculadoEn ?? null;
   _cache.time = guardado.time;
   return _cache;
 }
@@ -73,9 +75,18 @@ async function traerOcYFacturas() {
 
       _cache.ordenes = json.ordenes ?? [];
       _cache.facturas = json.facturas ?? [];
+      // `reviveDates` convierte los ISO en Date al cruzar la red, asi que esto
+      // puede llegar de las dos formas. Se normaliza a texto ISO para que
+      // sobreviva igual al viaje por sessionStorage.
+      _cache.calculadoEn =
+        json.calculadoEn instanceof Date ? json.calculadoEn.toISOString() : json.calculadoEn ?? null;
       _cache.time = Date.now();
-      guardarCache(CLAVE_STORAGE, { ordenes: _cache.ordenes, facturas: _cache.facturas });
-      return { ordenes: _cache.ordenes, facturas: _cache.facturas };
+      guardarCache(CLAVE_STORAGE, {
+        ordenes: _cache.ordenes,
+        facturas: _cache.facturas,
+        calculadoEn: _cache.calculadoEn,
+      });
+      return { ordenes: _cache.ordenes, facturas: _cache.facturas, calculadoEn: _cache.calculadoEn };
     } finally {
       _cache.promise = null;
     }
@@ -87,7 +98,7 @@ async function traerOcYFacturas() {
 /** Tira el cache, en memoria y en el navegador. */
 export function clearOCCache() {
   borrarCachesDe("oc-tracker");
-  _cache = { ordenes: null, facturas: null, time: 0, promise: null };
+  _cache = { ordenes: null, facturas: null, calculadoEn: null, time: 0, promise: null };
 }
 
 export function useOCData() {
@@ -98,6 +109,7 @@ export function useOCData() {
   // mostrando mientras se revalida.
   const [loading, setLoading] = useState(() => !yaTraido());
   const [refetching, setRefetching] = useState(false);
+  const [calculadoEn, setCalculadoEn] = useState(() => yaTraido()?.calculadoEn ?? null);
   const [error, setError] = useState(null);
 
   const fetchData = useCallback(async () => {
@@ -109,6 +121,7 @@ export function useOCData() {
       const datos = await traerOcYFacturas();
       setOrdenes(datos.ordenes);
       setFacturas(datos.facturas);
+      setCalculadoEn(datos.calculadoEn ?? null);
     } catch (err) {
       console.error("Error loading OC data:", err);
       setError(err.message);
@@ -136,7 +149,13 @@ export function useOCData() {
   const refetch = useCallback(async () => {
     setRefetching(true);
     try {
-      await fetch("/api/oc-tracker/datos/recalcular", { method: "POST" });
+      const res = await fetch("/api/oc-tracker/datos/recalcular", { method: "POST" });
+      const json = await res.json().catch(() => ({}));
+      // Antes esta respuesta se tiraba, y era justo la que hacia falta: si el
+      // servidor rechaza el pedido por reciente, el boton giraba, releia el
+      // mismo dato y parecia que no habia pasado nada.
+      if (json?.omitido === "reciente") toast.info("Los datos ya estaban al dia.");
+      else if (!res.ok) toast.error("No se pudo actualizar. Se muestra el ultimo dato disponible.");
     } catch (err) {
       // Si el recalculo falla igual se relee: puede haber un snapshot util.
       console.error("[oc-tracker] no se pudo forzar el recalculo:", err);
@@ -234,6 +253,7 @@ export function useOCData() {
     consumoPorObra,
     loading,
     refetching,
+    calculadoEn,
     error,
     refetch,
     updateOCStatus: async (itemId, newStatus) => {
@@ -245,7 +265,11 @@ export function useOCData() {
         oc.id === itemId ? { ...oc, estadoDocumento: newStatus } : oc
       );
       const persistir = () =>
-        guardarCache(CLAVE_STORAGE, { ordenes: _cache.ordenes, facturas: _cache.facturas });
+        guardarCache(CLAVE_STORAGE, {
+          ordenes: _cache.ordenes,
+          facturas: _cache.facturas,
+          calculadoEn: _cache.calculadoEn,
+        });
 
       _cache.ordenes = conNuevoEstado;
       persistir();

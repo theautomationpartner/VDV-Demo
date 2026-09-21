@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { usePaymentData, PAGOS_GRUPO_PAGADO_ID } from '@/hooks/portal-proveedor/usePaymentData';
+import { UltimaActualizacion } from '@/components/UltimaActualizacion';
 import { useContracts, useEstadosDePago, useOrdenesCompra } from '@/hooks/portal-proveedor/useSubcontractData';
 import { useFacturacion } from '@/hooks/portal-proveedor/useFacturacion';
 
@@ -25,7 +26,7 @@ export default function DashboardPage() {
     setUserContext(JSON.parse(ctx));
   }, [router]);
 
-  const { items, loading } = usePaymentData(userContext);
+  const { items, loading, calculadoEn, actualizando, actualizar } = usePaymentData(userContext);
 
   // Antes esta pantalla esperaba 3, 6 y 9 segundos antes de lanzar tres de sus
   // cuatro consultas, para no chocar con el limite de complejidad de monday.
@@ -104,6 +105,16 @@ export default function DashboardPage() {
               <span className="text-xs font-medium text-primary truncate max-w-[200px]">{userContext.filterProveedor}</span>
             </div>
           )}
+          <UltimaActualizacion
+            className="ml-auto"
+            calculadoEn={calculadoEn}
+            onActualizar={actualizar}
+            actualizando={actualizando}
+            // Un subcontratista no puede forzarlo: el endpoint lo rechaza. La
+            // foto es una sola para todo el Portal, asi que al refrescarla
+            // desde aca se actualizan tambien el resto de las pantallas.
+            puedeActualizar={userContext.role !== 'subcontratista'}
+          />
         </div>
       </div>
 
