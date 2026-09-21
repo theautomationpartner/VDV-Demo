@@ -9,7 +9,7 @@ import {
     ArrowLeft, Search, ArrowUpDown, Package, ChevronDown,
     MapPin, AlertTriangle, TrendingDown, DollarSign, Layers
 } from 'lucide-react';
-import { getAllRoles, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras } from '@/hooks/vale-express/useUserRole';
+import { getAllRoles, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras, getUserRoleData } from '@/hooks/vale-express/useUserRole';
 import { UltimaActualizacion } from '@/components/UltimaActualizacion';
 import { toast } from 'sonner';
 
@@ -60,8 +60,15 @@ export default function StockPage() {
             if (!session) { router.push('/vale-express'); return; }
             try {
                 const sessionData = JSON.parse(session);
+                // getUserRoleData y no roles[userId]: para una cuenta real de la
+                // whitelist el rol lo resolvio el servidor en el login y vive en el
+                // cache, no en ese mapa. Esta pantalla era la unica de Vale Express
+                // que iba directo al mapa -ingreso, solicitud, vales-pendientes y
+                // admin ya usaban el helper-, asi que a esas cuentas les leia rol
+                // null. Y con rol null getAllowedObras devuelve TODAS las obras, o
+                // sea que ademas le mostraba de mas a quien tiene obras asignadas.
                 const { roles } = await getAllRoles();
-                const userData = roles[String(sessionData.userId)];
+                const userData = getUserRoleData(roles, sessionData.userId);
                 const userRole = getRoleFromData(userData);
                 const userObras = getObrasFromData(userData);
                 const restricted = isObrasRestricted(userData);
