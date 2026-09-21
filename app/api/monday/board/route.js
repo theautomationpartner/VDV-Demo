@@ -1,5 +1,6 @@
 import { getBoardSchema, resolveColumnId } from "@/lib/board-schemas";
 import { mondayFetch, getBoardIdOrThrow } from "@/lib/server/monday-client";
+import { conTraza, registrarFalla } from "@/lib/server/registro";
 import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
 import {
   verificarAccesoMutacion,
@@ -821,7 +822,16 @@ async function handleUsersList(params) {
   });
 }
 
+/**
+ * Todo el handler corre dentro de `conTraza` para que cualquier linea de log
+ * que se escriba mas abajo -incluidas las de mondayFetch, que esta a varias
+ * llamadas de distancia- salga con la traza de la operacion del navegador.
+ */
 export async function POST(request) {
+  return conTraza(request, () => manejarPost(request));
+}
+
+async function manejarPost(request) {
   let sesion = null;
   if (!DEMO_MODE && AUTH_LAYERS_ENABLED) {
     try {
@@ -998,11 +1008,18 @@ export async function POST(request) {
     // sobre que tablero y que operacion. Los valores de las columnas NO, que es
     // donde vive el dato del cliente.
     if (op !== "items" && op !== "columnOptions") {
-      console.error(
-        `[monday] ${op} fallo en ${boardKey}` +
-          (params?.itemId ? ` (item ${params.itemId})` : "") +
-          ` para ${sesion?.email ?? "sesion desconocida"}: ${err.message}`,
-      );
+      registrarFalla("[monday]", "operacion_fallida", {
+        op,
+        boardKey,
+        itemId: params?.itemId ?? null,
+        email: sesion?.email ?? null,
+        motivo: err.message,
+        // Puesto por mondayFetch cuando el rechazo vino de la API: dice si fue
+        // complejidad, un valor de columna invalido o un nombre muy largo.
+        codigos: err.mondayErrors
+          ? [...new Set(err.mondayErrors.map((e) => e?.extensions?.code ?? e?.error_code).filter(Boolean))].join(",") || null
+          : null,
+      });
     }
     return Response.json({ error: err.message }, { status: err.status ?? 500 });
   }
