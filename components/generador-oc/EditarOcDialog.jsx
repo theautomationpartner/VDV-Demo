@@ -148,7 +148,12 @@ export default function EditarOcDialog({
         setEmisorId(datos.responsable.id || undefined);
         setAprobador(
           datos.aprobador
-            ? { id: datos.aprobador.id, name: datos.aprobador.name, cargo: datos.aprobador.cargo }
+            ? {
+                id: datos.aprobador.id,
+                name: datos.aprobador.name,
+                cargo: datos.aprobador.cargo,
+                email: datos.aprobador.mail,
+              }
             : null,
         );
         setDespachoTipo(datos.despacho.tipo);
@@ -269,7 +274,7 @@ export default function EditarOcDialog({
         itemId,
         editorNombre: currentUser.name,
         obra,
-        aprobador: { id: aprobador.id, name: aprobador.name },
+        aprobador: { id: aprobador.id, name: aprobador.name, email: aprobador.email },
         despachoTexto: formatearDespacho({ tipo: despachoTipo, direccion: despachoDireccion }),
         pagoTexto: formatearPago({ credito, dias }),
         comentarios,

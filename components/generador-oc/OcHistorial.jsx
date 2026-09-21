@@ -190,13 +190,15 @@ export default function OcHistorial({ currentUser, ocInicial }) {
     const designadoAprobador =
       vinculadoEn(item.aprobadorVdv) || contienePersona(item.aprobador, nombre);
     const esAprobador = puedeAprobarOc(rol) && (apruebaTodo || designadoAprobador);
+    // Identificado = tiene ficha en "Equipo VDV" o usuario de monday. Antes
+    // exigia el usuario de monday y nada mas: con el corte, quien no tiene
+    // licencia habria perdido el lapiz sobre sus propias ordenes.
+    const identificado = Boolean(currentUser?.itemVdv) || Boolean(currentUser?.id);
     const puedeGestionar =
-      Boolean(currentUser?.id) &&
-      puedeEmitirOc(rol) &&
-      (apruebaTodo || esResponsable || designadoAprobador);
+      identificado && puedeEmitirOc(rol) && (apruebaTodo || esResponsable || designadoAprobador);
     return {
       puedeGestionar,
-      esAprobador: Boolean(currentUser?.id) && esAprobador,
+      esAprobador: identificado && esAprobador,
       puedeEditar: puedeGestionar && item.estadoDocumento !== "APROBADO",
     };
   };
