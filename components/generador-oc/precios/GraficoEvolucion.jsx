@@ -74,6 +74,13 @@ export default function GraficoEvolucion({ registros, moneda }) {
 
   const series = [...porProveedor.entries()].sort((a, b) => b[1].length - a[1].length);
 
+  // El eje en miles solo cuando los numeros lo justifican. Antes se dividia por
+  // mil SIEMPRE que la moneda fuera CLP, y con precios chicos -un tornillo a
+  // $19- las cinco marcas del eje quedaban en "0k". Con el umbral en 1000 los
+  // casos que ya se veian bien (miles de pesos) no cambian.
+  const maximo = conFecha.reduce((m, r) => Math.max(m, r.precioComparable ?? 0), 0);
+  const enMiles = moneda === "CLP" && maximo >= 1000;
+
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -90,7 +97,10 @@ export default function GraficoEvolucion({ registros, moneda }) {
           <YAxis
             dataKey="y"
             type="number"
-            tickFormatter={(v) => (moneda === "CLP" ? `${Math.round(v / 1000)}k` : v.toFixed(1))}
+            tickFormatter={(v) => {
+              if (enMiles) return `${Math.round(v / 1000)}k`;
+              return moneda === "CLP" ? String(Math.round(v)) : v.toFixed(1);
+            }}
             stroke="var(--muted-foreground)"
             fontSize={11}
             width={44}

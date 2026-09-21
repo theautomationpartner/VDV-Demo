@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, ShieldCheck } from "lucide-react";
 import SignaturePad from "./SignaturePad";
-import { getOcCompleta, aprobarOc, uploadOcPdf } from "@/lib/generador-oc/datos";
+import { getOcParaAprobar, aprobarOc, uploadOcPdf } from "@/lib/generador-oc/datos";
 import { generateOcPdf, buildFirmaDigital } from "@/lib/generador-oc/pdf";
 import { fechaLarga } from "@/lib/generador-oc/fechas";
 
@@ -76,13 +76,19 @@ export default function AprobarOcDialog({
     setError(null);
     setFirma(null);
 
-    getOcCompleta(itemId)
+    // No alcanza con leer: hay que comprobar que las lineas esten TODAS antes
+    // de rearmar el PDF con ellas. Ver getOcParaAprobar.
+    getOcParaAprobar(itemId)
       .then((res) => {
         if (activo) setDatos(res ?? null);
       })
       .catch((e) => {
         console.error("[generador-oc] Error al cargar la OC para aprobar:", e);
-        if (activo) setError("No se pudieron cargar los datos de la orden.");
+        if (!activo) return;
+        setDatos(null);
+        setError(
+          e?.lineasIncompletas ? e.message : "No se pudieron cargar los datos de la orden.",
+        );
       })
       .finally(() => {
         if (activo) setCargando(false);
