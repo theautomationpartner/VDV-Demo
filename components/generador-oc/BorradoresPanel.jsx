@@ -15,16 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileEdit, Trash2, ArrowRight, Building2, Package } from "lucide-react";
-
-function hace(iso) {
-  const ms = Date.now() - new Date(iso).getTime();
-  const min = Math.round(ms / 60000);
-  if (min < 1) return "hace un momento";
-  if (min < 60) return `hace ${min} min`;
-  const horas = Math.round(min / 60);
-  if (horas < 24) return `hace ${horas} h`;
-  return new Date(iso).toLocaleDateString("es-CL", { day: "numeric", month: "short" });
-}
+import { hace } from "@/lib/tiempo-relativo";
 
 function montoTexto(monto, moneda) {
   if (!monto) return "Sin montos aún";

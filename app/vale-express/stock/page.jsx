@@ -10,11 +10,18 @@ import {
     MapPin, AlertTriangle, TrendingDown, DollarSign, Layers
 } from 'lucide-react';
 import { getAllRoles, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras } from '@/hooks/vale-express/useUserRole';
+import { UltimaActualizacion } from '@/components/UltimaActualizacion';
+import { toast } from 'sonner';
 
 // Foco visible (teclado) para los botones nativos de esta pantalla - ninguno usa
 // el componente Button de shadcn/ui (que ya trae su propio focus-visible), asi
 // que cada <button> a mano necesita este anillo para cumplir WCAG 2.1 AA.
 const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
+// Los mismos que exige el servidor en app/api/vale-express/stock/recalcular.
+// Esconder el boton no alcanza como control -el endpoint es el que manda-,
+// pero no tiene sentido mostrarle un boton que va a devolver 401.
+const ROLES_QUE_PUEDEN_ACTUALIZAR = ['super_admin', 'admin'];
 
 export default function StockPage() {
     const router = useRouter();
@@ -40,6 +47,8 @@ export default function StockPage() {
     const [sortField, setSortField] = useState('name');
     const [sortDir, setSortDir] = useState('asc');
     const [error, setError] = useState(null);
+    const [calculadoEn, setCalculadoEn] = useState(null);
+    const [actualizando, setActualizando] = useState(false);
     const [selectedMaterial, setSelectedMaterial] = useState(null);
     const [materialObrasStock, setMaterialObrasStock] = useState([]);
     const [loadingObras, setLoadingObras] = useState(false);
@@ -86,6 +95,7 @@ export default function StockPage() {
             const json = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(json.error || 'No se pudo obtener el stock');
             setStockData(json.materiales ?? []);
+            setCalculadoEn(json.calculadoEn ?? null);
         } catch (err) {
             console.error('Error calculating stock:', err);
             setError(err?.message || 'Error al calcular stock');
@@ -97,6 +107,29 @@ export default function StockPage() {
     useEffect(() => {
         if (selectedObra) calculateStock();
     }, [selectedObra, calculateStock]);
+
+    /**
+     * El boton "actualizar". Le pide al servidor que vuelva a traer de monday
+     * y recien despues relee: sin eso releeria la misma foto y pareceria que
+     * el boton no hace nada.
+     *
+     * Lo que se actualiza no es esta pantalla sino la foto del servidor, asi
+     * que lo ve todo el equipo. Y es el mas lento de los tres (son los tres
+     * tableros enteros, cerca de un minuto), por eso el texto lo avisa.
+     */
+    const actualizar = useCallback(async () => {
+        setActualizando(true);
+        try {
+            const res = await fetch('/api/vale-express/stock/recalcular', { method: 'POST' });
+            const json = await res.json().catch(() => ({}));
+            if (json?.omitido === 'reciente') toast.info('Los datos ya estaban al dia.');
+            else if (!res.ok) toast.error('No se pudo actualizar. Se muestra el ultimo dato disponible.');
+        } catch (err) {
+            console.error('[stock] no se pudo forzar el recalculo:', err);
+        }
+        await calculateStock();
+        setActualizando(false);
+    }, [calculateStock]);
 
     // El cruce por obra de un material tambien viene calculado. Antes salia de
     // los tableros crudos que esta pantalla tenia en memoria, y era la unica
@@ -192,6 +225,14 @@ export default function StockPage() {
                         <h1 className="text-[15px] font-semibold tracking-[-0.01em]">Stock por Obra</h1>
                         <p className="text-xs text-[var(--fg-subtle)]">Inventario actual de materiales</p>
                     </div>
+                    <UltimaActualizacion
+                        className="ml-auto"
+                        calculadoEn={calculadoEn}
+                        onActualizar={actualizar}
+                        actualizando={actualizando}
+                        puedeActualizar={ROLES_QUE_PUEDEN_ACTUALIZAR.includes(acceso?.role)}
+                        textoOcupado="Puede tardar un minuto..."
+                    />
                 </div>
             </header>
 
