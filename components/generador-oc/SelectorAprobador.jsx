@@ -122,7 +122,10 @@ export default function SelectorAprobador({ valor, onChange, emisorId, puedeApro
         value={valor ? String(valor.id) : ""}
         onValueChange={(v) => {
           const u = usuarios.find((x) => String(x.id) === v);
-          onChange(u ? { id: u.id, name: u.name, cargo: u.cargo } : null);
+          // El MAIL es lo que usa la emision para encontrar su ficha en
+          // "Equipo VDV". El id de monday se sigue mandando solo para el aviso
+          // por notificacion, que es opcional.
+          onChange(u ? { id: u.id, name: u.name, cargo: u.cargo, email: u.email } : null);
         }}
       >
         <SelectTrigger id="aprobador">

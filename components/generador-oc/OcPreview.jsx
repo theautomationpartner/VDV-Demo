@@ -78,9 +78,14 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
   const formatDate = (dateStr) => fechaLarga(dateStr);
 
   const handleEmit = async () => {
-    if (!currentUser?.id) {
+    // Lo que hace falta para emitir ya no es un usuario de monday sino una
+    // ficha en "Equipo VDV": es lo que la orden guarda como responsable, y no
+    // depende de que la persona conserve su licencia. createOc lo vuelve a
+    // verificar; esto es para no hacerle llenar el formulario al pedo.
+    if (!currentUser?.itemVdv) {
       setError(
-        "Tu cuenta todavía no está vinculada a un usuario de monday. Pedile a un administrador que la vincule en Usuarios y Roles.",
+        "Tu cuenta no figura en el tablero Equipo VDV, así que la orden no podría decir quién la emitió. " +
+          "Pedile a un administrador que te agregue con tu mail y volvé a intentar.",
       );
       return;
     }
@@ -120,6 +125,9 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
         validezHasta: fechaValidez,
         moneda: data.moneda,
         afectaIva: data.afectaIva,
+        // El mail es por donde se busca la ficha. El id de monday va como
+        // respaldo para los borradores viejos (ver vinculoDePersona).
+        responsableMail: currentUser.email,
         responsableId: currentUser.id,
         aprobador: { id: data.aprobador.id, name: data.aprobador.name },
         condicionDeCompra: data.condicionDeCompra,
