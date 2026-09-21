@@ -61,6 +61,10 @@ export function useSesionOc() {
       cargo: null,
       telefono: "",
       foto: null,
+      // La ficha en "Equipo VDV". Es la identidad que NO depende de tener
+      // licencia de monday, y con ella el historial decide si una orden es
+      // tuya comparando ids en vez de nombres (ver OcHistorial).
+      itemVdv: null,
     };
 
     setUsuario(base);
@@ -93,6 +97,7 @@ export function useSesionOc() {
           cargo: delDirectorio?.cargo ?? perfil?.cargo ?? null,
           telefono: delDirectorio?.telefono || perfil?.telefono || "",
           foto: perfil?.foto ?? null,
+          itemVdv: delDirectorio?.id ?? null,
         });
       })
       .catch((error) => {

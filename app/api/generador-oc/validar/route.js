@@ -21,6 +21,11 @@ const CAMPOS_PUBLICOS = [
   "validezDocumento",
   "comentarios",
   "responsable",
+  // Quien emitio, desde su ficha en "Equipo VDV". El helper `valor()` de mas
+  // abajo ya resuelve `display_value`, que para una columna de conexion es el
+  // nombre ya formateado. La columna de PERSONA queda de respaldo: es la que
+  // se vacia cuando dan de baja la licencia, y esta pagina la ve el proveedor.
+  "responsableVdv",
 ];
 
 /**
@@ -109,7 +114,7 @@ export async function GET(request) {
       proveedor: valor("proveedores"),
       estado: valor("estadoDocumento"),
       fechaEmision: emision,
-      responsable: valor("responsable"),
+      responsable: valor("responsableVdv") || valor("responsable"),
     });
   } catch (error) {
     console.error("[generador-oc] No se pudo validar la OC:", error?.message);

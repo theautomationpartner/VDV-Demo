@@ -173,8 +173,22 @@ export default function OcHistorial({ currentUser, ocInicial }) {
     // ademas exige el rol Aprobador (ver lib/oc-roles.js).
     const apruebaTodo = currentUser?.apruebaTodo === true && puedeAprobarOc(rol);
     const nombre = currentUser?.name;
-    const esResponsable = contienePersona(item.responsable, nombre);
-    const designadoAprobador = contienePersona(item.aprobador, nombre);
+    // Alcanza con coincidir por CUALQUIERA de las dos vias, igual que hace el
+    // servidor (lib/server/board-access-policy.js). El vinculo a "Equipo VDV"
+    // compara ids y es el que vale; el nombre queda de respaldo y solo puede
+    // sumar permisos, nunca sacarlos.
+    //
+    // Cruzar por nombre es fragil y ya rompio en produccion: en la OC 2200 la
+    // persona dejo de ver el lapiz en su propia orden porque la sesion decia
+    // "Pablo Vergara" y monday "pablo vergara" (ver lib/generador-oc/personas.js).
+    // Comparar ids de ficha lo arregla de raiz.
+    const miItemVdv = currentUser?.itemVdv;
+    const vinculadoEn = (valor) =>
+      Boolean(miItemVdv) &&
+      (valor?.linkedItems ?? []).some((li) => String(li.id) === String(miItemVdv));
+    const esResponsable = vinculadoEn(item.responsableVdv) || contienePersona(item.responsable, nombre);
+    const designadoAprobador =
+      vinculadoEn(item.aprobadorVdv) || contienePersona(item.aprobador, nombre);
     const esAprobador = puedeAprobarOc(rol) && (apruebaTodo || designadoAprobador);
     const puedeGestionar =
       Boolean(currentUser?.id) &&
