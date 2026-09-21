@@ -58,7 +58,7 @@ export default function ValidarOcPage({ params }) {
         if (activo) setResultado(json);
       })
       .catch((error) => {
-        console.error("Error al validar la OC:", error);
+        console.error("[generador-oc] Error al validar la OC:", error);
         if (activo) setResultado({ encontrada: false });
       })
       .finally(() => {

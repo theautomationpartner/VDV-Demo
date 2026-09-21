@@ -2,6 +2,7 @@ import { getBoardSchema } from "@/lib/board-schemas";
 import { mondayFetch, getBoardIdOrThrow } from "@/lib/server/monday-client";
 import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
 import { verificarAccesoUpload, accesoBoardErrorToResponse, BoardAccessError } from "@/lib/server/board-access-policy";
+import { conTraza, registrar, registrarFalla } from "@/lib/server/registro";
 
 const MONDAY_FILE_API_URL = "https://api.monday.com/v2/file";
 const DEMO_MODE = process.env.DEMO_MODE === "true";
@@ -13,6 +14,10 @@ const AUTH_LAYERS_ENABLED = process.env.AUTH_LAYERS_ENABLED === "true";
  * Body esperado (multipart/form-data): itemId, columnId, file.
  */
 export async function POST(request) {
+  return conTraza(request, () => manejarPost(request));
+}
+
+async function manejarPost(request) {
   let sesion = null;
   if (!DEMO_MODE && AUTH_LAYERS_ENABLED) {
     try {
@@ -111,6 +116,26 @@ export async function POST(request) {
         error?.message,
       );
     }
+  }
+
+  if (data?.errors?.length) {
+    // Esta es la falla que deja una OC creada sin su PDF y dispara el
+    // rollback en OcPreview. Hasta ahora no quedaba registrada en ningun lado.
+    registrarFalla("[monday]", "upload_fallido", {
+      itemId: String(itemId),
+      columnId: String(columnId),
+      archivo: file?.name ?? null,
+      bytes: file?.size ?? null,
+      status: mondayRes.status,
+      motivo: data.errors.map((e) => e?.message).join(" | "),
+    });
+  } else {
+    registrar("[monday]", "upload_ok", {
+      itemId: String(itemId),
+      columnId: String(columnId),
+      archivo: file?.name ?? null,
+      bytes: file?.size ?? null,
+    });
   }
 
   return Response.json(data, { status: mondayRes.status });
