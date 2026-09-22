@@ -16,6 +16,7 @@ import SignaturePad from "./SignaturePad";
 import { getOcParaAprobar, aprobarOc, uploadOcPdf } from "@/lib/generador-oc/datos";
 import { generateOcPdf, buildFirmaDigital } from "@/lib/generador-oc/pdf";
 import { fechaLarga } from "@/lib/generador-oc/fechas";
+import { abrirBitacora } from "@/lib/generador-oc/bitacora";
 
 /**
  * Cierra el ciclo de la orden: quien esta asignado como aprobador firma aca, se
@@ -104,10 +105,23 @@ export default function AprobarOcDialog({
     setProcesando(true);
     setError(null);
 
+    // Aprobar es el segundo circuito mas importante -rearma el PDF desde cero
+    // leyendo monday- y no estaba trazado: al aprobar la OC 2241 la unica
+    // linea que dejo en los logs fue el upload del PDF, suelta y sin con que
+    // hilarla. Aca es ademas donde aparecio el bug del documento con lineas de
+    // menos, asi que tener los tiempos de cada paso importa.
+    const bitacora = abrirBitacora("aprobar_oc", {
+      email: currentUser?.email ?? null,
+      numeroOc: datos.numeroOc,
+      itemId,
+    });
+    bitacora.paso("inicio", `${datos.items?.length ?? 0} lineas, ${datos.moneda ?? ""}`);
+
     try {
       // La firma que dibujo quien emitio, para que el documento aprobado tenga
       // las dos de verdad. Si la orden es anterior a la columna, viene vacia.
       const firmaEmisor = await traerFirmaEmisor(itemId);
+      bitacora.paso("firma_emisor_leida", firmaEmisor ? "estaba" : "la orden no la tenia");
 
       const pdfBlob = await generateOcPdf({
         numeroOc: datos.numeroOc,
@@ -154,19 +168,25 @@ export default function AprobarOcDialog({
         urlValidacion: `${window.location.origin}/validar/${itemId}?codigo=${encodeURIComponent(datos.codigoValidacion)}`,
       });
 
+      bitacora.paso("pdf_regenerado", `${Math.round(pdfBlob.size / 1024)} KB`);
+
       await uploadOcPdf(
         itemId,
         new File([pdfBlob], `OC_${datos.numeroOc}_aprobada.pdf`, { type: "application/pdf" }),
       );
+      bitacora.paso("pdf_adjuntado");
 
       await aprobarOc({ itemId, quienAprueba: currentUser.name });
+      bitacora.paso("fin");
 
       onAprobada();
       onOpenChange(false);
     } catch (err) {
+      bitacora.fallo("aprobacion_fallida", err);
       console.error("[generador-oc] Error al aprobar la OC:", err);
       setError(err?.message || "No se pudo aprobar la orden. Intentá de nuevo.");
     } finally {
+      bitacora.cerrar();
       setProcesando(false);
     }
   };
