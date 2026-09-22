@@ -53,10 +53,23 @@ function nombreProveedor(item) {
   return item.proveedores?.linkedItems?.[0]?.name || item.proveedores || "—";
 }
 
-/** Las columnas de persona llegan como texto separado por coma. */
-function personas(valor) {
-  if (!valor) return "—";
-  return String(valor);
+/**
+ * El nombre que se muestra en la lista.
+ *
+ * Manda el vinculo a "Equipo VDV" y la columna de PERSONA queda de respaldo,
+ * igual que en el PDF, el Portal y la pagina del QR. Desde que la app dejo de
+ * escribir la columna de PERSONA, en las ordenes nuevas viene vacia: la OC
+ * 2241 salio con Responsable y Aprobador en "—" hasta que esto se arreglo.
+ *
+ * getOcs pide `withRelations`, asi que el vinculo llega como
+ * `{linkedItems:[{id,name}]}`. Se contempla igual el caso de que llegue ya
+ * resuelto como texto, que es como lo entrega monday sin withRelations.
+ */
+function personas(vinculo, persona) {
+  const nombres = (vinculo?.linkedItems ?? []).map((l) => l.name).filter(Boolean);
+  if (nombres.length) return nombres.join(", ");
+  if (typeof vinculo === "string" && vinculo.trim()) return vinculo.trim();
+  return persona ? String(persona) : "—";
 }
 
 export default function OcHistorial({ currentUser, ocInicial }) {
@@ -286,11 +299,11 @@ export default function OcHistorial({ currentUser, ocInicial }) {
                     </div>
                     <div className="min-w-0">
                       <dt className="text-xs text-muted-foreground">Responsable</dt>
-                      <dd className="break-words">{personas(item.responsable)}</dd>
+                      <dd className="break-words">{personas(item.responsableVdv, item.responsable)}</dd>
                     </div>
                     <div className="col-span-2 min-w-0 sm:col-span-1">
                       <dt className="text-xs text-muted-foreground">Aprobador</dt>
-                      <dd className="break-words">{personas(item.aprobador)}</dd>
+                      <dd className="break-words">{personas(item.aprobadorVdv, item.aprobador)}</dd>
                     </div>
                     {item.comentariosInternos && (
                       <div className="col-span-2 min-w-0 sm:col-span-3">
@@ -402,10 +415,10 @@ export default function OcHistorial({ currentUser, ocInicial }) {
                             para que no estiren la tabla, y si no entran pasan
                             al renglon de abajo. */}
                         <TableCell className="hidden text-sm min-[1240px]:table-cell">
-                          <div className="max-w-[140px] whitespace-normal break-words">{personas(item.responsable)}</div>
+                          <div className="max-w-[140px] whitespace-normal break-words">{personas(item.responsableVdv, item.responsable)}</div>
                         </TableCell>
                         <TableCell className="hidden text-sm min-[1240px]:table-cell">
-                          <div className="max-w-[140px] whitespace-normal break-words">{personas(item.aprobador)}</div>
+                          <div className="max-w-[140px] whitespace-normal break-words">{personas(item.aprobadorVdv, item.aprobador)}</div>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {formatCurrency(item.monto, item.moneda)}
