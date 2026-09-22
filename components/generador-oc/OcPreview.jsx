@@ -19,6 +19,7 @@ import SignaturePad from "./SignaturePad";
 import { EMPRESA, FACTURACION, LOGO_URL } from "@/lib/generador-oc/empresa";
 import { formatearDespacho } from "@/lib/generador-oc/despacho";
 import { formatearPago, fechaLarga, hoyISO, sumarDias } from "@/lib/generador-oc/fechas";
+import { abrirBitacora } from "@/lib/generador-oc/bitacora";
 
 /** Fila de la ficha del proveedor: siempre visible, con "—" cuando el dato no esta. */
 function DatoProveedor({ label, valor, className }) {
@@ -77,15 +78,26 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
   const formatDate = (dateStr) => fechaLarga(dateStr);
 
   const handleEmit = async () => {
-    if (!currentUser?.id) {
+    // Lo que hace falta para emitir ya no es un usuario de monday sino una
+    // ficha en "Equipo VDV": es lo que la orden guarda como responsable, y no
+    // depende de que la persona conserve su licencia. createOc lo vuelve a
+    // verificar; esto es para no hacerle llenar el formulario al pedo.
+    if (!currentUser?.itemVdv) {
       setError(
-        "Tu cuenta todavía no está vinculada a un usuario de monday. Pedile a un administrador que la vincule en Usuarios y Roles.",
+        "Tu cuenta no figura en el tablero Equipo VDV, así que la orden no podría decir quién la emitió. " +
+          "Pedile a un administrador que te agregue con tu mail y volvé a intentar.",
       );
       return;
     }
 
     setEmitting(true);
     setError(null);
+
+    // La bitacora de esta emision. Junta los pasos en memoria y los manda al
+    // servidor de una sola vez al final (ver lib/generador-oc/bitacora.js).
+    // Desde aca, cada llamada al servidor viaja con la misma traza.
+    const bitacora = abrirBitacora("emitir_oc", { email: currentUser?.email ?? null });
+    bitacora.paso("inicio", `${data.items.length} lineas, ${data.moneda}, ${data.obra}`);
 
     // Locales, no estado: `setOcCreada` no actualiza `ocCreada` dentro de esta
     // misma funcion, asi que el catch nunca se enteraba de que la orden ya
@@ -113,6 +125,9 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
         validezHasta: fechaValidez,
         moneda: data.moneda,
         afectaIva: data.afectaIva,
+        // El mail es por donde se busca la ficha. El id de monday va como
+        // respaldo para los borradores viejos (ver vinculoDePersona).
+        responsableMail: currentUser.email,
         responsableId: currentUser.id,
         aprobador: { id: data.aprobador.id, name: data.aprobador.name },
         condicionDeCompra: data.condicionDeCompra,
@@ -125,7 +140,7 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
         },
         comentarios: data.comentarios,
         items: data.items,
-      });
+      }, bitacora);
       creada = { itemId: result.itemId, numeroOc: result.numeroOc };
       setOcCreada(creada);
 
@@ -201,6 +216,8 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
         urlValidacion: `${window.location.origin}/validar/${result.itemId}?codigo=${encodeURIComponent(result.codigoValidacion)}`,
       });
 
+      bitacora.paso("pdf_generado");
+
       // 3. El PDF adjunto en la columna DOC OC de la orden.
       const nombreArchivo = `OC_${result.numeroOc}_${data.proveedor.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
       const archivoPdf = new File([pdfBlob], nombreArchivo, { type: "application/pdf" });
@@ -208,6 +225,7 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
       // Desde aca la orden ya es valida: tiene su documento. Si algo falla mas
       // adelante NO se deshace.
       documentoAdjunto = true;
+      bitacora.paso("pdf_adjuntado", `${Math.round(pdfBlob.size / 1024)} KB`);
 
       // 3b. La misma copia, guardada aparte. DOC OC se va a reemplazar por el
       // documento firmado cuando el aprobador entre, y esta es la unica forma
@@ -215,7 +233,9 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
       // critica: si falla, la orden esta igual.
       try {
         await uploadOcPdfEmision(result.itemId, archivoPdf);
+        bitacora.paso("copia_emision");
       } catch (errorCopia) {
+        bitacora.fallo("copia_emision", errorCopia);
         console.warn(
           "[generador-oc] No se pudo guardar la copia de emisión:",
           errorCopia?.message,
@@ -234,7 +254,9 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
           moneda: data.moneda,
           total: result.total,
         });
+        bitacora.paso("aviso_aprobador", data.aprobador.name);
       } catch (errorAviso) {
+        bitacora.fallo("aviso_aprobador", errorAviso);
         console.error(
           "[generador-oc] La OC se emitió pero no se pudo notificar al aprobador:",
           errorAviso?.message,
@@ -257,12 +279,16 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
             type: "image/png",
           }),
         );
+        bitacora.paso("firma_emisor");
       } catch (errorFirma) {
+        bitacora.fallo("firma_emisor", errorFirma);
         console.warn("[generador-oc] No se pudo guardar la firma del emisor:", errorFirma?.message);
       }
 
+      bitacora.paso("fin");
       onSuccess(result.itemId, result.numeroOc);
     } catch (err) {
+      bitacora.fallo("emision_fallida", err);
       console.error("[generador-oc] Error al emitir OC:", err);
 
       // La orden llego a crearse pero se quedo sin documento: no sirve, y peor,
@@ -277,6 +303,7 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
             `No se pudo adjuntar el documento de la orden ${creada.numeroOc}. Deshaciéndola para no perder el número…`,
           );
           await borrarOcIncompleta(creada.itemId, creada.numeroOc);
+          bitacora.paso("rollback_ok", creada.numeroOc);
           setOcCreada(null);
           setError(
             `No se pudo generar el documento de la orden ${creada.numeroOc}: ${err?.message || "error desconocido"}. ` +
@@ -284,6 +311,9 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
           );
           return;
         } catch (errorRollback) {
+          // El peor estado posible: la orden existe en monday sin documento y
+          // con el numero tomado. Tiene que quedar registrado si o si.
+          bitacora.fallo("rollback_fallido", errorRollback);
           console.error("[generador-oc] No se pudo deshacer la orden:", errorRollback);
           setError(
             `La orden ${creada.numeroOc} se creó en monday, pero no se pudo adjuntar el PDF: ${err?.message || "error desconocido"}. No vuelvas a emitir: se duplicaría. Avisá al equipo para adjuntarlo.`,
@@ -301,6 +331,8 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
         setError(err?.message || "Ocurrió un error al crear la Orden de Compra");
       }
     } finally {
+      // Idempotente: manda los pasos una sola vez, salga bien o mal.
+      bitacora.cerrar();
       setEmitting(false);
     }
   };

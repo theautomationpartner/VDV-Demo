@@ -29,11 +29,17 @@ export function useSesionOc() {
   const [usuario, setUsuario] = useState(null);
   // "Todavia no se si tenes acceso". Se resuelve en el primer tick, sin red.
   const [cargando, setCargando] = useState(true);
-  // El id de monday de la sesion no corresponde a ningun usuario vivo: la
-  // cuenta fue eliminada en monday y el vinculo quedo guardado. La pantalla
-  // dejaba de ofrecer el lapiz y el desplegable de estado sin decir por que, y
-  // al emitir monday devolvia "unable to assign person with id: ...".
-  const [perfilDesconocido, setPerfilDesconocido] = useState(false);
+  // Si esta persona tiene ficha en "Equipo VDV", que es lo unico que ahora
+  // hace falta para emitir. Tres estados distintos a proposito:
+  //
+  //   null        todavia no se sabe (no mostrar nada)
+  //   "ok"        tiene ficha
+  //   "sin-ficha" el directorio contesto y no esta -> hay que agregarla-
+  //   "error"     no se pudo leer el directorio -> es un problema nuestro-
+  //
+  // Los dos ultimos se veian igual antes y son cosas muy distintas: a uno lo
+  // arregla un administrador cargando la ficha, al otro reintentar.
+  const [estadoFicha, setEstadoFicha] = useState(null);
 
   useEffect(() => {
     let activo = true;
@@ -61,43 +67,47 @@ export function useSesionOc() {
       cargo: null,
       telefono: "",
       foto: null,
+      // La ficha en "Equipo VDV". Es la identidad que NO depende de tener
+      // licencia de monday, y con ella el historial decide si una orden es
+      // tuya comparando ids en vez de nombres (ver OcHistorial).
+      itemVdv: null,
     };
 
     setUsuario(base);
     setCargando(false);
 
-    if (!base.id) return undefined;
-
-    // El perfil completa lo que falta cuando llega. Se piden los dos lados a la
-    // vez: monday -misma consulta que usa el selector de aprobador, cacheada- y
-    // el tablero "Equipo VDV".
+    // YA NO se corta por falta de id de monday. La identidad de quien emite es
+    // su MAIL y su ficha en "Equipo VDV": alguien sin licencia de monday tiene
+    // que poder emitir igual, que es todo el punto de esta migracion.
     //
-    // El CARGO y el TELEFONO salen primero del directorio y recien despues del
-    // perfil de monday. Ese perfil muere con la licencia, y son los dos datos
-    // que van impresos debajo de la firma del PDF: hasta ahora la firma de
-    // quien APRUEBA salia sin cargo cuando monday no lo tenia cargado, mientras
-    // que la de quien emite ya lo tomaba del directorio (ver getOcCompleta).
-    // Quedaban leyendo de lugares distintos.
-    Promise.all([getUsuariosMonday(), perfilDeEquipoVdv(base.email).catch(() => null)])
+    // Se piden los dos lados a la vez. El de monday NO puede tumbar al otro
+    // -de ahi el catch propio-, porque el unico que importa es el directorio.
+    // Y el del directorio va SIN catch a proposito: si falla, cae en el catch
+    // de abajo y queda como "error", que es distinto de "no esta".
+    //
+    // El nombre, el cargo y el telefono salen primero del directorio. El perfil
+    // de monday muere con la licencia y son los datos que van impresos debajo
+    // de la firma del PDF.
+    Promise.all([getUsuariosMonday().catch(() => []), perfilDeEquipoVdv(base.email)])
       .then(([lista, delDirectorio]) => {
         if (!activo) return;
-        const perfil = lista.find((u) => u.id === base.id);
-        // Sigue avisando cuando el id de monday ya no existe: mientras la orden
-        // escriba columnas de PERSONA, emitir con ese id igual va a fallar.
-        if (!perfil) setPerfilDesconocido(true);
+        setEstadoFicha(delDirectorio ? "ok" : "sin-ficha");
+        const perfil = base.id ? lista.find((u) => u.id === base.id) : null;
         if (!perfil && !delDirectorio) return;
         setUsuario({
           ...base,
-          name: perfil?.name || base.name,
-          email: perfil?.email || base.email,
+          name: delDirectorio?.nombre || perfil?.name || base.name,
+          email: delDirectorio?.mail || perfil?.email || base.email,
           cargo: delDirectorio?.cargo ?? perfil?.cargo ?? null,
           telefono: delDirectorio?.telefono || perfil?.telefono || "",
           foto: perfil?.foto ?? null,
+          itemVdv: delDirectorio?.id ?? null,
         });
       })
       .catch((error) => {
-        // Sin el perfil se puede emitir igual: solo falta el cargo en la firma.
-        console.error("[generador-oc] No se pudo leer el perfil de monday:", error);
+        if (!activo) return;
+        setEstadoFicha("error");
+        console.error("[generador-oc] No se pudo leer el tablero Equipo VDV:", error);
       });
 
     return () => {
@@ -105,5 +115,5 @@ export function useSesionOc() {
     };
   }, []);
 
-  return { usuario, cargando, perfilDesconocido };
+  return { usuario, cargando, estadoFicha };
 }

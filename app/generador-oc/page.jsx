@@ -29,7 +29,7 @@ import OcSuccess from "@/components/generador-oc/OcSuccess";
 function GeneradorOc() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { usuario, cargando, perfilDesconocido } = useSesionOc();
+  const { usuario, cargando, estadoFicha } = useSesionOc();
 
   const [vista, setVista] = useState("lista");
   const [previewData, setPreviewData] = useState(null);
@@ -173,36 +173,36 @@ function GeneradorOc() {
         </div>
       </div>
 
-      {/* Sin usuario de monday vinculado no se puede emitir: la orden guarda
-          Responsable y APROBADOR como personas de monday. Se avisa acá y no
-          recién al intentar emitir. */}
-      {!usuario.id && (
+      {/* Sin ficha en "Equipo VDV" no se puede emitir: la orden guarda quién la
+          emitió apuntando a ese tablero. Antes lo que hacía falta era un usuario
+          de monday; ahora es la ficha, que no depende de tener licencia. Se
+          avisa acá y no recién al intentar emitir. */}
+      {estadoFicha === "sin-ficha" && (
         <Card className="mb-6 flex items-start gap-3 border-[hsl(var(--precio-medio))]/40 bg-[hsl(var(--precio-medio-soft))] p-4">
           <AlertTriangle
             className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--precio-medio))]"
             aria-hidden
           />
           <p className="text-sm">
-            Tu cuenta todavía no está vinculada a un usuario de monday, así que podés ver las
-            órdenes pero no emitir. Un administrador puede vincularla en Usuarios y Roles.
+            Tu cuenta (<strong>{usuario.email}</strong>) no figura en el tablero{" "}
+            <strong>Equipo VDV</strong>, así que podés ver las órdenes pero no emitir. Pedile a un
+            administrador que te agregue con ese mismo mail.
           </p>
         </Card>
       )}
 
-      {/* El vínculo existe pero apunta a una cuenta de monday eliminada. Sin
-          este aviso la pantalla se comportaba como si la persona no fuera
-          responsable ni aprobadora de ninguna orden -sin lápiz, sin desplegable
-          de estado- y no había forma de darse cuenta de por qué. */}
-      {usuario.id && perfilDesconocido && (
+      {/* Distinto del anterior a propósito: acá el directorio no se pudo leer,
+          que es un problema nuestro y se arregla reintentando, no pidiéndole
+          nada a un administrador. Antes los dos casos se veían igual. */}
+      {estadoFicha === "error" && (
         <Card className="mb-6 flex items-start gap-3 border-[hsl(var(--precio-alto))]/40 bg-[hsl(var(--precio-alto-soft))] p-4">
           <AlertTriangle
             className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--precio-alto))]"
             aria-hidden
           />
           <p className="text-sm">
-            Tu cuenta está vinculada al usuario de monday <strong>{usuario.id}</strong>, que ya no
-            existe. Hasta que un administrador lo corrija en Usuarios y Roles no vas a poder emitir
-            órdenes, ni aprobar ni editar las que tengas asignadas.
+            No se pudo leer el tablero <strong>Equipo VDV</strong>, así que por ahora no se pueden
+            emitir órdenes. Recargá la página en un momento; si sigue igual, avisale al equipo.
           </p>
         </Card>
       )}

@@ -23,8 +23,8 @@ import {
   getObrasOc,
   getCondicionesOc,
   getMaterialOptions,
-  getUsuariosMonday,
 } from "@/lib/generador-oc/datos";
+import { getEquipoVdv } from "@/lib/generador-oc/equipo-vdv";
 import MaterialPicker from "./MaterialPicker";
 import FichaProveedor, { datosFaltantes } from "./FichaProveedor";
 import EditarProveedorDialog from "./EditarProveedorDialog";
@@ -305,15 +305,18 @@ export default function NuevaOcForm({ onPreview, currentUser, borrador = null, o
     formData.moneda,
   );
   const [materialHistorial, setMaterialHistorial] = useState(null);
-  // Los usuarios vivos de monday, para no dejar emitir con un aprobador dado de
-  // baja. Es la misma consulta cacheada que usa SelectorAprobador.
-  const [aprobadoresEnMonday, setAprobadoresEnMonday] = useState([]);
+  // Los mails que figuran en "Equipo VDV", para no dejar emitir con un
+  // aprobador que no tiene ficha. Antes esto miraba si su cuenta de monday
+  // seguia viva, pero la orden ya no se escribe contra el usuario de monday
+  // sino contra el directorio: alguien sin licencia y con ficha puede aprobar
+  // perfectamente, y trabarlo seria una regresion.
+  const [mailsEquipo, setMailsEquipo] = useState(null);
 
   useEffect(() => {
     let activo = true;
-    getUsuariosMonday()
-      .then((lista) => activo && setAprobadoresEnMonday(lista ?? []))
-      .catch((e) => console.error("[generador-oc] No se pudo leer la lista de monday:", e));
+    getEquipoVdv()
+      .then(({ porMail }) => activo && setMailsEquipo(new Set(porMail.keys())))
+      .catch((e) => console.error("[generador-oc] No se pudo leer Equipo VDV:", e));
     return () => {
       activo = false;
     };
@@ -329,15 +332,20 @@ export default function NuevaOcForm({ onPreview, currentUser, borrador = null, o
       return;
     }
     // El aprobador puede venir del borrador automatico, que guarda el formulario
-    // entero y lo restaura meses despues (ver borradores.js). Si en el medio
-    // dieron de baja a esa persona en monday, la orden se arma completa y recien
-    // falla al emitirse, con el error crudo de monday. Se corta antes.
+    // entero y lo restaura meses despues (ver borradores.js). Si en el medio lo
+    // sacaron del directorio, la orden se arma completa y recien falla al
+    // emitirse. Se corta antes.
+    //
+    // Solo se chequea cuando hay con que: si el directorio no se pudo leer, o
+    // si el borrador es viejo y no guardo el mail, se deja pasar y la emision
+    // decide (createOc tiene el respaldo por id de monday).
     if (
-      aprobadoresEnMonday.length > 0 &&
-      !aprobadoresEnMonday.some((u) => String(u.id) === String(formData.aprobador.id))
+      mailsEquipo &&
+      formData.aprobador.email &&
+      !mailsEquipo.has(String(formData.aprobador.email).toLowerCase())
     ) {
       toast.error(
-        `La cuenta de monday de ${formData.aprobador.name} ya no existe. Elegí a otra persona como aprobador.`,
+        `${formData.aprobador.name} no figura en el tablero Equipo VDV. Elegí a otra persona como aprobador.`,
       );
       return;
     }
