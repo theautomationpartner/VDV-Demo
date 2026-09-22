@@ -97,7 +97,12 @@ export function useSesionOc() {
         setUsuario({
           ...base,
           name: delDirectorio?.nombre || perfil?.name || base.name,
-          email: delDirectorio?.mail || perfil?.email || base.email,
+          // El mail de la SESION manda. Es el que se usa para encontrar la
+          // ficha, asi que si algo falla el cartel tiene que nombrar ese y no
+          // otro: cuando decia el de monday, el aviso de "no figura en Equipo
+          // VDV" mostraba un mail que no era el que habia fallado y no se
+          // podia diagnosticar.
+          email: base.email || delDirectorio?.mail || perfil?.email,
           cargo: delDirectorio?.cargo ?? perfil?.cargo ?? null,
           telefono: delDirectorio?.telefono || perfil?.telefono || "",
           foto: perfil?.foto ?? null,
