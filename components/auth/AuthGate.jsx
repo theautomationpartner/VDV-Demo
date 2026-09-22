@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { ShieldAlert, ShieldCheck, Mail } from "lucide-react";
 import { seedAppSessionFromEmail } from "@/lib/client/fixed-accounts";
+import { almacenamientoBloqueado, MENSAJE_ALMACENAMIENTO_BLOQUEADO } from "@/lib/client/almacenamiento";
 import { esRutaPublica } from "@/lib/rutas-publicas";
 
 /**
@@ -187,6 +188,20 @@ function EmailScreen({ onAuthorized, onBlocked }) {
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  // Se avisa ACA, en la primera pantalla, y no cuando ya escribio el codigo de
+  // 2FA: sin almacenamiento la app no va a poder guardar la sesion igual, y
+  // hacerle pedir un codigo para despues fallar es perder su tiempo.
+  //
+  // useSyncExternalStore y no un efecto con setState: esto es leer un dato del
+  // navegador, que es justo para lo que esta hecho. El tercer argumento es lo
+  // que vale mientras la pagina se arma en el servidor, donde localStorage no
+  // existe. Y no hay a que suscribirse, porque el permiso no cambia sin que la
+  // persona recargue.
+  const sinAlmacenamiento = useSyncExternalStore(
+    () => () => {},
+    () => almacenamientoBloqueado(),
+    () => false,
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -219,6 +234,11 @@ function EmailScreen({ onAuthorized, onBlocked }) {
           <h1 className="text-lg font-semibold">VDV Suite</h1>
           <p className="text-sm text-muted-foreground">Ingresá con tu correo autorizado</p>
         </div>
+        {sinAlmacenamiento && (
+          <p className="rounded-md border border-[hsl(var(--precio-alto))]/40 bg-[hsl(var(--precio-alto-soft))] p-3 text-sm">
+            {MENSAJE_ALMACENAMIENTO_BLOQUEADO}
+          </p>
+        )}
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="space-y-1.5">
             <Label>Email</Label>
