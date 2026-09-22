@@ -23,10 +23,11 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Package, Handshake, UserX, MapPin, ChevronDown, FileSignature } from "lucide-react";
+import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Package, Handshake, UserX, MapPin, ChevronDown, FileSignature, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useObrasVales, useObrasContratos } from "@/hooks/useObras";
 import { OrdenesDeCompraMaxxaBoard, ProveedoresBoard, fetchAllItems } from "@/lib/board-sdk";
+import { getEquipoVdv } from "@/lib/generador-oc/equipo-vdv";
 import {
   OC_APP,
   OC_ROLES,
@@ -397,6 +398,53 @@ function ProveedorPicker({ elegido, valorTexto = "", etiqueta = "Proveedor", ayu
 }
 
 /**
+ * Los mails que figuran en el tablero "Equipo VDV", pedidos una sola vez.
+ *
+ * Desde que el Generador escribe la columna de CONEXION y no la de PERSONA,
+ * tener ficha ahi es lo que de verdad habilita a emitir y a ser elegido como
+ * aprobador -mas que tener usuario de monday-. Y no habia forma de verlo desde
+ * esta pantalla: se descubria cuando la persona se trababa al emitir.
+ *
+ * Paso con Consuelo gomez el 22-sep: era Compradora, no tenia ficha, y el
+ * cartel que veia nombraba el mail de monday de la cuenta compartida de obras,
+ * asi que ni siquiera se entendia de quien era el problema.
+ *
+ * `null` mientras no se sabe -o si el tablero no se pudo leer-, para no marcar
+ * a todo el mundo como "sin ficha" por un fallo de red.
+ */
+let promesaEquipoVdv = null;
+function useMailsEquipoVdv() {
+  const [mails, setMails] = useState(null);
+
+  useEffect(() => {
+    let activo = true;
+    promesaEquipoVdv ??= getEquipoVdv()
+      .then(({ porMail }) => new Set(porMail.keys()))
+      .catch((err) => {
+        console.error("[whitelist] No se pudo leer el tablero Equipo VDV:", err);
+        promesaEquipoVdv = null; // que el proximo intento vuelva a pedirlo
+        return null;
+      });
+
+    promesaEquipoVdv.then((set) => {
+      if (activo) setMails(set);
+    });
+    return () => {
+      activo = false;
+    };
+  }, []);
+
+  return mails;
+}
+
+/** Si esta cuenta necesita ficha en Equipo VDV para hacer lo que tiene asignado. */
+function necesitaFichaEquipo(asignaciones) {
+  return (asignaciones ?? []).some(
+    (a) => a.app === OC_APP && (puedeEmitirOc(a.appRol) || puedeAprobarOc(a.appRol)),
+  );
+}
+
+/**
  * La lista de usuarios de monday, pedida una sola vez por carga de pantalla.
  * La usan el selector de cada asignacion y la validacion de guardado; antes
  * cada selector la pedia por su cuenta.
@@ -718,7 +766,13 @@ function PasosContratoPicker({ pasos, superAprobador, onChange }) {
 // (avatar circular, pills de rol coloreadas, seccion de acceso a la derecha)
 // pero adaptada al modelo de esta whitelist (varias apps por persona en vez
 // de un solo rol, acciones editar/borrar en vez de expandir un selector).
-function UsuarioCard({ u, onEdit, onDelete, onToggleEstado, togglingId, mostrarAcciones }) {
+function UsuarioCard({ u, onEdit, onDelete, onToggleEstado, togglingId, mostrarAcciones, mailsEquipo }) {
+  // Solo se marca cuando el tablero se pudo leer: con mailsEquipo en null no se
+  // sabe, y marcar a todos seria peor que no decir nada.
+  const sinFichaEquipo =
+    mailsEquipo !== null &&
+    necesitaFichaEquipo(u.asignaciones) &&
+    !mailsEquipo.has(String(u.email ?? "").trim().toLowerCase());
   const isRevocado = u.estado !== "activo";
   const resumenObras = obrasSummary(u.asignaciones);
   const resumenVb = vbSummary(u.asignaciones);
@@ -792,6 +846,12 @@ function UsuarioCard({ u, onEdit, onDelete, onToggleEstado, togglingId, mostrarA
 
       <div className="flex flex-wrap items-center gap-1.5 px-3 pb-3">
         {(u.asignaciones ?? []).length === 0 && <span className="text-xs text-muted-foreground">Sin apps asignadas</span>}
+        {sinFichaEquipo && (
+          <span className="inline-flex items-center gap-1 rounded-lg border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] font-medium text-destructive">
+            <AlertTriangle className="w-3 h-3" />
+            Sin ficha en Equipo VDV
+          </span>
+        )}
         {(u.asignaciones ?? []).map((a, i) => {
           const AppIcon = APP_ICONS[a.app];
           const color = roleColor(a.appRol);
@@ -887,6 +947,9 @@ export default function WhitelistAdminPage() {
   // La misma lista que usan los selectores de usuario de monday, para poder
   // avisar al guardar si alguno quedo apuntando a una cuenta que ya no existe.
   const { usuarios: usuariosMonday, cargando: cargandoMonday } = useUsuariosMonday();
+  // Los mails del tablero Equipo VDV, para marcar en la lista a quien no tiene
+  // ficha y no dejar guardar una cuenta que la necesita.
+  const mailsEquipo = useMailsEquipoVdv();
 
   const cargar = useCallback(async () => {
     const res = await fetch("/api/auth/whitelist");
@@ -1069,6 +1132,13 @@ export default function WhitelistAdminPage() {
   const usuarioMondayBorrado = emitenEnOc.some((a) =>
     usuarioMondayDesaparecido(a.mondayUserId, usuariosMonday, cargandoMonday),
   );
+  // Desde el corte de las columnas de PERSONA, esto es lo que de verdad
+  // habilita a emitir y a ser elegido como aprobador. Sin ficha, la orden se
+  // corta al emitir con un cartel que la persona no puede resolver sola.
+  const sinFichaEquipo =
+    mailsEquipo !== null &&
+    necesitaFichaEquipo(form.asignaciones) &&
+    !mailsEquipo.has(form.email.trim().toLowerCase());
 
   const handleSave = async () => {
     if (!form.email.trim() || form.asignaciones.length === 0) return;
@@ -1085,6 +1155,13 @@ export default function WhitelistAdminPage() {
     if (usuarioMondayBorrado) {
       toast.error(
         "El usuario de monday vinculado ya no existe. Elegí otro: monday rechaza las órdenes que salgan a nombre de una cuenta borrada.",
+      );
+      return;
+    }
+    if (sinFichaEquipo) {
+      toast.error(
+        `${form.email.trim()} no figura en el tablero Equipo VDV. Agregalo ahí con ese mismo mail: sin ficha no va a poder emitir órdenes ni quedar como aprobador.`,
+        { duration: 10000 },
       );
       return;
     }
@@ -1280,6 +1357,7 @@ export default function WhitelistAdminPage() {
             onToggleEstado={handleToggleEstado}
             togglingId={togglingId}
             mostrarAcciones={mostrarAcciones}
+            mailsEquipo={mailsEquipo}
           />
         ))}
         {filteredUsuarios.length === 0 && (
