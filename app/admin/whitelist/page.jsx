@@ -1125,7 +1125,13 @@ export default function WhitelistAdminPage() {
   // rechaza emitir, editar y aprobar (ver requireGestionOc). Al rol Consulta no
   // le aplica: no escribe ordenes, y por eso el campo ni se le muestra.
   const emitenEnOc = form.asignaciones.filter((a) => a.app === OC_APP && puedeEmitirOc(a.appRol));
-  const faltaUsuarioMonday = emitenEnOc.some((a) => !(Number(a.mondayUserId) > 0));
+  // El usuario de monday YA NO es obligatorio. Exigirlo es lo que hizo que a
+  // quien no tenia uno propio se le cargara el de una cuenta compartida:
+  // agustin quedo con el de obras@ y cuatro OC reales salieron con ese
+  // aprobador impreso. Lo que hace falta ahora es la ficha en Equipo VDV, que
+  // se valida mas abajo. El campo se conserva porque sirve para reconocer las
+  // ordenes viejas y para mandar la notificacion de monday a quien todavia
+  // tenga licencia.
   // Y un id que apunta a una cuenta de monday borrada es peor que no tener
   // ninguno: la pantalla lo mostraba como "Sin vincular" y monday recien lo
   // rechazaba al emitir la orden.
@@ -1144,12 +1150,6 @@ export default function WhitelistAdminPage() {
     if (!form.email.trim() || form.asignaciones.length === 0) return;
     if (faltaProveedor) {
       toast.error("Elegí el proveedor del subcontratista: sin eso la cuenta entra pero no ve nada.");
-      return;
-    }
-    if (faltaUsuarioMonday) {
-      toast.error(
-        "Elegí el usuario de monday del OC Tracker: sin eso la persona no puede emitir, editar ni aprobar órdenes.",
-      );
       return;
     }
     if (usuarioMondayBorrado) {

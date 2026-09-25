@@ -110,7 +110,7 @@ export default function EditarOcDialog({
   const [condicionDeCompra, setCondicionDeCompra] = useState("");
   const [proveedorNombre, setProveedorNombre] = useState("");
   const [aprobador, setAprobador] = useState(null);
-  const [emisorId, setEmisorId] = useState(undefined);
+  const [emisorMail, setEmisorMail] = useState(undefined);
   const [despachoTipo, setDespachoTipo] = useState("RETIRO_CLIENTE");
   const [despachoDireccion, setDespachoDireccion] = useState("");
   const [credito, setCredito] = useState(false);
@@ -145,14 +145,17 @@ export default function EditarOcDialog({
         setObra(datos.obra);
         setCondicionDeCompra(datos.condicionDeCompra);
         setProveedorNombre(datos.proveedor?.nombreComercial || datos.proveedor?.name || "");
-        setEmisorId(datos.responsable.id || undefined);
+        // Por MAIL, no por el id de monday: en las ordenes nuevas ese id
+        // queda en 0, y con 0 el filtro no excluia a nadie -o sea que quien
+        // emitia se podia elegir a si mismo como aprobador-.
+        setEmisorMail(datos.responsable.mail || undefined);
         setAprobador(
           datos.aprobador
             ? {
-                id: datos.aprobador.id,
+                mail: datos.aprobador.mail,
                 name: datos.aprobador.name,
                 cargo: datos.aprobador.cargo,
-                email: datos.aprobador.mail,
+                itemVdv: datos.aprobador.itemVdv,
               }
             : null,
         );
@@ -274,7 +277,7 @@ export default function EditarOcDialog({
         itemId,
         editorNombre: currentUser.name,
         obra,
-        aprobador: { id: aprobador.id, name: aprobador.name, email: aprobador.email },
+        aprobador: { mail: aprobador.mail, name: aprobador.name, cargo: aprobador.cargo },
         despachoTexto: formatearDespacho({ tipo: despachoTipo, direccion: despachoDireccion }),
         pagoTexto: formatearPago({ credito, dias }),
         comentarios,
@@ -331,7 +334,7 @@ export default function EditarOcDialog({
                   </SelectContent>
                 </Select>
               </div>
-              <SelectorAprobador valor={aprobador} onChange={setAprobador} emisorId={emisorId} />
+              <SelectorAprobador valor={aprobador} onChange={setAprobador} emisorMail={emisorMail} />
             </div>
 
             <div className="grid grid-cols-1 gap-4 rounded-md border bg-muted/40 p-3 sm:grid-cols-2">

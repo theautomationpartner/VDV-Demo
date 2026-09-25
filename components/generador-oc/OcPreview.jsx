@@ -129,7 +129,14 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
         // respaldo para los borradores viejos (ver vinculoDePersona).
         responsableMail: currentUser.email,
         responsableId: currentUser.id,
-        aprobador: { id: data.aprobador.id, name: data.aprobador.name },
+        // El aprobador viaja por MAIL. El id solo sobrevive en borradores
+        // guardados antes de este cambio, y vinculoDePersona lo usa de respaldo.
+        aprobador: {
+          mail: data.aprobador.mail,
+          name: data.aprobador.name,
+          cargo: data.aprobador.cargo,
+          id: data.aprobador.id,
+        },
         condicionDeCompra: data.condicionDeCompra,
         tipoOc: data.tipoOc,
         despachoTexto,
@@ -248,7 +255,7 @@ export default function OcPreview({ data, currentUser, onBack, onSuccess }) {
         await notificarAprobador({
           itemId: result.itemId,
           numeroOc: result.numeroOc,
-          aprobadorId: data.aprobador.id,
+          aprobadorMail: data.aprobador.mail,
           proveedor: data.proveedor.nombreComercial || data.proveedor.name,
           obra: data.obra,
           moneda: data.moneda,

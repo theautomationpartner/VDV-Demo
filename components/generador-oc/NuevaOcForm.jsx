@@ -341,8 +341,8 @@ export default function NuevaOcForm({ onPreview, currentUser, borrador = null, o
     // decide (createOc tiene el respaldo por id de monday).
     if (
       mailsEquipo &&
-      formData.aprobador.email &&
-      !mailsEquipo.has(String(formData.aprobador.email).toLowerCase())
+      formData.aprobador.mail &&
+      !mailsEquipo.has(String(formData.aprobador.mail).toLowerCase())
     ) {
       toast.error(
         `${formData.aprobador.name} no figura en el tablero Equipo VDV. Elegí a otra persona como aprobador.`,
@@ -754,7 +754,7 @@ export default function NuevaOcForm({ onPreview, currentUser, borrador = null, o
           <SelectorAprobador
             valor={formData.aprobador}
             onChange={(aprobador) => setFormData((prev) => ({ ...prev, aprobador }))}
-            emisorId={currentUser?.id}
+            emisorMail={currentUser?.email}
             puedeAprobarSusOrdenes={currentUser?.apruebaTodo === true}
           />
         </div>
