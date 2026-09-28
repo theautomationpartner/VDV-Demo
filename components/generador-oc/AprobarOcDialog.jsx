@@ -123,6 +123,22 @@ export default function AprobarOcDialog({
       const firmaEmisor = await traerFirmaEmisor(itemId);
       bitacora.paso("firma_emisor_leida", firmaEmisor ? "estaba" : "la orden no la tenia");
 
+      // El campo APROBADOR del PDF (pdf.js:338) salia de monday, o sea del
+      // DESIGNADO, mientras que el recuadro de la firma (pdf.js:586) dice quien
+      // firmo. Cuando los dos son la misma persona no se nota; cuando aprueba
+      // alguien con "Puede aprobar cualquier orden", el proveedor recibia un
+      // documento con dos nombres distintos de aprobador.
+      //
+      // Se compara por MAIL y no por nombre: si son la misma persona no se
+      // toca nada y el PDF sale identico a como salia -el nombre sigue siendo
+      // el de la ficha de Equipo VDV, que es el canonico-. Una orden vieja sin
+      // mail en la ficha tampoco cambia.
+      const mailFicha = datos.aprobador?.mail?.trim().toLowerCase();
+      const mailFirma = currentUser?.email?.trim().toLowerCase();
+      const apruebaOtro = !!mailFicha && !!mailFirma && mailFicha !== mailFirma;
+      const nombreAprobador = apruebaOtro ? currentUser.name : datos.aprobador?.name;
+      if (apruebaOtro) bitacora.paso("aprueba_otro", `designado ${mailFicha}, firma ${mailFirma}`);
+
       const pdfBlob = await generateOcPdf({
         numeroOc: datos.numeroOc,
         fechaEmision: fechaLarga(datos.validezDesde),
@@ -141,7 +157,7 @@ export default function AprobarOcDialog({
         responsable: datos.responsable.name,
         responsableEmail: datos.contactoEmisor.email || undefined,
         responsableTelefono: datos.contactoEmisor.telefono || undefined,
-        aprobador: datos.aprobador?.name,
+        aprobador: nombreAprobador,
         condicionDeCompra: datos.condicionDeCompra,
         despacho: datos.despachoTexto,
         pago: datos.pagoTexto || "Contado",
@@ -176,7 +192,11 @@ export default function AprobarOcDialog({
       );
       bitacora.paso("pdf_adjuntado");
 
-      await aprobarOc({ itemId, quienAprueba: currentUser.name });
+      await aprobarOc({
+        itemId,
+        quienAprueba: currentUser.name,
+        mailQuienAprueba: currentUser?.email ?? null,
+      });
       bitacora.paso("fin");
 
       onAprobada();
