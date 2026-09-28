@@ -9,7 +9,7 @@ import { esRutaPublica } from "@/lib/rutas-publicas";
 import { cn } from "@/lib/utils";
 import { useUserRole, ROLES } from "@/hooks/vale-express/useUserRole";
 import { getGlobalEmail, getGlobalApps } from "@/lib/client/fixed-accounts";
-import { limpiarCachePersistente } from "@/lib/client/cache-persistente";
+import { cerrarSesion } from "@/lib/client/cerrar-sesion";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { usePendientes } from "@/hooks/usePendientes";
 import { paraHacerAhora } from "@/lib/pendientes";
@@ -334,27 +334,9 @@ export function AppSidebar() {
   // Cierra la sesion global (whitelist + 2FA, cookie httpOnly) y las sesiones
   // por-app (Vale Express / Portal Proveedor, en localStorage). Recarga entera
   // para que AuthGate vuelva a pedir login desde cero, sin arrastrar estado.
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch {
-      // Si la sesion global no esta activada (AUTH_LAYERS_ENABLED=false) esta
-      // ruta puede no tener nada que hacer - no bloquea el resto del logout.
-    }
-    try {
-      localStorage.removeItem("ve_session");
-      localStorage.removeItem("pp_session");
-      localStorage.removeItem("og_session");
-      localStorage.removeItem("vdv_global_email");
-    } catch {
-      // localStorage no disponible (modo privado) - igual redirige.
-    }
-    // Los datos cacheados en el navegador (pagos, contratos, OCs) tambien se
-    // van: si no, el proximo que entre en esta pestaña veria de entrada lo que
-    // estaba mirando el anterior.
-    limpiarCachePersistente();
-    window.location.href = "/";
-  };
+  // Vive en lib/client/cerrar-sesion.js: es el mismo boton que el del panel de
+  // Vale Express, y tenerlo dos veces escrito fue justamente el problema.
+  const handleLogout = cerrarSesion;
 
   if (publica) return null;
 
