@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Spinner } from '@/components/ui/spinner';
 import { Warehouse, FileText, PackagePlus, LogOut, User, Shield, AlertTriangle, ClipboardList, Package } from 'lucide-react';
 import { useUserRole, canAccessIngreso, canAccessSolicitud, canAccessAdmin, canAccessStock, ROLES } from '@/hooks/vale-express/useUserRole';
+import { cerrarSesion } from '@/lib/client/cerrar-sesion';
 
 // Foco visible (teclado) para los botones nativos de esta pantalla - ninguno usa
 // el componente Button de shadcn/ui (que ya trae su propio focus-visible), asi
@@ -37,10 +38,11 @@ export default function DashboardPage() {
         }
     }, [router]);
 
-    const handleLogout = () => {
-        localStorage.removeItem('ve_session');
-        router.push('/vale-express');
-    };
+    // Antes esto borraba solo 've_session' y hacia router.push('/vale-express'),
+    // y esa pantalla rearma la sesion desde 'vdv_global_email': el boton te
+    // sacaba y te volvia a meter. En el celular compartido de obra, el que
+    // entraba despues seguia siendo el anterior. Ver lib/client/cerrar-sesion.js.
+    const handleLogout = cerrarSesion;
 
     const isLoading = loading || roleLoading;
     const hasNoRole = !isLoading && !role;

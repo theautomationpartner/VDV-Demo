@@ -44,6 +44,16 @@ export function usePaymentData(userContext) {
       setCalculadoEn(aIso(datos.calculadoEn));
     } catch (error) {
       console.error('Error al cargar datos:', error);
+      // Esto era SOLO el console.error de arriba: si la carga fallaba -sesion
+      // vencida, la red del celular que se corta- la pantalla se quedaba con
+      // los numeros de la vez anterior y nadie se enteraba. El que miraba creia
+      // estar viendo el saldo de hoy. Los dos mensajes son distintos a
+      // proposito: no es lo mismo no poder entrar que estar viendo algo viejo.
+      if (yaTraido(claveDe(userContext))) {
+        toast.error('No se pudieron actualizar los datos. Estás viendo la última información disponible.');
+      } else {
+        toast.error('No se pudieron cargar los datos. Revisá tu conexión y volvé a intentar.');
+      }
     } finally {
       setLoading(false);
     }
