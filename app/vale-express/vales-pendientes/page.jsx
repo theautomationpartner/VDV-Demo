@@ -43,6 +43,16 @@ export default function ValesPendientesPage() {
     const [savingId, setSavingId] = useState(null);
     const [deliveringId, setDeliveringId] = useState(null);
     const [notDeliveringId, setNotDeliveringId] = useState(null);
+    /**
+     * Los vales ya resueltos en esta pantalla: { [id]: 'ENTREGADA' | 'NO ENTREGADA' }.
+     *
+     * Antes, al entregar, la fila se sacaba de la lista en el acto. En el
+     * celular eso mueve todo hacia arriba y el toque siguiente cae en OTRO
+     * vale: quedaba entregado algo que nadie entrego, y lo que si se entrego
+     * seguia pendiente. Ahora la fila se queda en su lugar, marcada, y
+     * desaparece recien en la proxima carga -que trae solo los pendientes-.
+     */
+    const [resueltos, setResueltos] = useState({});
     const [readOnly, setReadOnly] = useState(false);
 
     useEffect(() => {
@@ -128,6 +138,9 @@ export default function ValesPendientesPage() {
             if (pedido !== pedidoRef.current) return;
             setItems(result.items || []);
             setCursor(result.cursor || null);
+            // La lista que llega trae solo pendientes, asi que las marcas de lo
+            // resuelto en la vuelta anterior ya no aplican a nada.
+            setResueltos({});
         } catch (err) {
             console.error('[VALES] Load failed:', err);
             toast.error('Error al cargar solicitudes');
@@ -221,17 +234,15 @@ export default function ValesPendientesPage() {
     const handleDeliver = async (itemId) => {
         if (deliveringId || notDeliveringId) return;
         setDeliveringId(itemId);
-        const prevItems = [...items];
-
-        // Optimistic: remove from list
-        setItems(prev => prev.filter(it => it.id !== itemId));
 
         try {
             await valesBoard.item(itemId).update({ estado: 'ENTREGADA' }).execute();
+            // La fila NO se saca: se marca y se queda donde estaba, asi nada se
+            // corre bajo el dedo. Ver el comentario de `resueltos`.
+            setResueltos(prev => ({ ...prev, [itemId]: 'ENTREGADA' }));
             toast.success('Vale marcado como entregado');
         } catch (err) {
             console.error('[VALES] Deliver failed:', err);
-            setItems(prevItems);
             toast.error('Error al marcar como entregado');
         } finally {
             setDeliveringId(null);
@@ -242,10 +253,6 @@ export default function ValesPendientesPage() {
     const handleNotDeliver = async (itemId) => {
         if (deliveringId || notDeliveringId) return;
         setNotDeliveringId(itemId);
-        const prevItems = [...items];
-
-        // Optimistic: remove from list
-        setItems(prev => prev.filter(it => it.id !== itemId));
 
         try {
             // Update status to NO ENTREGADA
@@ -255,15 +262,23 @@ export default function ValesPendientesPage() {
                 `mutation ($itemId: ID!, $groupId: String!) { move_item_to_group(item_id: $itemId, group_id: $groupId) { id } }`,
                 { itemId: String(itemId), groupId: 'group_mm1bk3ac' }
             );
+            // Igual que al entregar: la fila se marca, no se saca.
+            setResueltos(prev => ({ ...prev, [itemId]: 'NO ENTREGADA' }));
             toast.success('Vale marcado como no entregado');
         } catch (err) {
             console.error('[VALES] Not deliver failed:', err);
-            setItems(prevItems);
             toast.error('Error al marcar como no entregado');
         } finally {
             setNotDeliveringId(null);
         }
     };
+
+    // Los que todavia estan sin resolver: es lo que cuenta el encabezado. Los ya
+    // entregados siguen en pantalla marcados, pero no son pendientes.
+    const pendientes = useMemo(
+        () => items.filter(it => !resueltos[it.id]).length,
+        [items, resueltos],
+    );
 
     if (loading && items.length === 0) {
         return (
@@ -288,7 +303,7 @@ export default function ValesPendientesPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                         <h1 className="text-[15px] font-semibold tracking-[-0.01em]">Solicitudes Pendientes</h1>
-                        <p className="text-xs text-[var(--fg-subtle)]">{items.length} vale{items.length !== 1 ? 's' : ''}</p>
+                        <p className="text-xs text-[var(--fg-subtle)]">{pendientes} vale{pendientes !== 1 ? 's' : ''}</p>
                     </div>
                     <button onClick={handleRefresh} disabled={refetching} className={`flex items-center justify-center min-h-12 min-w-12 sm:h-9 sm:w-9 rounded-[var(--radius-md)] text-[var(--fg-muted)] active:text-foreground active:bg-[var(--surface-2)] transition-colors shrink-0 ${FOCUS_RING}`} aria-label="Recargar">
                         <RefreshCw className={`w-[18px] h-[18px] ${refetching ? 'animate-spin' : ''}`} />
@@ -337,6 +352,7 @@ export default function ValesPendientesPage() {
                                     isSaving={savingId === item.id}
                                     isDelivering={deliveringId === item.id}
                                     isNotDelivering={notDeliveringId === item.id}
+                                    resuelto={resueltos[item.id] ?? null}
                                 />
                             ))}
                         </div>
@@ -360,7 +376,7 @@ export default function ValesPendientesPage() {
     );
 }
 
-function ValeCard({ item, readOnly, isEditing, editValue, onEditValueChange, onStartEdit, onCancelEdit, onSaveEdit, onDeliver, onNotDeliver, isSaving, isDelivering, isNotDelivering }) {
+function ValeCard({ item, readOnly, isEditing, editValue, onEditValueChange, onStartEdit, onCancelEdit, onSaveEdit, onDeliver, onNotDeliver, isSaving, isDelivering, isNotDelivering, resuelto = null }) {
     const solicitante = item.quienSolicita || '-';
     const destino = item.destinoDelMaterial || '';
 
@@ -373,7 +389,7 @@ function ValeCard({ item, readOnly, isEditing, editValue, onEditValueChange, onS
     }
 
     return (
-        <div className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--surface-1)] overflow-hidden">
+        <div className={`rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--surface-1)] overflow-hidden transition-opacity ${resuelto ? 'opacity-60' : ''}`}>
             {/* Top: obra badge */}
             <div className="px-4 pt-3 pb-2 flex items-center justify-between">
                 <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-[var(--radius-sm)] bg-[color-mix(in_hsl,var(--accent)_10%,transparent)] text-[var(--accent)] border border-[color-mix(in_hsl,var(--accent)_20%,transparent)]">
@@ -428,7 +444,7 @@ function ValeCard({ item, readOnly, isEditing, editValue, onEditValueChange, onS
                     <div className="flex-1 flex items-center gap-2">
                         <span className="text-xs font-medium text-[var(--fg-muted)]">Cantidad:</span>
                         <span className="text-lg font-bold text-foreground">{item.cantidad ?? '-'}</span>
-                        {!readOnly && (
+                        {!readOnly && !resuelto && (
                             <button onClick={onStartEdit} className={`ml-1 flex items-center justify-center min-h-12 min-w-12 sm:h-7 sm:w-7 rounded-[var(--radius-sm)] text-[var(--fg-subtle)] active:text-foreground active:bg-[var(--surface-2)] transition-colors ${FOCUS_RING}`} aria-label="Editar cantidad">
                                 <Pencil className="w-3.5 h-3.5" />
                             </button>
@@ -436,7 +452,18 @@ function ValeCard({ item, readOnly, isEditing, editValue, onEditValueChange, onS
                     </div>
                 )}
 
-                {!readOnly && !isEditing && (
+                {/* Ya resuelto en esta pantalla: la fila se queda en su lugar
+                    con el resultado a la vista, y sin botones que volver a
+                    tocar. Desaparece en la proxima carga. */}
+                {resuelto && (
+                    <div className="flex items-center gap-1.5 shrink-0 text-xs font-semibold"
+                         style={{ color: resuelto === 'ENTREGADA' ? 'var(--chart-2)' : 'var(--destructive)' }}>
+                        {resuelto === 'ENTREGADA' ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                        {resuelto === 'ENTREGADA' ? 'Entregado' : 'No entregado'}
+                    </div>
+                )}
+
+                {!readOnly && !isEditing && !resuelto && (
                     <div className="flex items-center gap-2 shrink-0">
                         <button
                             onClick={onNotDeliver}
