@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Spinner } from '@/components/ui/spinner';
-import { X, Search, Package, ChevronDown, BarChart3 } from 'lucide-react';
+import { AlertTriangle, X, Search, Package, ChevronDown, BarChart3 } from 'lucide-react';
 import { useMaterialSearch } from '@/hooks/vale-express/useMaterialSearch';
 
 // Foco visible (teclado) para los botones nativos de esta linea - ninguno usa
@@ -10,7 +10,21 @@ import { useMaterialSearch } from '@/hooks/vale-express/useMaterialSearch';
 // que cada <button> a mano necesita este anillo para cumplir WCAG 2.1 AA.
 const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
+/**
+ * Si lo que se pide supera lo que hay. Solo cuenta cuando el stock ya llego:
+ * mientras carga, `stock` es null y no se avisa nada, para no marcar en rojo
+ * una linea que todavia no se pudo evaluar.
+ */
+export function excedeStock(cantidad, stockInfo) {
+    const stock = stockInfo?.stock;
+    if (stock === null || stock === undefined || stockInfo?.loading) return false;
+    const pedido = Number(cantidad);
+    if (!Number.isFinite(pedido) || pedido <= 0) return false;
+    return pedido > stock;
+}
+
 export function MaterialLineItem({ index, item, onUpdate, onRemove, canRemove, stockInfo }) {
+    const excede = excedeStock(item.cantidad, stockInfo);
     const { term, setTerm, results, loading } = useMaterialSearch();
     const [showDropdown, setShowDropdown] = useState(false);
     const wrapperRef = useRef(null);
@@ -149,12 +163,37 @@ export function MaterialLineItem({ index, item, onUpdate, onRemove, canRemove, s
                         value={item.cantidad}
                         onChange={handleQuantityChange}
                         placeholder="0"
-                        className="w-full h-12 px-3 text-sm text-right bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        aria-invalid={excede ? 'true' : undefined}
+                        aria-describedby={excede ? `exceso-${index}` : undefined}
+                        className={`w-full h-12 px-3 text-sm text-right bg-[var(--surface-2)] border rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:ring-1 focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                            excede
+                                ? 'border-destructive focus:border-destructive focus:ring-[color-mix(in_hsl,var(--destructive)_30%,transparent)]'
+                                : 'border-[var(--border-subtle)] focus:border-[var(--accent)] focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)]'
+                        }`}
                     />
                 </div>
             </div>
+
+            {/* El aviso no frena la emision: el stock de la app no es confiable
+                todavia -de 78 saldos negativos, 52 son ingresos que nunca se
+                cargaron y 26 traspasos entre bodegas sin registrar-, asi que un
+                bloqueo dejaria sin entregar material que esta fisicamente en la
+                bodega. Se avisa fuerte y se pide confirmar al emitir. */}
+            {excede && (
+                <p id={`exceso-${index}`} className="mt-2 flex items-start gap-1.5 text-xs text-destructive">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                    <span>{textoExceso(Number(item.cantidad), stockInfo?.stock)}</span>
+                </p>
+            )}
         </div>
     );
+}
+
+/** Pedís 10 y hay 3. En cero y en negativo el numero no se puede leer igual. */
+export function textoExceso(cantidad, stock) {
+    if (stock > 0) return `Pedís ${cantidad} y en bodega hay ${stock}.`;
+    if (stock === 0) return `Pedís ${cantidad} y el sistema no registra stock en esta obra.`;
+    return `Pedís ${cantidad} y el stock de esta obra figura en ${stock}.`;
 }
 
 /* Selected material display */

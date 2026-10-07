@@ -6,8 +6,9 @@ import { ValesBoard } from '@/lib/board-sdk';
 import { Spinner } from '@/components/ui/spinner';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
-import { MaterialLineItem } from '@/components/vale-express/MaterialLineItem';
-import { Plus, ClipboardCheck, FileText, RotateCcw, ChevronDown, X, ArrowLeft } from 'lucide-react';
+import { MaterialLineItem, excedeStock, textoExceso } from '@/components/vale-express/MaterialLineItem';
+import { Plus, ClipboardCheck, FileText, RotateCcw, ChevronDown, X, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { getAllRoles, canAccessSolicitud, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras, getUserRoleData } from '@/hooks/vale-express/useUserRole';
 import { useObraStock } from '@/hooks/vale-express/useObraStock';
 import { useColumnOptions } from '@/hooks/useColumnOptions';
@@ -49,6 +50,8 @@ export default function SolicitudPage() {
     const [createdIds, setCreatedIds] = useState([]);
     const [errorDetails, setErrorDetails] = useState(null);
     const [acceso, setAcceso] = useState(null);
+    // Pedir mas de lo que hay no frena, pero obliga a confirmarlo a proposito.
+    const [confirmarExceso, setConfirmarExceso] = useState(false);
 
     // Fetch stock for the selected obra so users see availability
     const { getStock, loading: stockLoading, loaded: stockLoaded, refresh: refreshStock } = useObraStock(obra);
@@ -122,6 +125,24 @@ export default function SolicitudPage() {
 
     const validLines = lines.filter(l => l.materialId && l.cantidad && l.cantidad > 0);
     const canSubmit = obra && quienSolicita && validLines.length > 0;
+
+    /**
+     * Las lineas que piden mas de lo que el sistema dice que hay.
+     *
+     * NO frenan la emision, y es a proposito. El stock de la app todavia no es
+     * confiable: de 78 saldos negativos medidos, 52 son ingresos que nunca se
+     * cargaron -el inventario inicial nunca entro al sistema- y 26 son traspasos
+     * entre bodegas sin registrar. Un bloqueo dejaria sin poder entregar
+     * material que esta fisicamente en la bodega, y el bodeguero terminaria
+     * anotandolo en un papel, que es de donde lo sacamos. Se avisa fuerte y se
+     * pide confirmar; cuando el stock sea confiable, esto pasa a frenar.
+     */
+    const lineasQueExceden = useMemo(
+        () => validLines
+            .map((l) => ({ linea: l, stock: getStock(l.materialId) }))
+            .filter(({ linea, stock }) => excedeStock(linea.cantidad, { stock, loading: false })),
+        [validLines, getStock],
+    );
 
     const handleSubmit = useCallback(async () => {
         if (!canSubmit || submitting) return;
@@ -464,7 +485,7 @@ export default function SolicitudPage() {
                         </div>
                     </div>
                     <button
-                        onClick={handleSubmit}
+                        onClick={() => (lineasQueExceden.length ? setConfirmarExceso(true) : handleSubmit())}
                         disabled={!canSubmit || submitting}
                         className={`flex items-center justify-center gap-2 h-12 px-6 rounded-[var(--radius-md)] bg-[var(--primary)] text-[var(--primary-foreground)] text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed active:opacity-90 transition-all shrink-0 ${FOCUS_RING}`}
                     >
@@ -482,6 +503,58 @@ export default function SolicitudPage() {
                     </button>
                 </div>
             </div>
+
+            <Dialog open={confirmarExceso} onOpenChange={setConfirmarExceso}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-base">
+                            <AlertTriangle className="h-4 w-4 text-destructive" />
+                            Estás pidiendo más de lo que hay
+                        </DialogTitle>
+                        <DialogDescription>
+                            {lineasQueExceden.length === 1
+                                ? 'Una línea supera el stock registrado en esta obra.'
+                                : `${lineasQueExceden.length} líneas superan el stock registrado en esta obra.`}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <ul className="space-y-2">
+                        {lineasQueExceden.map(({ linea, stock }) => (
+                            <li key={linea.id} className="rounded-[var(--radius-md)] border border-[color-mix(in_hsl,var(--destructive)_20%,transparent)] bg-[color-mix(in_hsl,var(--destructive)_6%,transparent)] px-3 py-2">
+                                <p className="text-sm font-medium text-foreground break-words">{linea.materialName}</p>
+                                <p className="text-xs text-destructive">{textoExceso(Number(linea.cantidad), stock)}</p>
+                            </li>
+                        ))}
+                    </ul>
+
+                    {/* Por que esto avisa y no frena: el stock de la app arrastra
+                        ingresos que nunca se cargaron y traspasos entre bodegas
+                        sin registrar, asi que puede marcar faltante algo que esta
+                        en el estante. Frenar dejaria al bodeguero sin poder
+                        entregarlo. */}
+                    <p className="text-xs text-[var(--fg-muted)]">
+                        El stock puede estar desactualizado si falta cargar un ingreso o un traslado entre
+                        bodegas. Si el material está en la bodega, podés emitir el vale igual.
+                    </p>
+
+                    <DialogFooter className="gap-2 sm:gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setConfirmarExceso(false)}
+                            className={`h-11 rounded-[var(--radius-md)] border border-[var(--border-subtle)] px-4 text-sm font-medium text-foreground active:bg-[var(--surface-2)] transition-colors ${FOCUS_RING}`}
+                        >
+                            Revisar
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setConfirmarExceso(false); handleSubmit(); }}
+                            className={`h-11 rounded-[var(--radius-md)] bg-destructive px-4 text-sm font-medium text-white active:opacity-90 transition-opacity ${FOCUS_RING}`}
+                        >
+                            Emitir igual
+                        </button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
