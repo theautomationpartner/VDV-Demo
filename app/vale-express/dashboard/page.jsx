@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Spinner } from '@/components/ui/spinner';
-import { Warehouse, FileText, PackagePlus, LogOut, User, Shield, AlertTriangle, ClipboardList, Package } from 'lucide-react';
+import { Warehouse, FileText, PackagePlus, PackageSearch, LogOut, User, Shield, AlertTriangle, ClipboardList, Package } from 'lucide-react';
 import { useUserRole, canAccessIngreso, canAccessSolicitud, canAccessAdmin, canAccessStock, ROLES } from '@/hooks/vale-express/useUserRole';
 import { cerrarSesion } from '@/lib/client/cerrar-sesion';
 
@@ -172,6 +172,33 @@ export default function DashboardPage() {
                                         </h3>
                                         <p className="text-sm text-[var(--fg-muted)] leading-snug">
                                             Registrar entrada de materiales a bodega con guía de despacho
+                                        </p>
+                                    </div>
+                                </div>
+                            </button>
+                        )}
+
+                        {/* Registro de Ingresos - los mismos que pueden ingresar.
+                            Hasta ahora se podia cargar un ingreso pero no verlo:
+                            el bodeguero apretaba enviar y el dato desaparecia de
+                            su vista, asi que para revisar lo que habia cargado
+                            tenia que abrir monday. */}
+                        {canAccessIngreso(role) && (
+                            <button
+                                onClick={() => router.push('/vale-express/ingresos')}
+                                aria-label="Ver registro de ingresos"
+                                className={`w-full p-5 bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-[var(--radius-lg)] active:bg-[var(--surface-2)] transition-colors text-left ${FOCUS_RING}`}
+                            >
+                                <div className="flex items-start gap-4">
+                                    <div className="w-12 h-12 rounded-[var(--radius-md)] bg-[color-mix(in_hsl,var(--chart-2)_12%,transparent)] flex items-center justify-center shrink-0">
+                                        <PackageSearch className="w-6 h-6 text-[var(--chart-2)]" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="text-base font-medium text-foreground mb-1">
+                                            Registro de Ingresos
+                                        </h3>
+                                        <p className="text-sm text-[var(--fg-muted)] leading-snug">
+                                            Ver los materiales que ya entraron, agrupados por guía de despacho
                                         </p>
                                     </div>
                                 </div>
