@@ -7,8 +7,10 @@ import { useObrasIngresos } from '@/hooks/useObras';
 import { Spinner } from '@/components/ui/spinner';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
-import { ArrowLeft, PackageSearch, ChevronDown, RefreshCw, Image as ImageIcon, Package } from 'lucide-react';
+import { ArrowLeft, PackageSearch, ChevronDown, RefreshCw, Image as ImageIcon, Package, Download } from 'lucide-react';
 import { getAllRoles, canAccessIngreso, getRoleFromData, getObrasFromData, isObrasRestricted, getAllowedObras, getUserRoleData } from '@/hooks/vale-express/useUserRole';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { leerCache, guardarCache } from '@/lib/client/cache-persistente';
 
 const ingresosBoard = new IngresosBoard();
 
@@ -115,6 +117,18 @@ export default function IngresosPage() {
      * filtro se comporta igual que en Solicitudes Pendientes.
      */
     const cargar = useCallback(async (obraFilter) => {
+        // Lo que se trajo la vez anterior se muestra en el acto y despues se
+        // revalida por atras. La consulta a monday tarda unos 2,7 segundos y
+        // casi todo eso es latencia suya -100 items tardan 2,0- asi que pedir
+        // menos no ayuda; lo que ayuda es no hacer esperar dos veces por lo
+        // mismo. Vive en sessionStorage: se borra al cerrar la pestaña.
+        const clave = `ingresos:${obraFilter || 'todas'}`;
+        const guardado = leerCache(clave);
+        if (guardado?.datos) {
+            setFilas(guardado.datos);
+            setLoading(false);
+        }
+
         // Dos cargas solapadas (cambio de filtro, recarga) pisaban la lista con
         // la que contestara ultimo, no con la ultima pedida. Cada pedido se
         // numera y solo el mas nuevo puede escribir el estado.
@@ -124,6 +138,7 @@ export default function IngresosPage() {
             const items = await traer(obraFilter);
             if (pedido !== pedidoRef.current) return;
             setFilas(items);
+            guardarCache(clave, items);
         } catch (err) {
             console.error('[INGRESOS] Load failed:', err);
             toast.error('No se pudieron cargar los ingresos. Probá recargar.');
@@ -192,6 +207,9 @@ export default function IngresosPage() {
         setFilterObra(obra);
         cargar(obra);
     };
+
+    // La guia cuya foto se esta mirando, o null.
+    const [fotoAbierta, setFotoAbierta] = useState(null);
 
     const guias = useMemo(() => agruparPorGuia(filas), [filas]);
 
@@ -262,7 +280,7 @@ export default function IngresosPage() {
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {guias.map(g => <GuiaCard key={g.clave} guia={g} />)}
+                            {guias.map(g => <GuiaCard key={g.clave} guia={g} onVerFoto={() => setFotoAbierta(g)} />)}
                         </div>
                     )}
                 </div>
@@ -273,11 +291,72 @@ export default function IngresosPage() {
                     </p>
                 )}
             </main>
+
+            {/* La `key` lo rehace por cada guia: si no, el estado de carga de la
+                foto anterior se quedaria pegado al abrir la siguiente. */}
+            <VisorFoto key={fotoAbierta?.clave ?? 'ninguna'} guia={fotoAbierta} onCerrar={() => setFotoAbierta(null)} />
         </div>
     );
 }
 
-function GuiaCard({ guia }) {
+/**
+ * Mira la foto sin bajarla.
+ *
+ * monday sirve el archivo con `content-disposition: attachment`, asi que un
+ * enlace comun lo descarga -que es lo que hacia antes-. Un <img> ignora esa
+ * cabecera y lo dibuja, asi que la misma direccion sirve para las dos cosas:
+ * acá se ve, y el boton de abajo la baja. Son JPG de entre 40 KB y 1,6 MB, y
+ * no se pide ninguna hasta que alguien abre esta ventana: con 95 guias en
+ * pantalla, cargarlas todas de entrada seria insostenible en un celular.
+ */
+function VisorFoto({ guia, onCerrar }) {
+    const [estado, setEstado] = useState('cargando');
+    const src = guia
+        ? `/api/monday/archivo?boardKey=IngresosBoard&itemId=${encodeURIComponent(guia.itemConFoto)}&columna=foto`
+        : null;
+
+    return (
+        <Dialog open={Boolean(guia)} onOpenChange={(abierto) => !abierto && onCerrar()}>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-base">
+                        <ImageIcon className="h-4 w-4 text-[var(--chart-2)]" />
+                        {guia?.guia ? `Guía ${guia.guia}` : 'Foto del ingreso'}
+                    </DialogTitle>
+                </DialogHeader>
+
+                <div className="flex min-h-[200px] items-center justify-center rounded-[var(--radius-md)] bg-[var(--surface-2)] p-2">
+                    {estado === 'cargando' && <Spinner className="size-7 text-accent" />}
+                    {estado === 'error' ? (
+                        <p className="px-4 py-8 text-center text-sm text-[var(--fg-muted)]">
+                            No se pudo mostrar la foto. Probá descargarla.
+                        </p>
+                    ) : (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                            src={src}
+                            alt={guia?.guia ? `Guía de despacho ${guia.guia}` : 'Foto del ingreso'}
+                            onLoad={() => setEstado('ok')}
+                            onError={() => setEstado('error')}
+                            className={`max-h-[65vh] w-auto max-w-full rounded-[var(--radius-sm)] ${estado === 'cargando' ? 'hidden' : ''}`}
+                        />
+                    )}
+                </div>
+
+                <a
+                    href={src ?? '#'}
+                    download
+                    className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-subtle)] px-4 text-sm font-medium text-foreground active:bg-[var(--surface-2)] transition-colors ${FOCUS_RING}`}
+                >
+                    <Download className="h-4 w-4" />
+                    Descargar
+                </a>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function GuiaCard({ guia, onVerFoto }) {
     return (
         <article className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--surface-1)] overflow-hidden">
             <div className="px-4 pt-3 pb-2 flex items-start justify-between gap-3">
@@ -316,15 +395,14 @@ function GuiaCard({ guia }) {
                         columna exige sesion de monday, asi que se pasa por
                         /api/monday/archivo, que resuelve la URL firmada con el
                         token del servidor y verifica el rol y la obra. */}
-                    <a
-                        href={`/api/monday/archivo?boardKey=IngresosBoard&itemId=${encodeURIComponent(guia.itemConFoto)}&columna=foto`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    <button
+                        type="button"
+                        onClick={onVerFoto}
                         className={`inline-flex items-center gap-2 min-h-11 px-3 -mx-1 rounded-[var(--radius-md)] text-sm font-medium text-[var(--chart-2)] active:bg-[var(--surface-2)] transition-colors ${FOCUS_RING}`}
                     >
                         <ImageIcon className="w-4 h-4" />
                         Ver foto de la guía
-                    </a>
+                    </button>
                 </div>
             )}
         </article>
