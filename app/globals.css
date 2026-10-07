@@ -6,6 +6,7 @@
 @import "../styles/theme-vale-express.css";
 @import "../styles/theme-portal-proveedor.css";
 @import "../styles/theme-generador-oc.css";
+@import "../styles/theme-herramientas.css";
 
 @custom-variant dark (&:is(.dark *));
 

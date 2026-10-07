@@ -7,6 +7,7 @@ import {
   verificarAccesoLectura,
   verificarAccesoRollbackOc,
   filtrarPorObrasPermitidas,
+  quitarColumnasRestringidas,
   accesoBoardErrorToResponse,
   BoardAccessError,
 } from "@/lib/server/board-access-policy";
@@ -887,6 +888,11 @@ async function manejarPost(request) {
       // datos de las otras obras llegaban igual. Ver filtrarPorObrasPermitidas.
       if (AUTH_LAYERS_ENABLED) {
         resultado.items = filtrarPorObrasPermitidas(sesion, boardKey, resultado.items);
+        // Y las columnas que esta sesion no puede ver aunque si pueda leer el
+        // tablero - hoy, el precio de compra de una herramienta. Hace falta
+        // porque handleItems devuelve TODAS las columnas mapeadas, pida las que
+        // pida quien llama. Ver quitarColumnasRestringidas.
+        resultado.items = quitarColumnasRestringidas(sesion, boardKey, resultado.items);
       }
       return Response.json({ result: resultado });
     }
@@ -946,7 +952,16 @@ async function manejarPost(request) {
           throw err;
         }
       }
-      if (op === "item") return Response.json({ result: await handleItemById(boardKey, schema, params) });
+      if (op === "item") {
+        const item = await handleItemById(boardKey, schema, params);
+        // Mismo recorte que arriba, para un item suelto: la ficha de una
+        // herramienta pide siempre el precio de compra, y es el servidor el que
+        // decide si lo entrega. Ver quitarColumnasRestringidas.
+        if (AUTH_LAYERS_ENABLED && item) {
+          return Response.json({ result: quitarColumnasRestringidas(sesion, boardKey, [item])[0] });
+        }
+        return Response.json({ result: item });
+      }
       return Response.json({ result: await handleSubitems(params) });
     }
 

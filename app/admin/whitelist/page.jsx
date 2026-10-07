@@ -23,7 +23,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Package, Handshake, UserX, MapPin, ChevronDown, FileSignature, AlertTriangle } from "lucide-react";
+import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Package, Handshake, UserX, MapPin, ChevronDown, FileSignature, AlertTriangle, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useObrasVales, useObrasContratos } from "@/hooks/useObras";
 import { OrdenesDeCompraMaxxaBoard, ProveedoresBoard, fetchAllItems } from "@/lib/board-sdk";
@@ -36,6 +36,11 @@ import {
   puedeAprobarOc,
   puedeEmitirOc,
 } from "@/lib/oc-roles";
+import {
+  HERRAMIENTAS_APP,
+  HERRAMIENTAS_ROLES,
+  etiquetaRolHerramientas,
+} from "@/lib/herramientas-roles";
 import { PASOS_VB, esSuperAprobador, pasoPorClave, pasosAsignados } from "@/lib/contratos-vb";
 
 const APP_LABELS = {
@@ -46,11 +51,13 @@ const APP_LABELS = {
   // de emision. La clave sigue siendo "generador-oc" para no migrar las
   // asignaciones de produccion (ver lib/oc-roles.js).
   "generador-oc": "OC Tracker",
+  [HERRAMIENTAS_APP]: "Herramientas",
 };
 const APP_ICONS = {
   "vale-express": Package,
   "portal-proveedor": Handshake,
   "generador-oc": FileSignature,
+  [HERRAMIENTAS_APP]: Wrench,
 };
 
 const APP_ROLES = {
@@ -70,6 +77,9 @@ const APP_ROLES = {
   // esta app tenia los mismos super_admin/admin que las otras dos y los tres
   // roles hacian exactamente lo mismo.
   [OC_APP]: OC_ROLES,
+  // Administrador / Oficina Tecnica / Bodeguero / Jefe de Obra. Los definio el
+  // cliente el 07-oct-2026; ver lib/herramientas-roles.js.
+  [HERRAMIENTAS_APP]: HERRAMIENTAS_ROLES,
 };
 
 // Lista unica de todos los appRol posibles (deduplicados por value - "Super
@@ -138,6 +148,7 @@ function roleColor(value) {
  */
 function etiquetaRol(app, appRol) {
   if (app === OC_APP) return etiquetaRolOc(appRol);
+  if (app === HERRAMIENTAS_APP) return etiquetaRolHerramientas(appRol);
   return APP_ROLES[app]?.find((r) => r.value === appRol)?.label ?? appRol;
 }
 
@@ -176,6 +187,7 @@ function initialsFor(text) {
  */
 function rolInicial(app) {
   if (app === OC_APP) return "comprador";
+  if (app === HERRAMIENTAS_APP) return "bodeguero";
   return APP_ROLES[app][0].value;
 }
 

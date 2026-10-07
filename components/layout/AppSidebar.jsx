@@ -146,6 +146,7 @@ function useSidebarRoles(pathname) {
   const [veUserId, setVeUserId] = useState(undefined);
   const [ppRole, setPpRole] = useState(undefined);
   const [ocRole, setOcRole] = useState(undefined);
+  const [hrRole, setHrRole] = useState(undefined);
 
   useEffect(() => {
     const veSession = readSession("ve_session");
@@ -156,6 +157,9 @@ function useSidebarRoles(pathname) {
 
     const ogSession = readSession("og_session");
     setOcRole(ogSession?.role ?? undefined);
+
+    const hrSession = readSession("hr_session");
+    setHrRole(hrSession?.role ?? undefined);
   }, [pathname]);
 
   const { role: veRole } = useUserRole(veUserId);
@@ -164,6 +168,7 @@ function useSidebarRoles(pathname) {
     "vale-express": veUserId === undefined ? undefined : veRole,
     "portal-proveedor": ppRole,
     "generador-oc": ocRole,
+    herramientas: hrRole,
   };
 }
 
