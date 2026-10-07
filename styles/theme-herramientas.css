@@ -6,7 +6,10 @@
    tokens --color-* de Tailwind (@theme inline en globals.css) se inlinean tal
    cual en las utilities compiladas, y un triplete ahi no es un color valido, asi
    que bg-card/bg-primary quedarian transparentes. Ver theme-vale-express.css. */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+/* Inter NO se importa aca: ya la trae styles/theme-vale-express.css, y un
+   @import despues de cualquier regla es CSS invalido -los temas se concatenan
+   en app/globals.css, asi que este quedaria en el medio del archivo. Rompia la
+   compilacion de globals.css entera, no solo esta app. */
 
 [data-app="herramientas"] {
     --radius: 0.375rem;
