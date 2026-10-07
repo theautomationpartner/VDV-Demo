@@ -14,14 +14,25 @@
 // @import url(...), de ahi el permiso a fonts.googleapis.com/fonts.gstatic.com.
 // img-src permite https: porque las fotos de usuario vienen de la URL que
 // devuelve la API de monday.com (host variable, no documentado).
+//
+// EN DESARROLLO, y solo ahi, script-src suma 'unsafe-eval' y connect-src los
+// websockets: el refresco en caliente de Next (react-refresh) evalua strings
+// como JavaScript y abre un websocket para avisar los cambios. Sin eso el
+// navegador bloquea react-refresh, la app NO HIDRATA y cualquier pantalla queda
+// con el spinner girando para siempre - identico sintoma al de produccion que
+// cuenta el comentario de arriba, pero por otra causa, y por eso costo tanto
+// entender por que "en local no anda nada". `next build` no pasa por aca, asi
+// que lo que se deploya sigue siendo exactamente la lista de siempre.
+const EN_DESARROLLO = process.env.NODE_ENV === "development";
+
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline'${EN_DESARROLLO ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: https:",
   "object-src 'none'",
-  "connect-src 'self'",
+  `connect-src 'self'${EN_DESARROLLO ? " ws: wss:" : ""}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
