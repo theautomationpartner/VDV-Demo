@@ -17,7 +17,6 @@ import {
   CircleDollarSign,
   Check,
   Clock3,
-  PlusCircle,
 } from "lucide-react";
 import { useSesionHerramientas } from "@/hooks/herramientas/useSesionHerramientas";
 import { useColumnOptions } from "@/hooks/useColumnOptions";
@@ -25,6 +24,10 @@ import { leerCache } from "@/lib/client/cache-persistente";
 import { AccionesHerramienta } from "@/components/herramientas/AccionesHerramienta";
 import { RECEPCION_PENDIENTE } from "@/lib/herramientas/dominio";
 import {
+  DIAS_PARA_ALERTA,
+  formatoDias,
+  mantencionVencida,
+  permanenciaDe,
   COLUMNAS_FICHA,
   COLUMNAS_VALORIZACION,
   ESTADO_TONO,
@@ -64,6 +67,15 @@ const COLUMNAS_MOVIMIENTO = [
  * texto en monday no siempre usa indice. Hoy hay 22 movimientos en total.
  */
 const TOPE_MOVIMIENTOS = 200;
+
+/** Los atajos del historial. Son los mismos que el cliente tiene en su app. */
+const FILTROS_HISTORIAL = [
+  { clave: "todos", label: "Todos" },
+  { clave: "obras", label: "Obras" },
+  { clave: "bodega", label: "Bodega" },
+  { clave: "reparaciones", label: "Reparaciones" },
+  { clave: "incidencias", label: "Incidencias" },
+];
 
 function Dato({ label, children }) {
   if (children === null || children === undefined || children === "") return null;
@@ -153,6 +165,10 @@ export default function FichaHerramientaPage({ params }) {
   // cache el campo sigue siendo texto libre, que es como el cliente lo quiere
   // para un maestro sin usuario. Se resuelve al cargar la ficha (ver `cargar`).
   const [custodios, setCustodios] = useState([]);
+  // Que parte del historial se mira. El cliente tiene estos mismos atajos en su
+  // app, y sirven: en una herramienta con 40 movimientos, "solo reparaciones"
+  // es la pregunta real.
+  const [filtroHistorial, setFiltroHistorial] = useState("todos");
 
   const cargar = useCallback(async () => {
     setRefetching(true);
@@ -271,16 +287,29 @@ export default function FichaHerramientaPage({ params }) {
 
   const h = herramienta;
   const tono = ESTADO_TONO[h.estadoOperativo] ?? ESTADO_TONO.default;
+  const dias = permanenciaDe(h);
+  const vencida = mantencionVencida(h);
   const srcFoto = h.foto
     ? `/api/monday/archivo?boardKey=ControlHerramientasBoard&itemId=${encodeURIComponent(id)}&columna=foto`
     : null;
+
+  const ultimo = movimientos[0] ?? null;
+  const visibles = movimientos.filter((m) => {
+    const tipo = m.tipoMovimiento ?? "";
+    if (filtroHistorial === "obras") return tipo === "Salida" || tipo === "Traslado";
+    if (filtroHistorial === "bodega") return tipo === "Devolución";
+    if (filtroHistorial === "reparaciones") return tipo.includes("reparación");
+    if (filtroHistorial === "incidencias") return tipo === "Pérdida" || tipo === "Baja";
+    return true;
+  });
+  const pendientes = movimientos.filter((m) => m.recepcion === RECEPCION_PENDIENTE).length;
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <Toaster richColors position="top-center" />
 
       <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-[var(--border-subtle)]">
-        <div className="px-4 py-3 flex items-center gap-3">
+        <div className="px-4 py-3 flex items-center gap-3 max-w-3xl mx-auto w-full">
           <button
             onClick={() => router.push("/herramientas")}
             className={`flex items-center justify-center min-h-12 min-w-12 sm:h-9 sm:w-9 rounded-[var(--radius-md)] text-[var(--fg-muted)] active:text-foreground active:bg-[var(--surface-2)] transition-colors shrink-0 ${FOCUS_RING}`}
@@ -290,7 +319,10 @@ export default function FichaHerramientaPage({ params }) {
           </button>
           <div className="min-w-0 flex-1">
             <h1 className="text-[15px] font-semibold tracking-[-0.01em] truncate">{h.name}</h1>
-            <p className="text-xs text-[var(--fg-subtle)] font-mono tabular-nums">{h.codigo || "sin código"}</p>
+            <p className="text-xs text-[var(--fg-subtle)]">
+              <span className="font-mono tabular-nums">{h.codigo || "sin código"}</span>
+              {h.marca ? <span className="text-[var(--fg-muted)]"> · {h.marca}</span> : null}
+            </p>
           </div>
           <button
             onClick={cargar}
@@ -303,11 +335,14 @@ export default function FichaHerramientaPage({ params }) {
         </div>
       </header>
 
-      <main className="px-4 py-4 pb-10 space-y-3 max-w-2xl mx-auto">
+      <main className="px-4 py-4 pb-10 space-y-3 max-w-3xl mx-auto">
+        {/* Donde esta, con quien, hace cuanto, y que se puede hacer: todo junto
+            y arriba. Es lo que alguien viene a mirar y a resolver; el resto de
+            la ficha es consulta. */}
         <section className="bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-[var(--radius-lg)] p-4">
-          <div className="flex flex-wrap items-center gap-2 mb-3">
+          <div className="flex flex-wrap items-center gap-2">
             <span
-              className="text-xs px-2 py-1 rounded-[var(--radius-sm)] font-medium"
+              className="text-xs px-2 py-1 rounded-[var(--radius-sm)] font-semibold"
               style={{ background: `color-mix(in hsl, ${tono} 14%, transparent)`, color: tono }}
             >
               {h.estadoOperativo || "sin estado"}
@@ -317,6 +352,11 @@ export default function FichaHerramientaPage({ params }) {
                 {h.condicionFisica}
               </span>
             ) : null}
+            {h.tipoUbicacion ? (
+              <span className="text-xs px-2 py-1 rounded-[var(--radius-sm)] bg-[var(--surface-2)] text-[var(--fg-muted)]">
+                {h.tipoUbicacion}
+              </span>
+            ) : null}
             {h.categoria ? (
               <span className="text-xs px-2 py-1 rounded-[var(--radius-sm)] bg-[var(--surface-2)] text-[var(--fg-muted)]">
                 {h.categoria}
@@ -324,17 +364,53 @@ export default function FichaHerramientaPage({ params }) {
             ) : null}
           </div>
 
-          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-            <span className="inline-flex items-center gap-1.5 text-foreground">
-              <MapPin className="w-4 h-4 text-[var(--fg-subtle)] shrink-0" />
-              {h.ubicacionActual || "sin ubicación"}
-              {h.tipoUbicacion ? <span className="text-[var(--fg-subtle)]">({h.tipoUbicacion})</span> : null}
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-foreground">
-              <User className="w-4 h-4 text-[var(--fg-subtle)] shrink-0" />
+          <p className="mt-3 flex items-center gap-1.5 text-lg font-semibold">
+            <MapPin className="w-4 h-4 text-[var(--fg-subtle)] shrink-0" />
+            {h.ubicacionActual || "sin ubicación"}
+          </p>
+          <div className="mt-1 space-y-0.5 text-sm text-[var(--fg-muted)]">
+            <p className="flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5 shrink-0" />
               {h.custodioActual || <span className="text-[var(--fg-subtle)]">sin custodio asignado</span>}
-            </span>
+            </p>
+            {dias !== null ? (
+              <p className={`flex items-center gap-1.5 ${dias >= DIAS_PARA_ALERTA ? "text-[var(--warning)]" : ""}`}>
+                <Clock3 className="w-3.5 h-3.5 shrink-0" />
+                Lleva {formatoDias(dias).toLowerCase()} acá
+              </p>
+            ) : null}
+            {ultimo ? (
+              <p className="flex items-center gap-1.5">
+                <History className="w-3.5 h-3.5 shrink-0" />
+                Último movimiento: {ultimo.tipoMovimiento} del {formatearFecha(ultimo.fechaMovimiento)}
+              </p>
+            ) : null}
+            {vencida ? (
+              <p className="flex items-center gap-1.5 text-[var(--warning)]">
+                <Wrench className="w-3.5 h-3.5 shrink-0" />
+                Mantención vencida desde el {formatearFecha(h.proximoMantenimiento)}
+              </p>
+            ) : null}
+            {pendientes ? (
+              <p className="flex items-center gap-1.5 text-[var(--warning)]">
+                <Clock3 className="w-3.5 h-3.5 shrink-0" />
+                {pendientes === 1 ? "Hay 1 movimiento sin confirmar" : `Hay ${pendientes} movimientos sin confirmar`}
+              </p>
+            ) : null}
           </div>
+
+          {/* Los botones salen del estado de hoy: una herramienta en uso se
+              devuelve o se traslada, no se vuelve a sacar. */}
+          {puedeModificar ? (
+            <div className="mt-4 pt-3 border-t border-[var(--border-subtle)]">
+              <AccionesHerramienta
+                herramienta={h}
+                obras={obras}
+                custodiosConocidos={custodios}
+                onHecho={cargar}
+              />
+            </div>
+          ) : null}
         </section>
 
         {srcFoto && !fotoRota ? (
@@ -344,7 +420,7 @@ export default function FichaHerramientaPage({ params }) {
               src={srcFoto}
               alt={`Foto de ${h.name}`}
               onError={() => setFotoRota(true)}
-              className="w-full max-h-[50vh] object-contain bg-[var(--surface-2)]"
+              className="w-full max-h-[45vh] object-contain bg-[var(--surface-2)]"
             />
           </section>
         ) : null}
@@ -354,25 +430,26 @@ export default function FichaHerramientaPage({ params }) {
             <Wrench className="w-4 h-4 text-[var(--accent)]" />
             Datos de la herramienta
           </h2>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-            <Dato label="Marca">{h.marca}</Dato>
-            <Dato label="Modelo">{h.modelo}</Dato>
-            <Dato label="N° de serie">{h.numeroSerie}</Dato>
-            <Dato label="Fuente de energía">{h.fuenteEnergia}</Dato>
-            <Dato label="Última salida">{formatearFecha(h.fechaUltimaSalida)}</Dato>
-            <Dato label="Última devolución">{formatearFecha(h.fechaUltimaDevolucion)}</Dato>
-            <Dato label="Próximo mantenimiento">{formatearFecha(h.proximoMantenimiento)}</Dato>
-          </dl>
+          {h.marca || h.modelo || h.numeroSerie || h.fuenteEnergia || h.fechaUltimaSalida ? (
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+              <Dato label="Marca">{h.marca}</Dato>
+              <Dato label="Modelo">{h.modelo}</Dato>
+              <Dato label="N° de serie">{h.numeroSerie}</Dato>
+              <Dato label="Fuente de energía">{h.fuenteEnergia}</Dato>
+              <Dato label="Última salida">{formatearFecha(h.fechaUltimaSalida)}</Dato>
+              <Dato label="Última devolución">{formatearFecha(h.fechaUltimaDevolucion)}</Dato>
+              <Dato label="Próximo mantenimiento">{formatearFecha(h.proximoMantenimiento)}</Dato>
+            </dl>
+          ) : (
+            <p className="text-sm text-[var(--fg-muted)]">
+              Esta herramienta todavía no tiene cargados marca, modelo ni número de serie.
+            </p>
+          )}
           {h.observaciones ? (
             <div className="mt-4 pt-3 border-t border-[var(--border-subtle)]">
               <p className="text-[11px] uppercase tracking-wide text-[var(--fg-subtle)] mb-1">Observaciones</p>
               <p className="text-sm text-foreground break-words whitespace-pre-wrap">{h.observaciones}</p>
             </div>
-          ) : null}
-          {!h.marca && !h.modelo && !h.numeroSerie && !h.fuenteEnergia ? (
-            <p className="text-sm text-[var(--fg-muted)]">
-              Esta herramienta todavía no tiene cargados marca, modelo ni número de serie.
-            </p>
           ) : null}
         </section>
 
@@ -393,40 +470,42 @@ export default function FichaHerramientaPage({ params }) {
           </section>
         ) : null}
 
-        {puedeModificar ? (
-          <section className="bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-[var(--radius-lg)] p-4">
-            <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-              <PlusCircle className="w-4 h-4 text-[var(--accent)]" />
-              Registrar un movimiento
-            </h2>
-            {/* Los botones salen del estado de hoy: una herramienta en uso se
-                devuelve o se traslada, no se vuelve a sacar. */}
-            <AccionesHerramienta
-              herramienta={h}
-              obras={obras}
-              custodiosConocidos={custodios}
-              onHecho={cargar}
-            />
-          </section>
-        ) : null}
-
         <section className="bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-[var(--radius-lg)] p-4">
           <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
             <History className="w-4 h-4 text-[var(--accent)]" />
             Historial
             {movimientos.length ? (
-              <span className="text-xs font-normal text-[var(--fg-subtle)] tabular-nums">
-                ({movimientos.length})
-              </span>
+              <span className="text-xs font-normal text-[var(--fg-subtle)] tabular-nums">({movimientos.length})</span>
             ) : null}
           </h2>
-          {movimientos.length === 0 ? (
+
+          {movimientos.length > 1 ? (
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              {FILTROS_HISTORIAL.map((f) => (
+                <button
+                  key={f.clave}
+                  onClick={() => setFiltroHistorial(f.clave)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${FOCUS_RING} ${
+                    filtroHistorial === f.clave
+                      ? "border-[var(--accent)] bg-[color-mix(in_hsl,var(--accent)_14%,transparent)] text-[var(--accent)]"
+                      : "border-[var(--border-subtle)] text-[var(--fg-muted)]"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {visibles.length === 0 ? (
             <p className="text-sm text-[var(--fg-muted)]">
-              Esta herramienta todavía no tiene movimientos registrados.
+              {movimientos.length === 0
+                ? "Esta herramienta todavía no tiene movimientos registrados."
+                : "No hay movimientos de ese tipo."}
             </p>
           ) : (
             <ol className="mt-1">
-              {movimientos.map((m) => (
+              {visibles.map((m) => (
                 <MovimientoFila key={m.id} m={m} puedeConfirmar={puedeModificar} onConfirmar={confirmar} />
               ))}
             </ol>
