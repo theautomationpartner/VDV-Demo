@@ -348,6 +348,9 @@ function DatoResumen({ icono: Icono, label, valor, nota }) {
  */
 function ResumenActual({ herramienta, estaciones, ultimoMovimiento, verValorizacion }) {
   const h = herramienta;
+  // Ver el comentario en HerramientaCard: el servidor borra la columna para
+  // quien no puede verla, asi que su ausencia manda sobre el rol guardado.
+  const mostrarValor = verValorizacion && "valorCompra" in h;
   const ultima = estaciones[estaciones.length - 1];
   const desde = ultima?.desde ?? (ultimoMovimiento?.fechaMovimiento ? new Date(ultimoMovimiento.fechaMovimiento) : null);
   const dias = diasDesde(desde);
@@ -359,7 +362,7 @@ function ResumenActual({ herramienta, estaciones, ultimoMovimiento, verValorizac
 
   return (
     <div className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-4">
-      <div className={`grid grid-cols-2 gap-4 sm:grid-cols-3 ${verValorizacion ? "lg:grid-cols-6" : "lg:grid-cols-5"}`}>
+      <div className={`grid grid-cols-2 gap-4 sm:grid-cols-3 ${mostrarValor ? "lg:grid-cols-6" : "lg:grid-cols-5"}`}>
         <DatoResumen icono={MapPin} label="Ubicación actual" valor={h.ubicacionActual || "—"} />
         <DatoResumen icono={User} label="Custodio" valor={h.custodioActual || "Sin custodio"} />
         <DatoResumen
@@ -369,7 +372,7 @@ function ResumenActual({ herramienta, estaciones, ultimoMovimiento, verValorizac
           nota={dias !== null && dias >= DIAS_PARA_ALERTA ? "Más de un mes" : null}
         />
         <DatoResumen icono={CalendarClock} label="Desde" valor={desde ? formatearFecha(desde) : "—"} />
-        {verValorizacion ? (
+        {mostrarValor ? (
           <DatoResumen
             icono={DollarSign}
             label="Valor referencial"
@@ -398,6 +401,7 @@ function Detalle({ label, children }) {
 
 function Detalles({ herramienta, verValorizacion }) {
   const h = herramienta;
+  const mostrarValor = verValorizacion && "valorCompra" in h;
   return (
     <div className="grid gap-4 rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-4 sm:grid-cols-2">
       <Detalle label="Código">
@@ -415,8 +419,8 @@ function Detalles({ herramienta, verValorizacion }) {
       <Detalle label="Próximo mantenimiento">{formatearFecha(h.proximoMantenimiento)}</Detalle>
       {/* Solo para Administrador y Oficina Tecnica: el servidor no manda estas
           dos columnas al resto. */}
-      {verValorizacion ? <Detalle label="Valor referencial">{formatearMonto(h.valorCompra)}</Detalle> : null}
-      {verValorizacion ? <Detalle label="Fecha de compra">{formatearFecha(h.fechaCompra)}</Detalle> : null}
+      {mostrarValor ? <Detalle label="Valor referencial">{formatearMonto(h.valorCompra)}</Detalle> : null}
+      {mostrarValor ? <Detalle label="Fecha de compra">{formatearFecha(h.fechaCompra)}</Detalle> : null}
       {h.observaciones ? (
         <div className="sm:col-span-2">
           <p className="text-xs text-[var(--fg-subtle)]">Observaciones</p>

@@ -65,8 +65,18 @@ function Campo({ icono: Icono, label, children, alerta = false }) {
   );
 }
 
-/** Los cinco datos de abajo. `verValor` decide si se muestra el precio. */
+/**
+ * Los cinco datos de abajo.
+ *
+ * El precio se muestra cuando el rol lo permite Y el dato llego: el servidor
+ * BORRA la columna para quien no puede verla, asi que su ausencia es la
+ * respuesta definitiva. `verValor` sale de la sesion guardada en el navegador,
+ * que queda vieja si a alguien le cambian el rol y todavia no volvio a entrar
+ * -y entonces la columna se dibujaba vacia para alguien que ya no deberia
+ * verla. Mirar las dos cosas alinea la pantalla con lo que el servidor decidio.
+ */
 function Datos({ h, verValor }) {
+  const mostrarValor = verValor && "valorCompra" in h;
   const dias = permanenciaDe(h);
   const vencida = mantencionVencida(h);
   const enTaller = h.estadoOperativo === "EN REPARACIÓN";
@@ -74,7 +84,7 @@ function Datos({ h, verValor }) {
   return (
     <div
       className={`mt-3 grid grid-cols-2 gap-2 border-t border-[var(--border-subtle)] pt-3 text-xs sm:grid-cols-3 ${
-        verValor ? "lg:grid-cols-5" : "lg:grid-cols-4"
+        mostrarValor ? "lg:grid-cols-5" : "lg:grid-cols-4"
       }`}
     >
       <Campo icono={MapPin} label="Destino actual">
@@ -91,7 +101,7 @@ function Datos({ h, verValor }) {
 
       {/* Solo para Administrador y Oficina Tecnica. El servidor ni siquiera
           manda la columna al resto, asi que `h.valorCompra` llega undefined. */}
-      {verValor ? (
+      {mostrarValor ? (
         <Campo icono={DollarSign} label="Valor referencial">
           <span className="tabular-nums">
             {h.valorCompra > 0 ? formatearMonto(h.valorCompra) : "—"}
@@ -166,9 +176,10 @@ export function GrupoCard({ grupo, verValor, onAbrir }) {
   const estados = {};
   for (const u of unidades) estados[u.estadoOperativo || "SIN ESTADO"] = (estados[u.estadoOperativo || "SIN ESTADO"] ?? 0) + 1;
 
-  const total = verValor
-    ? unidades.reduce((suma, u) => suma + (Number(u.valorCompra) || 0), 0)
-    : 0;
+  const total =
+    verValor && unidades.some((u) => "valorCompra" in u)
+      ? unidades.reduce((suma, u) => suma + (Number(u.valorCompra) || 0), 0)
+      : 0;
 
   return (
     <div className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--surface-1)]">
