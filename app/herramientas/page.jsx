@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ControlHerramientasBoard } from "@/lib/board-sdk";
 import { Spinner } from "@/components/ui/spinner";
 import { Toaster } from "@/components/ui/sonner";
-import { Wrench, Search, RefreshCw, ChevronDown, X, SlidersHorizontal } from "lucide-react";
+import { Wrench, Search, RefreshCw, ChevronDown, X } from "lucide-react";
 import { useSesionHerramientas } from "@/hooks/herramientas/useSesionHerramientas";
 import { leerCache, guardarCache } from "@/lib/client/cache-persistente";
 import {
@@ -51,7 +51,6 @@ export default function InventarioHerramientasPage() {
   // Arranca en el inventario vigente: las dadas de baja no son inventario, son
   // historia, y si aparecen las primeras de la lista son las que ya no existen.
   const [verBajas, setVerBajas] = useState(false);
-  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const pedidoRef = useRef(0);
 
   /**
@@ -204,68 +203,64 @@ export default function InventarioHerramientasPage() {
         </div>
 
         <div className="px-4 pb-3 space-y-2 max-w-5xl mx-auto w-full">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--fg-subtle)] pointer-events-none" />
-              <input
-                id="buscar-herramienta"
-                type="search"
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar: rotomartillo, HRR-0131, Bosch…"
-                className="w-full h-12 pl-9 pr-9 text-sm bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
-                aria-label="Buscar herramienta por nombre, código, marca, modelo o número de serie"
-              />
-              {busqueda ? (
-                <button
-                  onClick={() => setBusqueda("")}
-                  className={`absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-[var(--radius-sm)] text-[var(--fg-subtle)] active:text-foreground ${FOCUS_RING}`}
-                  aria-label="Borrar búsqueda"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              ) : null}
-            </div>
-            <button
-              onClick={() => setFiltrosAbiertos((v) => !v)}
-              className={`shrink-0 h-12 px-3 inline-flex items-center gap-1.5 text-sm rounded-[var(--radius-md)] border transition-colors ${FOCUS_RING} ${
-                hayFiltros
-                  ? "bg-[color-mix(in_hsl,var(--accent)_14%,transparent)] border-[var(--accent)] text-[var(--accent)]"
-                  : "bg-[var(--surface-2)] border-[var(--border-subtle)] text-[var(--fg-muted)]"
-              }`}
-              aria-expanded={filtrosAbiertos}
-              aria-label="Filtros"
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-              {hayFiltros ? <span className="tabular-nums">{[filtroObra, filtroEstado, filtroCategoria].filter(Boolean).length}</span> : null}
-            </button>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--fg-subtle)] pointer-events-none" />
+            <input
+              id="buscar-herramienta"
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar: rotomartillo, HRR-0131, Bosch…"
+              className="w-full h-12 pl-9 pr-9 text-sm bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors"
+              aria-label="Buscar herramienta por nombre, código, marca, modelo o número de serie"
+            />
+            {busqueda ? (
+              <button
+                onClick={() => setBusqueda("")}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-[var(--radius-sm)] text-[var(--fg-subtle)] active:text-foreground ${FOCUS_RING}`}
+                aria-label="Borrar búsqueda"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            ) : null}
           </div>
 
-          {filtrosAbiertos ? (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <Desplegable label="Obra" value={filtroObra} onChange={setFiltroObra} opciones={obras} todas="Todas las obras" />
-              <Desplegable label="Estado" value={filtroEstado} onChange={setFiltroEstado} opciones={estados} todas="Todos los estados" />
-              <Desplegable label="Categoría" value={filtroCategoria} onChange={setFiltroCategoria} opciones={categorias} todas="Todas las categorías" />
-              <label className="sm:col-span-3 flex items-center gap-2 px-1 text-sm text-[var(--fg-muted)] cursor-pointer">
-                <input
-                  id="ver-bajas"
-                  type="checkbox"
-                  checked={verBajas}
-                  onChange={(e) => setVerBajas(e.target.checked)}
-                  className="h-4 w-4 accent-[var(--accent)]"
-                />
-                Mostrar también las dadas de baja
-              </label>
-              {hayFiltros ? (
-                <button
-                  onClick={limpiarFiltros}
-                  className={`sm:col-span-3 h-10 text-sm text-[var(--fg-muted)] active:text-foreground rounded-[var(--radius-md)] border border-[var(--border-subtle)] ${FOCUS_RING}`}
-                >
-                  Limpiar filtros
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+          {/* Los tres filtros van siempre a la vista y no detras de un boton: en
+              un monitor sobra lugar, y esconderlos hacia que nadie supiera que
+              estaban. En el telefono quedan de a dos por fila. */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <Desplegable label="Obra" value={filtroObra} onChange={setFiltroObra} opciones={obras} todas="Todas las obras" />
+            <Desplegable label="Estado" value={filtroEstado} onChange={setFiltroEstado} opciones={estados} todas="Todos los estados" />
+            <Desplegable
+              label="Categoría"
+              value={filtroCategoria}
+              onChange={setFiltroCategoria}
+              opciones={categorias}
+              todas="Todas las categorías"
+              className="col-span-2 sm:col-span-1"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="flex items-center gap-2 text-sm text-[var(--fg-muted)] cursor-pointer">
+              <input
+                id="ver-bajas"
+                type="checkbox"
+                checked={verBajas}
+                onChange={(e) => setVerBajas(e.target.checked)}
+                className="h-4 w-4 accent-[var(--accent)]"
+              />
+              Mostrar también las dadas de baja
+            </label>
+            {hayFiltros ? (
+              <button
+                onClick={limpiarFiltros}
+                className={`h-9 px-3 text-sm text-[var(--fg-muted)] active:text-foreground rounded-[var(--radius-md)] border border-[var(--border-subtle)] ${FOCUS_RING}`}
+              >
+                Limpiar filtros
+              </button>
+            ) : null}
+          </div>
         </div>
       </header>
 
@@ -308,9 +303,9 @@ export default function InventarioHerramientasPage() {
   );
 }
 
-function Desplegable({ label, value, onChange, opciones, todas }) {
+function Desplegable({ label, value, onChange, opciones, todas, className = "" }) {
   return (
-    <div className="relative">
+    <div className={`relative ${className}`}>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
