@@ -165,14 +165,16 @@ export function AccionesHerramienta({ herramienta, obras, custodiosConocidos, on
                     <span className="text-[var(--fg-subtle)]"> (dejalo vacío si queda en bodega)</span>
                   ) : null}
                 </label>
-                {/* Texto libre con sugerencias: el cliente fue explicito en que
-                    a un maestro se le anota el nombre y punto, sin usuario. */}
+                {/* La lista sale de "Equipo VDV", que es de donde el cliente
+                    pidio que saliera, pero el campo sigue aceptando cualquier
+                    nombre: fue igual de explicito en que a un maestro se le
+                    anota el nombre y punto, sin usuario de monday. */}
                 <input
                   id="mov-custodio"
                   list="custodios-conocidos"
                   value={custodio}
                   onChange={(e) => setCustodio(e.target.value)}
-                  placeholder="Nombre y apellido"
+                  placeholder="Elegí del equipo o escribí un nombre"
                   className={campo}
                   autoComplete="off"
                 />

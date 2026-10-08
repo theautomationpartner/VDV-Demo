@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ControlHerramientasBoard, ControlHerramientasMovimientosBoard } from "@/lib/board-sdk";
+import { ControlHerramientasBoard, ControlHerramientasMovimientosBoard, EquipoVdvBoard } from "@/lib/board-sdk";
 import { Spinner } from "@/components/ui/spinner";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
@@ -38,6 +38,7 @@ import {
 
 const herramientasBoard = new ControlHerramientasBoard();
 const movimientosBoard = new ControlHerramientasMovimientosBoard();
+const equipoBoard = new EquipoVdvBoard();
 
 const FOCUS_RING =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
@@ -116,7 +117,7 @@ export default function FichaHerramientaPage({ params }) {
       // /api/monday/board devuelve todas las del schema igual.
       const columnas = [...COLUMNAS_FICHA, ...COLUMNAS_VALORIZACION];
 
-      const [ficha, historial] = await Promise.all([
+      const [ficha, historial, equipo] = await Promise.all([
         // .get() y no .item(): item(id) devuelve el mutador, no el lector.
         herramientasBoard.get(id).withColumns(columnas).execute(),
         movimientosBoard
@@ -130,6 +131,18 @@ export default function FichaHerramientaPage({ params }) {
             console.error("[HERRAMIENTAS] No se pudo traer el historial:", err);
             return { items: [] };
           }),
+        // El directorio del equipo, para elegir el custodio de una lista. Es un
+        // extra: si falla, el campo sigue andando como texto libre, que es lo
+        // que igual hace falta para un maestro sin usuario.
+        equipoBoard
+          .items()
+          .withColumns(["estado"])
+          .withPagination({ limit: 200 })
+          .execute()
+          .catch((err) => {
+            console.error("[HERRAMIENTAS] No se pudo traer Equipo VDV:", err);
+            return { items: [] };
+          }),
       ]);
 
       if (!ficha) {
@@ -139,10 +152,18 @@ export default function FichaHerramientaPage({ params }) {
       setHerramienta(ficha);
       setError(null);
 
+      // Las sugerencias del campo "quien queda a cargo": primero la gente del
+      // directorio -que es de donde el cliente quiere que salga- y ademas los
+      // custodios que ya figuran cargados, que incluyen maestros sin usuario.
+      const delEquipo = (equipo.items || [])
+        .filter((p) => (p.estado ?? "").toUpperCase() !== "INACTIVO")
+        .map((p) => p.name?.trim())
+        .filter(Boolean);
       const guardado = leerCache("hr_inventario");
-      if (Array.isArray(guardado)) {
-        setCustodios([...new Set(guardado.map((x) => x.custodioActual).filter(Boolean))].sort());
-      }
+      const yaCargados = Array.isArray(guardado)
+        ? guardado.map((x) => x.custodioActual).filter(Boolean)
+        : [];
+      setCustodios([...new Set([...delEquipo, ...yaCargados])].sort((a, b) => a.localeCompare(b, "es")));
 
       const filas = (historial.items || [])
         .filter((m) => String(m.idMaestro ?? "").trim() === String(id))

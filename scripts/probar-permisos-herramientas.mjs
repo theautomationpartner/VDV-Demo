@@ -117,5 +117,21 @@ caso("pero si una de su obra", () =>
     1,
   ));
 
+console.log("\nDIRECTORIO - Herramientas ve los nombres, no los datos personales");
+const UNA_PERSONA = [{ id: "7", name: "claudio leyton", mail: "claudio@vdv.cl", telefono: "+56 9 1111 1111", estado: "ACTIVO" }];
+const veDatos = (s) => "mail" in quitarColumnasRestringidas(s, "EquipoVdvBoard", UNA_PERSONA)[0];
+caso("el OC Tracker ve el mail", () => assert.equal(veDatos(sesion("generador-oc", "comprador")), true));
+caso("Herramientas NO ve el mail", () => assert.equal(veDatos(sesion("herramientas", "administrador")), false));
+caso("Herramientas NO ve el telefono", () =>
+  assert.equal(
+    "telefono" in quitarColumnasRestringidas(sesion("herramientas", "administrador"), "EquipoVdvBoard", UNA_PERSONA)[0],
+    false,
+  ));
+caso("pero si el nombre, que es para que se abrio", () =>
+  assert.equal(
+    quitarColumnasRestringidas(sesion("herramientas", "bodeguero"), "EquipoVdvBoard", UNA_PERSONA)[0].name,
+    "claudio leyton",
+  ));
+
 console.log(fallas ? `\n>>> ${fallas} FALLAS` : "\n>>> todo pasa");
 process.exit(fallas ? 1 : 0);
