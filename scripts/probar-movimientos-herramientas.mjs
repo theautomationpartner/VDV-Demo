@@ -31,6 +31,9 @@ import { mon } from "./monday-token.mjs";
 
 register("./alias-loader.mjs", pathToFileURL(import.meta.filename));
 const { desfaseConElHistorial } = await import("../lib/herramientas/dominio.js");
+const { coincide, normalizar, agruparHerramientas, permanenciaDe, ESTADO_BAJA } = await import(
+  "../lib/herramientas/inventario.js"
+);
 
 const MAESTRO = "18430928907";
 const MOVIMIENTOS = "18430928943";
@@ -47,6 +50,7 @@ const M = {
   ultSalida: "date_mm76td04",
   ultDevol: "date_mm76kdht",
   categoria: "dropdown_mm76v0b9",
+  foto: "file_mm76hyqy",
 };
 const V = {
   idMaestro: "text_mm761181",
@@ -514,6 +518,133 @@ async function bloqueDesfase() {
   else falla("falso positivo", JSON.stringify(falso.diferencias));
 }
 
+// ------------------------------------------------------------------ 8. la foto
+async function bloqueFoto() {
+  console.log("\n8. LA FOTO: subir y volver a leerla");
+  const id = await crearHerramienta("foto");
+
+  // Un PNG de 1x1 armado a mano: no hace falta tener un archivo al lado.
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+
+  const fd = new FormData();
+  fd.append("boardKey", "ControlHerramientasBoard");
+  fd.append("itemId", String(id));
+  fd.append("columnId", M.foto);
+  fd.append("file", new Blob([png], { type: "image/png" }), "prueba.png");
+  fd.append("reemplazar", "true");
+
+  const r = await fetch("http://localhost:3000/api/monday/upload", { method: "POST", body: fd });
+  if (r.status === 200) ok("la subida responde 200");
+  else return falla("la subida", `${r.status}`);
+
+  // monday tarda un instante en dejar la URL disponible en la columna.
+  await new Promise((res) => setTimeout(res, 3000));
+  const h = await leerMaestro(id);
+  if (h.foto) ok("la columna quedo con la URL de la foto");
+  else return falla("la columna de foto", "quedo vacia");
+
+  // Y que la app la sirva de vuelta: es el camino que usa la pantalla, con su
+  // verificacion de permisos y el redirect a monday.
+  const img = await fetch(
+    `http://localhost:3000/api/monday/archivo?boardKey=ControlHerramientasBoard&itemId=${id}&columna=foto`,
+    { redirect: "follow" },
+  );
+  const buf = Buffer.from(await img.arrayBuffer());
+  if (img.status === 200) ok("la app la sirve de vuelta");
+  else falla("servir la foto", `${img.status}`);
+  comparar("  es el mismo archivo", buf.length, png.length);
+
+  // Y que no se pueda bajar cualquier columna pasando su nombre.
+  const otra = await fetch(
+    `http://localhost:3000/api/monday/archivo?boardKey=ControlHerramientasBoard&itemId=${id}&columna=observaciones`,
+  );
+  if (otra.status >= 400) ok("no se puede pedir otra columna que no sea la foto");
+  else falla("pedir otra columna", `dio ${otra.status}`);
+}
+
+// ------------------------------------------------- 9. el listado: buscar y agrupar
+async function bloqueListado() {
+  console.log("\n9. EL LISTADO sobre las herramientas reales");
+  const r = await fetch("http://localhost:3000/api/monday/board", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      boardKey: "ControlHerramientasBoard",
+      op: "items",
+      params: {
+        columns: ["codigo", "categoria", "marca", "modelo", "numeroSerie", "estadoOperativo", "ubicacionActual", "custodioActual", "fechaUltimaSalida"],
+        limit: 500,
+        orderBy: { column: "updatedAt", direction: "desc" },
+      },
+    }),
+  });
+  const json = await r.json();
+  if (!json.result) return falla("traer el inventario", JSON.stringify(json).slice(0, 150));
+  // Las de prueba de esta corrida no cuentan para las cuentas de abajo.
+  const items = json.result.items.filter((i) => !/^ZZ /.test(i.name));
+  ok(`trae el inventario (${items.length} herramientas reales)`);
+
+  // El orden: la ultima tocada primero. Es lo que hace que las que tienen foto
+  // se vean, en vez de caer en la fila 81 de 83.
+  const conFoto = items.filter((i) => i.foto).length;
+  if (items.length > 10) ok(`ordenado por lo ultimo tocado (${conFoto} con foto)`);
+
+  // El buscador, con los casos que el cliente pidio en la llamada.
+  const buscar = (q) => items.filter((h) => coincide(h, normalizar(q)));
+  const rotomartillos = buscar("rotomartillo");
+  if (rotomartillos.length > 0) ok(`buscar "rotomartillo" encuentra ${rotomartillos.length}`);
+  else falla("buscar rotomartillo", "no encontro ninguno");
+
+  const porCodigo = buscar("HRR-0133");
+  comparar('buscar por codigo "HRR-0133" da 1', porCodigo.length, 1);
+
+  const porMarca = buscar("makita");
+  if (porMarca.length > 0) ok(`buscar por marca "makita" encuentra ${porMarca.length}`);
+  else falla("buscar por marca", "no encontro ninguna");
+
+  // Dos palabras exigen las dos, no cualquiera de las dos.
+  const dos = buscar("taladro makita");
+  const soloTaladro = buscar("taladro");
+  if (dos.length <= soloTaladro.length) ok("dos palabras filtran mas que una");
+  else falla("busqueda de dos palabras", `"taladro makita" (${dos.length}) > "taladro" (${soloTaladro.length})`);
+
+  const sinNada = buscar("zzzzznoexiste");
+  comparar("algo que no existe no devuelve nada", sinNada.length, 0);
+
+  const conTilde = buscar("reparacion");
+  const sinTilde = buscar("reparación");
+  comparar("buscar con y sin tilde da lo mismo", conTilde.length, sinTilde.length);
+
+  // El filtro por defecto del listado: sin las dadas de baja.
+  const vigentes = items.filter((h) => h.estadoOperativo !== ESTADO_BAJA);
+  if (vigentes.length < items.length) ok(`el filtro vigente saca ${items.length - vigentes.length} dadas de baja`);
+  else ok("no hay dadas de baja para sacar");
+
+  // El agrupado: unidades iguales en el mismo lugar van en una sola fila.
+  const grupos = agruparHerramientas(vigentes);
+  const agrupados = grupos.filter((g) => g.unidades.length > 1);
+  if (grupos.length <= vigentes.length) ok(`${vigentes.length} unidades en ${grupos.length} modelos, ${agrupados.length} agrupados`);
+  else falla("el agrupado", "hay mas grupos que unidades");
+
+  const suma = grupos.reduce((t, g) => t + g.unidades.length, 0);
+  comparar("  no se pierde ni se duplica ninguna", suma, vigentes.length);
+
+  if (agrupados.length) {
+    const g = agrupados[0];
+    const mismoLugar = g.unidades.every((u) => u.ubicacionActual === g.unidades[0].ubicacionActual);
+    if (mismoLugar) ok("  las agrupadas estan todas en el mismo lugar");
+    else falla("el agrupado junta obras distintas", g.nombre);
+  }
+
+  // La permanencia, que es el dato que hace saltar lo que lleva demasiado.
+  const conFecha = items.filter((h) => permanenciaDe(h) !== null);
+  const viejas = conFecha.filter((h) => permanenciaDe(h) >= 30);
+  ok(`permanencia calculada en ${conFecha.length}, ${viejas.length} llevan mas de un mes`);
+}
+
 // ------------------------------------------------------------------ limpieza
 async function limpiar() {
   console.log("\nLIMPIEZA");
@@ -560,6 +691,8 @@ try {
   await bloqueBordes();
   await bloqueTexto();
   await bloqueDesfase();
+  await bloqueFoto();
+  await bloqueListado();
 } catch (error) {
   fallas += 1;
   console.log("\nSE CORTO:", error.message.slice(0, 400));
