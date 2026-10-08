@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 import { useSesionHerramientas } from "@/hooks/herramientas/useSesionHerramientas";
 import { useColumnOptions } from "@/hooks/useColumnOptions";
-import { leerCache } from "@/lib/client/cache-persistente";
 import { AccionesHerramienta } from "@/components/herramientas/AccionesHerramienta";
 import { HistorialHerramienta } from "@/components/herramientas/HistorialHerramienta";
 import { RECEPCION_PENDIENTE } from "@/lib/herramientas/dominio";
@@ -152,18 +151,20 @@ export default function FichaHerramientaPage({ params }) {
       setHerramienta(ficha);
       setError(null);
 
-      // Las sugerencias del campo "quien queda a cargo": primero la gente del
-      // directorio -que es de donde el cliente quiere que salga- y ademas los
-      // custodios que ya figuran cargados, que incluyen maestros sin usuario.
-      const delEquipo = (equipo.items || [])
-        .filter((p) => (p.estado ?? "").toUpperCase() !== "INACTIVO")
-        .map((p) => p.name?.trim())
-        .filter(Boolean);
-      const guardado = leerCache("hr_inventario");
-      const yaCargados = Array.isArray(guardado)
-        ? guardado.map((x) => x.custodioActual).filter(Boolean)
-        : [];
-      setCustodios([...new Set([...delEquipo, ...yaCargados])].sort((a, b) => a.localeCompare(b, "es")));
+      // Quien puede quedar a cargo: SOLO la gente activa de "Equipo VDV". No se
+      // mezclan los custodios que ya figuran cargados -hay nombres sueltos de
+      // antes- porque el servidor rechaza cualquiera que no este en el
+      // directorio, y ofrecer algo que va a rebotar es peor que no ofrecerlo.
+      setCustodios(
+        [
+          ...new Set(
+            (equipo.items || [])
+              .filter((p) => (p.estado ?? "").toUpperCase() !== "INACTIVO")
+              .map((p) => p.name?.trim())
+              .filter(Boolean),
+          ),
+        ].sort((a, b) => a.localeCompare(b, "es")),
+      );
 
       const filas = (historial.items || [])
         .filter((m) => String(m.idMaestro ?? "").trim() === String(id))

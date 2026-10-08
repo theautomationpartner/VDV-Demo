@@ -165,24 +165,29 @@ export function AccionesHerramienta({ herramienta, obras, custodiosConocidos, on
                     <span className="text-[var(--fg-subtle)]"> (dejalo vacío si queda en bodega)</span>
                   ) : null}
                 </label>
-                {/* La lista sale de "Equipo VDV", que es de donde el cliente
-                    pidio que saliera, pero el campo sigue aceptando cualquier
-                    nombre: fue igual de explicito en que a un maestro se le
-                    anota el nombre y punto, sin usuario de monday. */}
-                <input
+                {/* Cerrado al directorio: el custodio tiene que ser alguien de
+                    "Equipo VDV". El servidor lo vuelve a verificar, porque por
+                    la API se manda cualquier texto. */}
+                <select
                   id="mov-custodio"
-                  list="custodios-conocidos"
                   value={custodio}
                   onChange={(e) => setCustodio(e.target.value)}
-                  placeholder="Elegí del equipo o escribí un nombre"
                   className={campo}
-                  autoComplete="off"
-                />
-                <datalist id="custodios-conocidos">
+                >
+                  <option value="">
+                    {accion === "regresoReparacion" ? "Queda en bodega" : "Elegir…"}
+                  </option>
                   {custodiosConocidos.map((c) => (
-                    <option key={c} value={c} />
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
                   ))}
-                </datalist>
+                </select>
+                {custodiosConocidos.length === 0 ? (
+                  <p className="mt-1 text-xs text-[var(--warning)]">
+                    No se pudo leer el directorio del equipo. Probá recargar la ficha.
+                  </p>
+                ) : null}
               </div>
             ) : null}
 
