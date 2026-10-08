@@ -8,6 +8,7 @@ import {
   verificarAccesoRollbackOc,
   filtrarPorObrasPermitidas,
   quitarColumnasRestringidas,
+  COLUMNA_OBRA,
   accesoBoardErrorToResponse,
   BoardAccessError,
 } from "@/lib/server/board-access-policy";
@@ -978,10 +979,19 @@ async function manejarPost(request) {
         if (AUTH_LAYERS_ENABLED && item) {
           // La obra, igual que en una lectura de lista. Sin esto el recorte por
           // obra era solo del LISTADO: alguien con obras restringidas abria la
-          // ficha de una herramienta ajena poniendo su id en la URL. Hoy la
-          // unica pantalla que lee un item suelto es la ficha de herramientas,
-          // asi que esto no cambia nada de lo que ya andaba.
-          if (filtrarPorObrasPermitidas(sesion, boardKey, [item]).length === 0) {
+          // ficha de una herramienta ajena poniendo su id en la URL.
+          //
+          // La columna de obra se agrega sola si quien llamo no la pidio. Antes
+          // se descartaba la fila -el filtro no puede decidir sin ella- y eso
+          // daba un 403 que no se entendia: la ficha de TU PROPIA obra tambien
+          // rebotaba. Lo encontro el script de permisos en vivo.
+          const columnaObra = COLUMNA_OBRA[boardKey];
+          let paraFiltrar = item;
+          if (columnaObra && item[columnaObra] === undefined) {
+            const extra = await handleItemById(boardKey, schema, { ...params, columns: [columnaObra] });
+            paraFiltrar = { ...item, [columnaObra]: extra?.[columnaObra] ?? null };
+          }
+          if (filtrarPorObrasPermitidas(sesion, boardKey, [paraFiltrar]).length === 0) {
             return Response.json({ error: "Tu cuenta no tiene acceso a esa obra." }, { status: 403 });
           }
           // Y las columnas que esta sesion no puede ver, como el precio de
