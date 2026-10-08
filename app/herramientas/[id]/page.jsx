@@ -202,7 +202,15 @@ export default function FichaHerramientaPage({ params }) {
       setMovimientos(filas);
     } catch (err) {
       console.error("[HERRAMIENTAS] No se pudo traer la ficha:", err);
-      setError("No se pudo cargar la ficha. Probá recargar.");
+      // Si el servidor CONTESTO y dijo que no, su motivo es el que sirve: "Tu
+      // cuenta no tiene acceso a esa obra" explica algo que recargar no va a
+      // arreglar nunca, y mandar a recargar ahi es hacerle perder el tiempo a
+      // alguien. El mensaje generico queda para cuando no hubo respuesta.
+      setError(
+        err?.respondioServidor && err.message
+          ? err.message
+          : "No se pudo cargar la ficha. Probá recargar.",
+      );
     } finally {
       setRefetching(false);
       setLoading(false);
@@ -286,6 +294,11 @@ export default function FichaHerramientaPage({ params }) {
           <p className="text-sm font-medium text-foreground mb-1">
             {tieneAcceso ? error : "No tenés acceso a Control de Herramientas"}
           </p>
+          {tieneAcceso && /obra/i.test(error ?? "") ? (
+            <p className="mt-1 text-sm text-[var(--fg-muted)]">
+              Esa herramienta está en una obra que tu cuenta no tiene asignada.
+            </p>
+          ) : null}
           <button
             onClick={() => router.push("/herramientas")}
             className={`mt-4 h-11 px-4 text-sm rounded-[var(--radius-md)] border border-[var(--border-subtle)] text-foreground active:bg-[var(--surface-2)] ${FOCUS_RING}`}
