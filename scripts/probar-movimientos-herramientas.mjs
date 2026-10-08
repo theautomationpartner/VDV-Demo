@@ -34,6 +34,7 @@ const { desfaseConElHistorial } = await import("../lib/herramientas/dominio.js")
 const { coincide, normalizar, agruparHerramientas, permanenciaDe, ESTADO_BAJA } = await import(
   "../lib/herramientas/inventario.js"
 );
+const { registrarMovimiento } = await import("../lib/server/herramientas-movimientos.js");
 
 const MAESTRO = "18430928907";
 const MOVIMIENTOS = "18430928943";
@@ -70,6 +71,7 @@ const V = {
   recepcion: "color_mm7y936c",
   confirmadaPor: "text_mm7ygdnm",
   fechaConfirmacion: "date_mm7y9yrs",
+  responsableRegistroVdv: "board_relation_mm797mqq",
 };
 
 // Dos personas que SI estan en Equipo VDV (verificado el 08-oct).
@@ -645,6 +647,43 @@ async function bloqueListado() {
   ok(`permanencia calculada en ${conFecha.length}, ${viejas.length} llevan mas de un mes`);
 }
 
+// --------------------------------------------- 10. quien registro el movimiento
+async function bloqueFirma() {
+  console.log("\n10. LA FIRMA: el movimiento dice quien lo registro");
+  const id = await crearHerramienta("firma");
+
+  // Se llama a la funcion del servidor y no a la API porque en local no hay
+  // login: asi se le puede pasar una sesion, que es de donde sale la firma.
+  const r = await registrarMovimiento({
+    itemId: id,
+    accion: "salida",
+    datos: { destino: "M388", custodio: DEL_EQUIPO, condicion: "Buena" },
+    quien: { email: "claudio@vergaradelvalle.com", nombre: DEL_EQUIPO },
+  });
+
+  // OJO: en una columna de VINCULO el campo `text` viene SIEMPRE null; el dato
+  // esta en linked_items. Leerlo mal hace creer que no se escribio nada.
+  const d = await mon(
+    `query($i:[ID!]){ items(ids:$i){ column_values(ids:["${V.responsableRegistroVdv}"]){
+      ... on BoardRelationValue { display_value linked_items{ id name } } } } }`,
+    { i: [r.movimientoId] },
+  );
+  const cv = d.items[0].column_values[0];
+  comparar("queda vinculado a su ficha de Equipo VDV", cv.display_value, DEL_EQUIPO);
+  comparar("  apunta al item del directorio", cv.linked_items?.length, 1);
+
+  // Y que un mail que no esta en el directorio no frene el movimiento.
+  const id2 = await crearHerramienta("firma2");
+  const r2 = await registrarMovimiento({
+    itemId: id2,
+    accion: "perdida",
+    datos: {},
+    quien: { email: "nadie@ejemplo.com", nombre: "Nadie" },
+  });
+  if (r2.ok) ok("un mail que no esta en el directorio no frena el movimiento");
+  else falla("mail desconocido", "freno el movimiento");
+}
+
 // ------------------------------------------------------------------ limpieza
 async function limpiar() {
   console.log("\nLIMPIEZA");
@@ -693,6 +732,7 @@ try {
   await bloqueDesfase();
   await bloqueFoto();
   await bloqueListado();
+  await bloqueFirma();
 } catch (error) {
   fallas += 1;
   console.log("\nSE CORTO:", error.message.slice(0, 400));
