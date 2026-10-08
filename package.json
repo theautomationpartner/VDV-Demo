@@ -13,7 +13,8 @@
     "seed-whitelist": "node scripts/seed-whitelist.js",
     "reset-mfa": "node scripts/reset-mfa.js",
     "validar-schemas": "node scripts/validar-schemas.mjs",
-    "probar-permisos-herramientas": "node scripts/probar-permisos-herramientas.mjs"
+    "probar-permisos-herramientas": "node scripts/probar-permisos-herramientas.mjs",
+    "probar-movimientos-herramientas": "node scripts/probar-movimientos-herramientas.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

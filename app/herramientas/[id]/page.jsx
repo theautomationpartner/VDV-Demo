@@ -1,12 +1,29 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ControlHerramientasBoard, ControlHerramientasMovimientosBoard } from "@/lib/board-sdk";
 import { Spinner } from "@/components/ui/spinner";
 import { Toaster } from "@/components/ui/sonner";
-import { ArrowLeft, Wrench, MapPin, User, RefreshCw, History, Image as ImageIcon, CircleDollarSign } from "lucide-react";
+import { toast } from "sonner";
+import {
+  ArrowLeft,
+  Wrench,
+  MapPin,
+  User,
+  RefreshCw,
+  History,
+  Image as ImageIcon,
+  CircleDollarSign,
+  Check,
+  Clock3,
+  PlusCircle,
+} from "lucide-react";
 import { useSesionHerramientas } from "@/hooks/herramientas/useSesionHerramientas";
+import { useColumnOptions } from "@/hooks/useColumnOptions";
+import { leerCache } from "@/lib/client/cache-persistente";
+import { AccionesHerramienta } from "@/components/herramientas/AccionesHerramienta";
+import { RECEPCION_PENDIENTE } from "@/lib/herramientas/dominio";
 import {
   COLUMNAS_FICHA,
   COLUMNAS_VALORIZACION,
@@ -33,6 +50,9 @@ const COLUMNAS_MOVIMIENTO = [
   "estadoAlSalir",
   "estadoAlRecibir",
   "observaciones",
+  "recepcion",
+  "confirmadaPor",
+  "fechaConfirmacion",
 ];
 
 /**
@@ -55,11 +75,16 @@ function Dato({ label, children }) {
   );
 }
 
-function MovimientoFila({ m }) {
+function MovimientoFila({ m, puedeConfirmar, onConfirmar }) {
   const recorrido = [m.origen, m.destino].filter(Boolean).join(" → ");
+  const pendiente = m.recepcion === RECEPCION_PENDIENTE;
+
   return (
     <li className="relative pl-5 pb-4 last:pb-0">
-      <span className="absolute left-0 top-1.5 w-2 h-2 rounded-full bg-[var(--accent)]" aria-hidden="true" />
+      <span
+        className={`absolute left-0 top-1.5 w-2 h-2 rounded-full ${pendiente ? "bg-[var(--warning)]" : "bg-[var(--accent)]"}`}
+        aria-hidden="true"
+      />
       <span className="absolute left-[3px] top-4 bottom-0 w-px bg-[var(--border-subtle)] last:hidden" aria-hidden="true" />
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <span className="text-sm font-medium text-foreground">{m.tipoMovimiento || "Movimiento"}</span>
@@ -72,6 +97,32 @@ function MovimientoFila({ m }) {
       {m.observaciones ? (
         <p className="text-xs text-[var(--fg-subtle)] mt-1 break-words">{m.observaciones}</p>
       ) : null}
+
+      {/* El acuse de recibo que pidio el cliente: sin esto una herramienta
+          figura en una obra donde capaz nunca la vieron llegar. */}
+      {pendiente ? (
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1 text-xs text-[var(--warning)]">
+            <Clock3 className="h-3 w-3" />
+            Falta confirmar que llegó
+          </span>
+          {puedeConfirmar ? (
+            <button
+              onClick={() => onConfirmar(m.id)}
+              className={`inline-flex min-h-8 items-center gap-1 rounded-[var(--radius-md)] border border-[var(--accent)] px-2 text-xs font-medium text-[var(--accent)] ${FOCUS_RING}`}
+            >
+              <Check className="h-3 w-3" />
+              Confirmar recepción
+            </button>
+          ) : null}
+        </div>
+      ) : m.confirmadaPor || m.fechaConfirmacion ? (
+        <p className="mt-1 inline-flex items-center gap-1 text-xs text-[var(--success)]">
+          <Check className="h-3 w-3" />
+          Recibida{m.confirmadaPor ? ` por ${m.confirmadaPor}` : ""}
+          {m.fechaConfirmacion ? ` el ${formatearFecha(m.fechaConfirmacion)}` : ""}
+        </p>
+      ) : null}
     </li>
   );
 }
@@ -79,7 +130,8 @@ function MovimientoFila({ m }) {
 export default function FichaHerramientaPage({ params }) {
   const { id } = use(params);
   const router = useRouter();
-  const { cargando: cargandoSesion, tieneAcceso, verValorizacion } = useSesionHerramientas();
+  const { cargando: cargandoSesion, tieneAcceso, verValorizacion, puedeModificar, obrasPermitidas } =
+    useSesionHerramientas();
 
   const [loading, setLoading] = useState(true);
   const [refetching, setRefetching] = useState(false);
@@ -87,6 +139,20 @@ export default function FichaHerramientaPage({ params }) {
   const [movimientos, setMovimientos] = useState([]);
   const [error, setError] = useState(null);
   const [fotoRota, setFotoRota] = useState(false);
+
+  // Las obras salen de los labels reales de la columna, no del inventario: hay
+  // que poder mandar una herramienta a una obra donde todavia no hay ninguna.
+  const { options: todasLasObras } = useColumnOptions(herramientasBoard, "ubicacionActual", []);
+  const obras = useMemo(
+    () => (obrasPermitidas ? todasLasObras.filter((o) => obrasPermitidas.includes(o)) : todasLasObras),
+    [todasLasObras, obrasPermitidas],
+  );
+
+  // Sugerencias para el campo de custodio: los que ya figuran en el inventario,
+  // leidos de lo que el listado dejo guardado. Sin consulta extra, y si no hay
+  // cache el campo sigue siendo texto libre, que es como el cliente lo quiere
+  // para un maestro sin usuario. Se resuelve al cargar la ficha (ver `cargar`).
+  const [custodios, setCustodios] = useState([]);
 
   const cargar = useCallback(async () => {
     setRefetching(true);
@@ -120,6 +186,11 @@ export default function FichaHerramientaPage({ params }) {
       setHerramienta(ficha);
       setError(null);
 
+      const guardado = leerCache("hr_inventario");
+      if (Array.isArray(guardado)) {
+        setCustodios([...new Set(guardado.map((x) => x.custodioActual).filter(Boolean))].sort());
+      }
+
       const filas = (historial.items || [])
         .filter((m) => String(m.idMaestro ?? "").trim() === String(id))
         .sort((a, b) => new Date(b.fechaMovimiento ?? 0) - new Date(a.fechaMovimiento ?? 0));
@@ -150,6 +221,26 @@ export default function FichaHerramientaPage({ params }) {
       activo = false;
     };
   }, [cargandoSesion, tieneAcceso, cargar]);
+
+  const confirmar = async (movimientoId) => {
+    try {
+      const respuesta = await fetch("/api/herramientas/confirmar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ movimientoId }),
+      });
+      const json = await respuesta.json().catch(() => ({}));
+      if (!respuesta.ok) {
+        toast.error(json.error || "No se pudo confirmar.");
+        return;
+      }
+      toast.success("Recepción confirmada.");
+      cargar();
+    } catch (err) {
+      console.error("[HERRAMIENTAS] No se pudo confirmar:", err);
+      toast.error("No se pudo conectar. Probá de nuevo.");
+    }
+  };
 
   if (cargandoSesion || loading) {
     return (
@@ -302,6 +393,23 @@ export default function FichaHerramientaPage({ params }) {
           </section>
         ) : null}
 
+        {puedeModificar ? (
+          <section className="bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-[var(--radius-lg)] p-4">
+            <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
+              <PlusCircle className="w-4 h-4 text-[var(--accent)]" />
+              Registrar un movimiento
+            </h2>
+            {/* Los botones salen del estado de hoy: una herramienta en uso se
+                devuelve o se traslada, no se vuelve a sacar. */}
+            <AccionesHerramienta
+              herramienta={h}
+              obras={obras}
+              custodiosConocidos={custodios}
+              onHecho={cargar}
+            />
+          </section>
+        ) : null}
+
         <section className="bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-[var(--radius-lg)] p-4">
           <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
             <History className="w-4 h-4 text-[var(--accent)]" />
@@ -319,7 +427,7 @@ export default function FichaHerramientaPage({ params }) {
           ) : (
             <ol className="mt-1">
               {movimientos.map((m) => (
-                <MovimientoFila key={m.id} m={m} />
+                <MovimientoFila key={m.id} m={m} puedeConfirmar={puedeModificar} onConfirmar={confirmar} />
               ))}
             </ol>
           )}
