@@ -66,7 +66,13 @@ const COLUMNAS_MOVIMIENTO = [
  * El tablero de movimientos no tiene vinculo a la herramienta: guarda el id del
  * maestro como TEXTO (`idMaestro`), asi lo dejo el cliente. Se filtra por ese
  * texto en la consulta, pero el tope igual se pone alto porque un filtro por
- * texto en monday no siempre usa indice. Hoy hay 22 movimientos en total.
+ * texto en monday no siempre usa indice.
+ *
+ * No se pagina a proposito: medido el 08-oct, la herramienta con mas historial
+ * tiene 5 movimientos, asi que a una que se mueva dos veces por mes le faltan
+ * ocho años para llegar a 200. Lo que si hay es un aviso cuando se toca el tope
+ * -ver `truncado`-, porque un historial al que le faltan movimientos sin decirlo
+ * es peor que uno incompleto que lo avisa.
  */
 const TOPE_MOVIMIENTOS = 200;
 
@@ -106,6 +112,8 @@ export default function FichaHerramientaPage({ params }) {
   // cache el campo sigue siendo texto libre, que es como el cliente lo quiere
   // para un maestro sin usuario. Se resuelve al cargar la ficha (ver `cargar`).
   const [custodios, setCustodios] = useState([]);
+  // Si el historial toco el tope y puede estar faltando lo mas viejo.
+  const [truncado, setTruncado] = useState(false);
 
   const cargar = useCallback(async () => {
     setRefetching(true);
@@ -165,6 +173,10 @@ export default function FichaHerramientaPage({ params }) {
           ),
         ].sort((a, b) => a.localeCompare(b, "es")),
       );
+
+      // Se compara contra lo que devolvio monday ANTES de filtrar por esta
+      // herramienta: el tope es de la consulta, no del resultado.
+      setTruncado((historial.items || []).length >= TOPE_MOVIMIENTOS);
 
       const filas = (historial.items || [])
         .filter((m) => String(m.idMaestro ?? "").trim() === String(id))
@@ -377,6 +389,7 @@ export default function FichaHerramientaPage({ params }) {
           puedeConfirmar={puedeModificar}
           onConfirmar={confirmar}
           verValorizacion={verValorizacion}
+          truncado={truncado}
         />
       </main>
     </div>

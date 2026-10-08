@@ -427,7 +427,14 @@ function Detalles({ herramienta, verValorizacion }) {
   );
 }
 
-export function HistorialHerramienta({ herramienta, movimientos, puedeConfirmar, onConfirmar, verValorizacion }) {
+export function HistorialHerramienta({
+  herramienta,
+  movimientos,
+  puedeConfirmar,
+  onConfirmar,
+  verValorizacion,
+  truncado = false,
+}) {
   const [vista, setVista] = useState("mapa");
   const [filtro, setFiltro] = useState("todos");
 
@@ -479,6 +486,18 @@ export function HistorialHerramienta({ herramienta, movimientos, puedeConfirmar,
         ))}
       </div>
       )}
+
+      {/* Si se toco el tope de la consulta puede faltar lo mas viejo, y un
+          historial incompleto que no lo dice es peor que uno que lo avisa. Hoy
+          la herramienta con mas movimientos tiene 5, asi que esto no deberia
+          verse nunca; si aparece, hay que paginar. */}
+      {truncado && vista !== "detalles" ? (
+        <p className="flex items-start gap-1.5 rounded-[var(--radius-md)] bg-[color-mix(in_hsl,var(--warning)_12%,transparent)] p-2.5 text-xs text-[var(--warning)]">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          Esta herramienta tiene muchísimos movimientos y se muestran los más recientes. Puede que falten los más
+          viejos: avisale a soporte.
+        </p>
+      ) : null}
 
       {vista === "detalles" ? <Detalles herramienta={herramienta} verValorizacion={verValorizacion} /> : null}
       {vista === "mapa" ? <Mapa {...props} /> : null}
