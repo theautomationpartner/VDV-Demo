@@ -1,5 +1,6 @@
 import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
 import { OC_APP } from "@/lib/oc-roles";
+import { HERRAMIENTAS_APP } from "@/lib/herramientas-roles";
 import {
   listarUsuariosAutorizados,
   obtenerUsuarioAutorizado,
@@ -30,19 +31,27 @@ function appAccessMap(sesion) {
     else if (a.appRol === "admin" && access[a.app] !== "editor") access[a.app] = "viewer";
   }
 
-  // El OC Tracker no tiene roles de administracion propios: los suyos son
-  // funcionales (Consulta / Comprador / Aprobador, ver lib/oc-roles.js). Sin
-  // esto nadie podria dar de alta a alguien para el OC Tracker, porque el
-  // permiso salia justamente del super_admin que esa app dejo de tener.
+  // Dos apps no tienen roles de ADMINISTRACION propios, solo funcionales: el OC
+  // Tracker (Consulta / Comprador / Aprobador, ver lib/oc-roles.js) y
+  // Herramientas (Administrador / Oficina Tecnica / Bodeguero / Jefe de Obra,
+  // ver lib/herramientas-roles.js). Ninguno de esos roles es "super_admin", asi
+  // que sin esto NADIE podria dar de alta a alguien en ellas: el permiso salia
+  // justamente del super_admin que esas apps no tienen.
+  //
+  // Con Herramientas el problema es mas visible todavia porque es nueva y nadie
+  // la tiene asignada: sin esta regla no habria forma de asignar la primera.
   //
   // Es la unica grieta en el "cada app es un compartimento": quien administra
-  // usuarios en Vale Express o en el Portal administra tambien los del OC
-  // Tracker. En VDV son las mismas dos personas para las tres.
+  // usuarios en Vale Express o en el Portal administra tambien los de estas dos.
+  // En VDV son las mismas dos personas para todas.
+  const APPS_SIN_ADMIN_PROPIO = [OC_APP, HERRAMIENTAS_APP];
   const nivelesDeOtrasApps = Object.entries(access)
-    .filter(([app]) => app !== OC_APP)
+    .filter(([app]) => !APPS_SIN_ADMIN_PROPIO.includes(app))
     .map(([, nivel]) => nivel);
-  if (nivelesDeOtrasApps.includes("editor")) access[OC_APP] = "editor";
-  else if (nivelesDeOtrasApps.includes("viewer") && !access[OC_APP]) access[OC_APP] = "viewer";
+  for (const app of APPS_SIN_ADMIN_PROPIO) {
+    if (nivelesDeOtrasApps.includes("editor")) access[app] = "editor";
+    else if (nivelesDeOtrasApps.includes("viewer") && !access[app]) access[app] = "viewer";
+  }
 
   return access;
 }

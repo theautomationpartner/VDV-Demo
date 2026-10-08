@@ -7,6 +7,8 @@ import {
   verificarAccesoLectura,
   verificarAccesoRollbackOc,
   filtrarPorObrasPermitidas,
+  quitarColumnasRestringidas,
+  COLUMNA_OBRA,
   accesoBoardErrorToResponse,
   BoardAccessError,
 } from "@/lib/server/board-access-policy";
@@ -42,8 +44,26 @@ const AUTH_LAYERS_ENABLED = process.env.AUTH_LAYERS_ENABLED === "true";
  * para decidir la conversion, no una adivinanza.
  */
 function coerceColumnValue(cv) {
-  const { text, column } = cv;
+  const { text, column, value } = cv;
   if (text == null || text === "") return null;
+
+  /**
+   * Una columna de ESTADO vacia no devuelve "" en `text`: monday devuelve el
+   * label que tiene asignado el color GRIS, que es el color con que dibuja una
+   * celda sin valor. Lo unico que distingue los dos casos es `value`, que es
+   * null cuando la celda esta vacia de verdad.
+   *
+   * Medido contra la cuenta el 08-oct: en el tablero de movimientos, una celda
+   * vacia de "Tipo movimiento" se lee como "Devolucion" y una de "Estado al
+   * recibir" como "Regular"; en el maestro, una UBICACION ACTUAL vacia se lee
+   * como "NUEVO". Los 40 movimientos del cliente mostraban al menos un label
+   * que no tenian, y una herramienta real figuraba en una obra donde no esta.
+   *
+   * En toda la cuenta son unas 56 filas de 2.146, repartidas entre vales,
+   * ordenes, facturas y pagos. Todas mostraban un dato falso.
+   */
+  if (column?.type === "status" && value == null) return null;
+
   if (column?.type === "numbers") {
     const n = Number(text);
     return Number.isNaN(n) ? text : n;
@@ -244,8 +264,11 @@ async function handleItems(boardKey, schema, params) {
   // monday expone la fecha de creacion en query_params (verificado en vivo).
   let orderByRule = null;
   if (orderBy?.column) {
-    const columnaOrden =
-      orderBy.column === "createdAt" ? "__creation_log__" : resolveColumnId(boardKey, orderBy.column);
+    // Las dos fechas que monday expone como columnas especiales y que no estan
+    // en ningun schema. `updatedAt` hace falta para listar por "lo ultimo que
+    // se toco", que es como ordena el inventario de herramientas.
+    const ESPECIALES = { createdAt: "__creation_log__", updatedAt: "__last_updated__" };
+    const columnaOrden = ESPECIALES[orderBy.column] ?? resolveColumnId(boardKey, orderBy.column);
     orderByRule = [{ column_id: columnaOrden, direction: orderBy.direction === "asc" ? "asc" : "desc" }];
   }
 
@@ -887,6 +910,11 @@ async function manejarPost(request) {
       // datos de las otras obras llegaban igual. Ver filtrarPorObrasPermitidas.
       if (AUTH_LAYERS_ENABLED) {
         resultado.items = filtrarPorObrasPermitidas(sesion, boardKey, resultado.items);
+        // Y las columnas que esta sesion no puede ver aunque si pueda leer el
+        // tablero - hoy, el precio de compra de una herramienta. Hace falta
+        // porque handleItems devuelve TODAS las columnas mapeadas, pida las que
+        // pida quien llama. Ver quitarColumnasRestringidas.
+        resultado.items = quitarColumnasRestringidas(sesion, boardKey, resultado.items);
       }
       return Response.json({ result: resultado });
     }
@@ -946,7 +974,32 @@ async function manejarPost(request) {
           throw err;
         }
       }
-      if (op === "item") return Response.json({ result: await handleItemById(boardKey, schema, params) });
+      if (op === "item") {
+        const item = await handleItemById(boardKey, schema, params);
+        if (AUTH_LAYERS_ENABLED && item) {
+          // La obra, igual que en una lectura de lista. Sin esto el recorte por
+          // obra era solo del LISTADO: alguien con obras restringidas abria la
+          // ficha de una herramienta ajena poniendo su id en la URL.
+          //
+          // La columna de obra se agrega sola si quien llamo no la pidio. Antes
+          // se descartaba la fila -el filtro no puede decidir sin ella- y eso
+          // daba un 403 que no se entendia: la ficha de TU PROPIA obra tambien
+          // rebotaba. Lo encontro el script de permisos en vivo.
+          const columnaObra = COLUMNA_OBRA[boardKey];
+          let paraFiltrar = item;
+          if (columnaObra && item[columnaObra] === undefined) {
+            const extra = await handleItemById(boardKey, schema, { ...params, columns: [columnaObra] });
+            paraFiltrar = { ...item, [columnaObra]: extra?.[columnaObra] ?? null };
+          }
+          if (filtrarPorObrasPermitidas(sesion, boardKey, [paraFiltrar]).length === 0) {
+            return Response.json({ error: "Tu cuenta no tiene acceso a esa obra." }, { status: 403 });
+          }
+          // Y las columnas que esta sesion no puede ver, como el precio de
+          // compra de una herramienta. Ver quitarColumnasRestringidas.
+          return Response.json({ result: quitarColumnasRestringidas(sesion, boardKey, [item])[0] });
+        }
+        return Response.json({ result: item });
+      }
       return Response.json({ result: await handleSubitems(params) });
     }
 

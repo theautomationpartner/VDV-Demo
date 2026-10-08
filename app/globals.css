@@ -6,6 +6,7 @@
 @import "../styles/theme-vale-express.css";
 @import "../styles/theme-portal-proveedor.css";
 @import "../styles/theme-generador-oc.css";
+@import "../styles/theme-herramientas.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -179,5 +180,28 @@
 
   *::-webkit-scrollbar-corner {
     background: transparent;
+  }
+}
+@layer base {
+  /**
+   * La lista desplegada de un <select> la dibuja el SISTEMA OPERATIVO, no la
+   * pagina: los <option> heredan el color del select pero no su fondo, asi que
+   * con un tema oscuro quedan en gris claro sobre blanco y casi no se leen.
+   *
+   * Se ve en las cuatro apps -ninguna le daba color- y el sintoma es siempre el
+   * mismo: el desplegable se abre y las opciones no se distinguen. Verificado en
+   * Chrome sobre Windows con los filtros de obra y de condicion.
+   *
+   * Va escopeado a [data-app] para no tocar nada fuera de las pantallas de la
+   * suite, y toma los tokens del tema de cada app.
+   */
+  [data-app] select option {
+    background-color: var(--surface-2, var(--background));
+    color: var(--foreground);
+  }
+
+  /* Firefox pinta aparte el option deshabilitado y el placeholder. */
+  [data-app] select option:disabled {
+    color: var(--fg-subtle, var(--muted-foreground));
   }
 }

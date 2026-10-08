@@ -149,7 +149,17 @@ export async function GET(request) {
       });
     }
 
-    return Response.redirect(asset.public_url, 302);
+    // El redirect se cachea 5 minutos. Sin esto el navegador vuelve a pedirle
+    // la URL a monday cada vez que se dibuja la miniatura -dos saltos, medio
+    // segundo- aunque la foto ya este en su cache. La URL temporal de monday
+    // dura bastante mas que eso, asi que no se vence guardada.
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: asset.public_url,
+        "Cache-Control": "private, max-age=300",
+      },
+    });
   } catch (err) {
     console.error("[archivo] no se pudo resolver:", err?.message);
     return Response.json(

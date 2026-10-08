@@ -23,7 +23,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Package, Handshake, UserX, MapPin, ChevronDown, FileSignature, AlertTriangle } from "lucide-react";
+import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Package, Handshake, UserX, MapPin, ChevronDown, FileSignature, AlertTriangle, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useObrasVales, useObrasContratos } from "@/hooks/useObras";
 import { OrdenesDeCompraMaxxaBoard, ProveedoresBoard, fetchAllItems } from "@/lib/board-sdk";
@@ -36,6 +36,12 @@ import {
   puedeAprobarOc,
   puedeEmitirOc,
 } from "@/lib/oc-roles";
+import {
+  HERRAMIENTAS_APP,
+  HERRAMIENTAS_ROLES,
+  etiquetaRolHerramientas,
+} from "@/lib/herramientas-roles";
+import { appConfigDeAsignacion } from "@/lib/whitelist-appconfig";
 import { PASOS_VB, esSuperAprobador, pasoPorClave, pasosAsignados } from "@/lib/contratos-vb";
 
 const APP_LABELS = {
@@ -46,11 +52,13 @@ const APP_LABELS = {
   // de emision. La clave sigue siendo "generador-oc" para no migrar las
   // asignaciones de produccion (ver lib/oc-roles.js).
   "generador-oc": "OC Tracker",
+  [HERRAMIENTAS_APP]: "Herramientas",
 };
 const APP_ICONS = {
   "vale-express": Package,
   "portal-proveedor": Handshake,
   "generador-oc": FileSignature,
+  [HERRAMIENTAS_APP]: Wrench,
 };
 
 const APP_ROLES = {
@@ -70,6 +78,9 @@ const APP_ROLES = {
   // esta app tenia los mismos super_admin/admin que las otras dos y los tres
   // roles hacian exactamente lo mismo.
   [OC_APP]: OC_ROLES,
+  // Administrador / Oficina Tecnica / Bodeguero / Jefe de Obra. Los definio el
+  // cliente el 07-oct-2026; ver lib/herramientas-roles.js.
+  [HERRAMIENTAS_APP]: HERRAMIENTAS_ROLES,
 };
 
 // Lista unica de todos los appRol posibles (deduplicados por value - "Super
@@ -138,6 +149,7 @@ function roleColor(value) {
  */
 function etiquetaRol(app, appRol) {
   if (app === OC_APP) return etiquetaRolOc(appRol);
+  if (app === HERRAMIENTAS_APP) return etiquetaRolHerramientas(appRol);
   return APP_ROLES[app]?.find((r) => r.value === appRol)?.label ?? appRol;
 }
 
@@ -176,6 +188,7 @@ function initialsFor(text) {
  */
 function rolInicial(app) {
   if (app === OC_APP) return "comprador";
+  if (app === HERRAMIENTAS_APP) return "bodeguero";
   return APP_ROLES[app][0].value;
 }
 
@@ -590,6 +603,7 @@ function ObrasPicker({
   obras,
   etiqueta = "Obras permitidas",
   textoTodas = "Tiene acceso a todas las obras (sin restricción).",
+  nota,
 }) {
   const selected = useMemo(() => value.split(",").map((s) => s.trim()).filter(Boolean), [value]);
   const [modoRestringido, setModoRestringido] = useState(selected.length > 0);
@@ -673,6 +687,7 @@ function ObrasPicker({
       ) : (
         <p className="text-[11px] text-muted-foreground">{textoTodas}</p>
       )}
+      {nota ? <p className="mt-1 text-[11px] text-[hsl(var(--warning,38_92%_50%))]">{nota}</p> : null}
     </div>
   );
 }
@@ -1170,19 +1185,7 @@ export default function WhitelistAdminPage() {
       const asignaciones = form.asignaciones.map((a) => ({
         app: a.app,
         appRol: a.appRol,
-        appConfig:
-          a.app === "vale-express"
-            ? { obras: a.obras.split(",").map((s) => s.trim()).filter(Boolean), restrictObras: a.restrictObras }
-            : a.app === OC_APP
-              ? {
-                  mondayUserId: a.mondayUserId ? Number(a.mondayUserId) : null,
-                  apruebaCualquierOrden: a.apruebaCualquierOrden === true,
-                }
-              : {
-                  proveedorName: a.proveedorName.trim() || null,
-                  pasosContrato: a.pasosContrato ?? [],
-                  superAprobador: a.superAprobador === true,
-                },
+        appConfig: appConfigDeAsignacion(a),
       }));
 
       const payload = { email: form.email.trim(), asignaciones };
@@ -1502,10 +1505,25 @@ export default function WhitelistAdminPage() {
                       </Select>
                     </div>
 
-                    {a.app === "vale-express" && (
+                    {/* Herramientas tambien acota por obra: es lo que hace que
+                        un Jefe de Obra vea solo las suyas. Usa el mismo picker
+                        porque son las mismas 34 obras -verificado contra los
+                        tres tableros- y porque ofrecer dos listas distintas de
+                        obras para la misma persona seria confuso.
+
+                        OJO: al Bodeguero el recorte no le aplica aunque se le
+                        carguen obras. Es a pedido del cliente: necesita ver las
+                        herramientas de las otras obras para pedir prestado en
+                        vez de arrendar. Ver veTodaLaEmpresa. */}
+                    {(a.app === "vale-express" || a.app === HERRAMIENTAS_APP) && (
                       <ObrasPicker
                         value={a.obras}
                         onChange={(next) => updateAsignacion(index, { obras: next, restrictObras: next.trim().length > 0 })}
+                        nota={
+                          a.app === HERRAMIENTAS_APP && a.appRol !== "jefe_obra"
+                            ? "Este rol ve las herramientas de toda la empresa aunque se le acoten obras."
+                            : undefined
+                        }
                       />
                     )}
 
