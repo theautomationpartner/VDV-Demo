@@ -15,7 +15,8 @@
     "validar-schemas": "node scripts/validar-schemas.mjs",
     "probar-permisos-herramientas": "node scripts/probar-permisos-herramientas.mjs",
     "probar-movimientos-herramientas": "node scripts/probar-movimientos-herramientas.mjs",
-    "probar-permisos-en-vivo": "node scripts/probar-permisos-en-vivo.mjs"
+    "probar-permisos-en-vivo": "node scripts/probar-permisos-en-vivo.mjs",
+    "probar-appconfig": "node scripts/probar-appconfig-whitelist.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

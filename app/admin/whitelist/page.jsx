@@ -41,6 +41,7 @@ import {
   HERRAMIENTAS_ROLES,
   etiquetaRolHerramientas,
 } from "@/lib/herramientas-roles";
+import { appConfigDeAsignacion } from "@/lib/whitelist-appconfig";
 import { PASOS_VB, esSuperAprobador, pasoPorClave, pasosAsignados } from "@/lib/contratos-vb";
 
 const APP_LABELS = {
@@ -1184,19 +1185,7 @@ export default function WhitelistAdminPage() {
       const asignaciones = form.asignaciones.map((a) => ({
         app: a.app,
         appRol: a.appRol,
-        appConfig:
-          a.app === "vale-express"
-            ? { obras: a.obras.split(",").map((s) => s.trim()).filter(Boolean), restrictObras: a.restrictObras }
-            : a.app === OC_APP
-              ? {
-                  mondayUserId: a.mondayUserId ? Number(a.mondayUserId) : null,
-                  apruebaCualquierOrden: a.apruebaCualquierOrden === true,
-                }
-              : {
-                  proveedorName: a.proveedorName.trim() || null,
-                  pasosContrato: a.pasosContrato ?? [],
-                  superAprobador: a.superAprobador === true,
-                },
+        appConfig: appConfigDeAsignacion(a),
       }));
 
       const payload = { email: form.email.trim(), asignaciones };
