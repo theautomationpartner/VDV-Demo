@@ -182,7 +182,23 @@ export default function FichaHerramientaPage({ params }) {
 
       const filas = (historial.items || [])
         .filter((m) => String(m.idMaestro ?? "").trim() === String(id))
-        .sort((a, b) => new Date(b.fechaMovimiento ?? 0) - new Date(a.fechaMovimiento ?? 0));
+        /**
+         * Por FECHA DE CREACION, no por "fecha del movimiento".
+         *
+         * Los dos guardan el dia, asi que dos movimientos del mismo dia empatan
+         * y el orden queda librado al que devolvio monday. Eso rompia dos cosas
+         * a la vez: el mapa podia mostrar el recorrido al reves, y el detector
+         * de desfase comparaba contra el movimiento VIEJO -decia que la ficha
+         * estaba mal cuando estaba bien, y "Poner al dia" habria revertido el
+         * movimiento nuevo. Lo que vale es cual se escribio ultimo.
+         *
+         * El mismo criterio que usa ultimoMovimientoDe en el servidor.
+         */
+        .sort((a, b) => {
+          const porCreacion = new Date(b.createdAt ?? 0) - new Date(a.createdAt ?? 0);
+          if (porCreacion !== 0) return porCreacion;
+          return new Date(b.fechaMovimiento ?? 0) - new Date(a.fechaMovimiento ?? 0);
+        });
       setMovimientos(filas);
     } catch (err) {
       console.error("[HERRAMIENTAS] No se pudo traer la ficha:", err);

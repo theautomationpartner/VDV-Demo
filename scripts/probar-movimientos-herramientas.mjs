@@ -148,13 +148,13 @@ async function leerMaestro(id) {
 
 async function leerMovimientos(idMaestro) {
   const d = await mon(
-    `query{ boards(ids:["${MOVIMIENTOS}"]){ items_page(limit:200){ items{ id name
+    `query{ boards(ids:["${MOVIMIENTOS}"]){ items_page(limit:200){ items{ id name created_at
       column_values(ids:${JSON.stringify(Object.values(V))}){ id text value } } } } }`,
   );
   return d.boards[0].items_page.items
     .map((i) => {
       const porId = Object.fromEntries(i.column_values.map((c) => [c.id, textoReal(c)]));
-      const fila = { id: i.id, name: i.name };
+      const fila = { id: i.id, name: i.name, createdAt: i.created_at };
       for (const [clave, col] of Object.entries(V)) fila[clave] = porId[col] ?? null;
       return fila;
     })
@@ -684,6 +684,44 @@ async function bloqueFirma() {
   else falla("mail desconocido", "freno el movimiento");
 }
 
+// ------------------------------- 11. dos movimientos el mismo dia, en orden
+async function bloqueMismoDia() {
+  console.log("\n11. DOS MOVIMIENTOS EL MISMO DIA");
+  const id = await crearHerramienta("mismodia");
+
+  await post("movimiento", { itemId: id, accion: "salida", destino: "M388", custodio: DEL_EQUIPO, condicion: "Buena" });
+  await post("movimiento", { itemId: id, accion: "traslado", destino: "FORESTAL", custodio: OTRO_DEL_EQUIPO, condicion: "Buena" });
+
+  const movs = await leerMovimientos(id);
+  comparar("quedan los dos movimientos", movs.length, 2);
+  comparar("  los dos tienen la misma fecha", movs[0].fecha, movs[1].fecha);
+
+  // Ordenado como lo hace la ficha: por hora de creacion, no por fecha. Los dos
+  // guardan el dia, asi que ordenar por fecha empata y deja cualquiera primero.
+  const comoLaFicha = [...movs].sort((a, b) => {
+    const porCreacion = new Date(b.createdAt ?? 0) - new Date(a.createdAt ?? 0);
+    if (porCreacion !== 0) return porCreacion;
+    return new Date(b.fecha ?? 0) - new Date(a.fecha ?? 0);
+  });
+  comparar("el ultimo es el TRASLADO, no la salida", comoLaFicha[0].tipo, "Traslado");
+
+  // Y lo que importa de verdad: que el detector no invente un desfase. Si toma
+  // el movimiento viejo dice que la ficha esta mal cuando esta bien, y "Poner
+  // al dia" revertiria el traslado.
+  const h = await leerMaestro(id);
+  const desfase = desfaseConElHistorial(
+    {
+      estadoOperativo: h.estado,
+      tipoUbicacion: h.tipoUbic,
+      ubicacionActual: h.ubic,
+      custodioActual: h.custodio,
+    },
+    comoLoVeLaApp(comoLaFicha[0]),
+  );
+  if (!desfase) ok("no inventa un desfase con dos movimientos del mismo dia");
+  else falla("falso desfase", JSON.stringify(desfase.diferencias));
+}
+
 // ------------------------------------------------------------------ limpieza
 async function limpiar() {
   console.log("\nLIMPIEZA");
@@ -733,6 +771,7 @@ try {
   await bloqueFoto();
   await bloqueListado();
   await bloqueFirma();
+  await bloqueMismoDia();
 } catch (error) {
   fallas += 1;
   console.log("\nSE CORTO:", error.message.slice(0, 400));
