@@ -365,7 +365,7 @@ function ResumenActual({ herramienta, estaciones, ultimoMovimiento, verValorizac
         <DatoResumen
           icono={Hourglass}
           label={enTaller ? "En reparación hace" : "Permanencia en sitio"}
-          valor={formatoDias(dias)}
+          valor={dias === 0 ? "Llegó hoy" : formatoDias(dias)}
           nota={dias !== null && dias >= DIAS_PARA_ALERTA ? "Más de un mes" : null}
         />
         <DatoResumen icono={CalendarClock} label="Desde" valor={desde ? formatearFecha(desde) : "—"} />

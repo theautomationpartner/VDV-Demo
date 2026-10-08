@@ -407,7 +407,10 @@ export default function FichaHerramientaPage({ params }) {
             {dias !== null ? (
               <p className={`flex items-center gap-1.5 ${dias >= DIAS_PARA_ALERTA ? "text-[var(--warning)]" : ""}`}>
                 <Clock3 className="w-3.5 h-3.5 shrink-0" />
-                Lleva {formatoDias(dias).toLowerCase()} acá
+                {/* "Lleva hoy aca" no se entiende, y pasa en toda herramienta
+                    que se movio el mismo dia -que son casi todas el dia que se
+                    empieza a usar la app. */}
+                {dias === 0 ? "Llegó hoy" : `Lleva ${formatoDias(dias).toLowerCase()} acá`}
               </p>
             ) : null}
             {ultimo ? (
