@@ -5,10 +5,17 @@ import { useRouter } from "next/navigation";
 import { ControlHerramientasBoard } from "@/lib/board-sdk";
 import { Spinner } from "@/components/ui/spinner";
 import { Toaster } from "@/components/ui/sonner";
-import { Wrench, Search, RefreshCw, ChevronDown, MapPin, User, X, SlidersHorizontal } from "lucide-react";
+import { Wrench, Search, RefreshCw, ChevronDown, X, SlidersHorizontal } from "lucide-react";
 import { useSesionHerramientas } from "@/hooks/herramientas/useSesionHerramientas";
 import { leerCache, guardarCache } from "@/lib/client/cache-persistente";
-import { COLUMNAS_LISTADO, ESTADO_TONO, normalizar, coincide } from "@/lib/herramientas/inventario";
+import {
+  COLUMNAS_LISTADO,
+  ESTADO_BAJA,
+  agruparHerramientas,
+  coincide,
+  normalizar,
+} from "@/lib/herramientas/inventario";
+import { GrupoCard, HerramientaCard } from "@/components/herramientas/HerramientaCard";
 
 const herramientasBoard = new ControlHerramientasBoard();
 
@@ -30,53 +37,9 @@ const FOCUS_RING =
  */
 const TOPE = 500;
 
-function HerramientaCard({ h, onAbrir }) {
-  const tono = ESTADO_TONO[h.estadoOperativo] ?? ESTADO_TONO.default;
-  return (
-    <button
-      onClick={onAbrir}
-      className={`w-full text-left bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-[var(--radius-lg)] p-3.5 active:bg-[var(--surface-2)] transition-colors ${FOCUS_RING}`}
-    >
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-mono font-medium text-[var(--accent)] tabular-nums shrink-0">
-              {h.codigo || "sin código"}
-            </span>
-            <span
-              className="text-[10px] px-1.5 py-0.5 rounded-[var(--radius-sm)] font-medium shrink-0"
-              style={{ background: `color-mix(in hsl, ${tono} 14%, transparent)`, color: tono }}
-            >
-              {h.estadoOperativo || "sin estado"}
-            </span>
-          </div>
-          <p className="text-sm font-medium text-foreground leading-snug mb-1.5 break-words">{h.name}</p>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--fg-muted)]">
-            <span className="inline-flex items-center gap-1 min-w-0">
-              <MapPin className="w-3 h-3 shrink-0" />
-              <span className="truncate">{h.ubicacionActual || "sin ubicación"}</span>
-            </span>
-            {h.custodioActual ? (
-              <span className="inline-flex items-center gap-1 min-w-0">
-                <User className="w-3 h-3 shrink-0" />
-                <span className="truncate">{h.custodioActual}</span>
-              </span>
-            ) : null}
-          </div>
-          {h.marca || h.modelo ? (
-            <p className="mt-1.5 text-xs text-[var(--fg-subtle)] truncate">
-              {[h.marca, h.modelo].filter(Boolean).join(" · ")}
-            </p>
-          ) : null}
-        </div>
-      </div>
-    </button>
-  );
-}
-
 export default function InventarioHerramientasPage() {
   const router = useRouter();
-  const { cargando: cargandoSesion, tieneAcceso, obrasPermitidas } = useSesionHerramientas();
+  const { cargando: cargandoSesion, tieneAcceso, obrasPermitidas, verValorizacion } = useSesionHerramientas();
 
   const [loading, setLoading] = useState(true);
   const [refetching, setRefetching] = useState(false);
@@ -85,6 +48,9 @@ export default function InventarioHerramientasPage() {
   const [filtroObra, setFiltroObra] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("");
   const [filtroCategoria, setFiltroCategoria] = useState("");
+  // Arranca en el inventario vigente: las dadas de baja no son inventario, son
+  // historia, y si aparecen las primeras de la lista son las que ya no existen.
+  const [verBajas, setVerBajas] = useState(false);
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const pedidoRef = useRef(0);
 
@@ -166,19 +132,25 @@ export default function InventarioHerramientasPage() {
   const visibles = useMemo(() => {
     const termino = normalizar(busqueda);
     return filas.filter((h) => {
+      if (!verBajas && h.estadoOperativo === ESTADO_BAJA) return false;
       if (filtroObra && h.ubicacionActual !== filtroObra) return false;
       if (filtroEstado && h.estadoOperativo !== filtroEstado) return false;
       if (filtroCategoria && h.categoria !== filtroCategoria) return false;
       return coincide(h, termino);
     });
-  }, [filas, busqueda, filtroObra, filtroEstado, filtroCategoria]);
+  }, [filas, busqueda, verBajas, filtroObra, filtroEstado, filtroCategoria]);
 
-  const hayFiltros = Boolean(filtroObra || filtroEstado || filtroCategoria);
+  // Las unidades identicas en el mismo lugar se muestran en una sola fila.
+  const grupos = useMemo(() => agruparHerramientas(visibles), [visibles]);
+  const agrupados = grupos.filter((g) => g.unidades.length > 1).length;
+
+  const hayFiltros = Boolean(filtroObra || filtroEstado || filtroCategoria || verBajas);
 
   const limpiarFiltros = () => {
     setFiltroObra("");
     setFiltroEstado("");
     setFiltroCategoria("");
+    setVerBajas(false);
   };
 
   if (cargandoSesion || loading) {
@@ -208,16 +180,17 @@ export default function InventarioHerramientasPage() {
       <Toaster richColors position="top-center" />
 
       <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-[var(--border-subtle)]">
-        <div className="px-4 py-3 flex items-center gap-3">
+        <div className="px-4 py-3 flex items-center gap-3 max-w-5xl mx-auto w-full">
           <div className="w-9 h-9 rounded-[var(--radius-md)] bg-[color-mix(in_hsl,var(--accent)_14%,transparent)] flex items-center justify-center shrink-0">
             <Wrench className="w-[18px] h-[18px] text-[var(--accent)]" />
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-[15px] font-semibold tracking-[-0.01em]">Inventario de Herramientas</h1>
             <p className="text-xs text-[var(--fg-subtle)] tabular-nums">
-              {visibles.length === filas.length
-                ? `${filas.length} herramienta${filas.length !== 1 ? "s" : ""}`
-                : `${visibles.length} de ${filas.length}`}
+              {visibles.length} unidad{visibles.length !== 1 ? "es" : ""} en {grupos.length} modelo
+              {grupos.length !== 1 ? "s" : ""}
+              {agrupados ? ` · ${agrupados} agrupado${agrupados !== 1 ? "s" : ""}` : ""}
+              {verBajas ? "" : " · sin bajas"}
             </p>
           </div>
           <button
@@ -230,7 +203,7 @@ export default function InventarioHerramientasPage() {
           </button>
         </div>
 
-        <div className="px-4 pb-3 space-y-2">
+        <div className="px-4 pb-3 space-y-2 max-w-5xl mx-auto w-full">
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--fg-subtle)] pointer-events-none" />
@@ -273,6 +246,16 @@ export default function InventarioHerramientasPage() {
               <Desplegable label="Obra" value={filtroObra} onChange={setFiltroObra} opciones={obras} todas="Todas las obras" />
               <Desplegable label="Estado" value={filtroEstado} onChange={setFiltroEstado} opciones={estados} todas="Todos los estados" />
               <Desplegable label="Categoría" value={filtroCategoria} onChange={setFiltroCategoria} opciones={categorias} todas="Todas las categorías" />
+              <label className="sm:col-span-3 flex items-center gap-2 px-1 text-sm text-[var(--fg-muted)] cursor-pointer">
+                <input
+                  id="ver-bajas"
+                  type="checkbox"
+                  checked={verBajas}
+                  onChange={(e) => setVerBajas(e.target.checked)}
+                  className="h-4 w-4 accent-[var(--accent)]"
+                />
+                Mostrar también las dadas de baja
+              </label>
               {hayFiltros ? (
                 <button
                   onClick={limpiarFiltros}
@@ -299,10 +282,24 @@ export default function InventarioHerramientasPage() {
               </p>
             </div>
           ) : (
-            <div className="space-y-2.5">
-              {visibles.map((h) => (
-                <HerramientaCard key={h.id} h={h} onAbrir={() => router.push(`/herramientas/${h.id}`)} />
-              ))}
+            <div className="space-y-2.5 max-w-5xl mx-auto">
+              {grupos.map((g) =>
+                g.unidades.length > 1 ? (
+                  <GrupoCard
+                    key={g.clave}
+                    grupo={g}
+                    verValor={verValorizacion}
+                    onAbrir={(u) => router.push(`/herramientas/${u.id}`)}
+                  />
+                ) : (
+                  <HerramientaCard
+                    key={g.unidades[0].id}
+                    h={g.unidades[0]}
+                    verValor={verValorizacion}
+                    onAbrir={() => router.push(`/herramientas/${g.unidades[0].id}`)}
+                  />
+                ),
+              )}
             </div>
           )}
         </div>
