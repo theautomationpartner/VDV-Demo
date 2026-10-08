@@ -22,6 +22,7 @@ import { useSesionHerramientas } from "@/hooks/herramientas/useSesionHerramienta
 import { useColumnOptions } from "@/hooks/useColumnOptions";
 import { leerCache } from "@/lib/client/cache-persistente";
 import { AccionesHerramienta } from "@/components/herramientas/AccionesHerramienta";
+import { HistorialHerramienta } from "@/components/herramientas/HistorialHerramienta";
 import { RECEPCION_PENDIENTE } from "@/lib/herramientas/dominio";
 import {
   DIAS_PARA_ALERTA,
@@ -68,14 +69,6 @@ const COLUMNAS_MOVIMIENTO = [
  */
 const TOPE_MOVIMIENTOS = 200;
 
-/** Los atajos del historial. Son los mismos que el cliente tiene en su app. */
-const FILTROS_HISTORIAL = [
-  { clave: "todos", label: "Todos" },
-  { clave: "obras", label: "Obras" },
-  { clave: "bodega", label: "Bodega" },
-  { clave: "reparaciones", label: "Reparaciones" },
-  { clave: "incidencias", label: "Incidencias" },
-];
 
 function Dato({ label, children }) {
   if (children === null || children === undefined || children === "") return null;
@@ -84,58 +77,6 @@ function Dato({ label, children }) {
       <dt className="text-[11px] uppercase tracking-wide text-[var(--fg-subtle)] mb-0.5">{label}</dt>
       <dd className="text-sm text-foreground break-words">{children}</dd>
     </div>
-  );
-}
-
-function MovimientoFila({ m, puedeConfirmar, onConfirmar }) {
-  const recorrido = [m.origen, m.destino].filter(Boolean).join(" → ");
-  const pendiente = m.recepcion === RECEPCION_PENDIENTE;
-
-  return (
-    <li className="relative pl-5 pb-4 last:pb-0">
-      <span
-        className={`absolute left-0 top-1.5 w-2 h-2 rounded-full ${pendiente ? "bg-[var(--warning)]" : "bg-[var(--accent)]"}`}
-        aria-hidden="true"
-      />
-      <span className="absolute left-[3px] top-4 bottom-0 w-px bg-[var(--border-subtle)] last:hidden" aria-hidden="true" />
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <span className="text-sm font-medium text-foreground">{m.tipoMovimiento || "Movimiento"}</span>
-        <span className="text-xs text-[var(--fg-subtle)] tabular-nums">{formatearFecha(m.fechaMovimiento)}</span>
-      </div>
-      {recorrido ? <p className="text-xs text-[var(--fg-muted)] mt-0.5">{recorrido}</p> : null}
-      {m.recibeCustodio ? (
-        <p className="text-xs text-[var(--fg-muted)] mt-0.5">Recibe: {m.recibeCustodio}</p>
-      ) : null}
-      {m.observaciones ? (
-        <p className="text-xs text-[var(--fg-subtle)] mt-1 break-words">{m.observaciones}</p>
-      ) : null}
-
-      {/* El acuse de recibo que pidio el cliente: sin esto una herramienta
-          figura en una obra donde capaz nunca la vieron llegar. */}
-      {pendiente ? (
-        <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1 text-xs text-[var(--warning)]">
-            <Clock3 className="h-3 w-3" />
-            Falta confirmar que llegó
-          </span>
-          {puedeConfirmar ? (
-            <button
-              onClick={() => onConfirmar(m.id)}
-              className={`inline-flex min-h-8 items-center gap-1 rounded-[var(--radius-md)] border border-[var(--accent)] px-2 text-xs font-medium text-[var(--accent)] ${FOCUS_RING}`}
-            >
-              <Check className="h-3 w-3" />
-              Confirmar recepción
-            </button>
-          ) : null}
-        </div>
-      ) : m.confirmadaPor || m.fechaConfirmacion ? (
-        <p className="mt-1 inline-flex items-center gap-1 text-xs text-[var(--success)]">
-          <Check className="h-3 w-3" />
-          Recibida{m.confirmadaPor ? ` por ${m.confirmadaPor}` : ""}
-          {m.fechaConfirmacion ? ` el ${formatearFecha(m.fechaConfirmacion)}` : ""}
-        </p>
-      ) : null}
-    </li>
   );
 }
 
@@ -165,10 +106,6 @@ export default function FichaHerramientaPage({ params }) {
   // cache el campo sigue siendo texto libre, que es como el cliente lo quiere
   // para un maestro sin usuario. Se resuelve al cargar la ficha (ver `cargar`).
   const [custodios, setCustodios] = useState([]);
-  // Que parte del historial se mira. El cliente tiene estos mismos atajos en su
-  // app, y sirven: en una herramienta con 40 movimientos, "solo reparaciones"
-  // es la pregunta real.
-  const [filtroHistorial, setFiltroHistorial] = useState("todos");
 
   const cargar = useCallback(async () => {
     setRefetching(true);
@@ -294,14 +231,6 @@ export default function FichaHerramientaPage({ params }) {
     : null;
 
   const ultimo = movimientos[0] ?? null;
-  const visibles = movimientos.filter((m) => {
-    const tipo = m.tipoMovimiento ?? "";
-    if (filtroHistorial === "obras") return tipo === "Salida" || tipo === "Traslado";
-    if (filtroHistorial === "bodega") return tipo === "Devolución";
-    if (filtroHistorial === "reparaciones") return tipo.includes("reparación");
-    if (filtroHistorial === "incidencias") return tipo === "Pérdida" || tipo === "Baja";
-    return true;
-  });
   const pendientes = movimientos.filter((m) => m.recepcion === RECEPCION_PENDIENTE).length;
 
   return (
@@ -478,38 +407,13 @@ export default function FichaHerramientaPage({ params }) {
               <span className="text-xs font-normal text-[var(--fg-subtle)] tabular-nums">({movimientos.length})</span>
             ) : null}
           </h2>
-
-          {movimientos.length > 1 ? (
-            <div className="mb-3 flex flex-wrap gap-1.5">
-              {FILTROS_HISTORIAL.map((f) => (
-                <button
-                  key={f.clave}
-                  onClick={() => setFiltroHistorial(f.clave)}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${FOCUS_RING} ${
-                    filtroHistorial === f.clave
-                      ? "border-[var(--accent)] bg-[color-mix(in_hsl,var(--accent)_14%,transparent)] text-[var(--accent)]"
-                      : "border-[var(--border-subtle)] text-[var(--fg-muted)]"
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          {visibles.length === 0 ? (
-            <p className="text-sm text-[var(--fg-muted)]">
-              {movimientos.length === 0
-                ? "Esta herramienta todavía no tiene movimientos registrados."
-                : "No hay movimientos de ese tipo."}
-            </p>
-          ) : (
-            <ol className="mt-1">
-              {visibles.map((m) => (
-                <MovimientoFila key={m.id} m={m} puedeConfirmar={puedeModificar} onConfirmar={confirmar} />
-              ))}
-            </ol>
-          )}
+          {/* Tres formas de mirar lo mismo, como en la app del cliente: el mapa
+              del recorrido, la linea de tiempo y la lista con el detalle. */}
+          <HistorialHerramienta
+            movimientos={movimientos}
+            puedeConfirmar={puedeModificar}
+            onConfirmar={confirmar}
+          />
         </section>
 
         {srcFoto && fotoRota ? (
