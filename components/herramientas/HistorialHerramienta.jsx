@@ -1,8 +1,31 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Warehouse, HardHat, Wrench, AlertTriangle, Clock3, Repeat2, ChevronDown, ChevronUp, Check } from "lucide-react";
-import { fechaCorta, formatearFecha } from "@/lib/herramientas/inventario";
+import {
+  Warehouse,
+  HardHat,
+  Wrench,
+  AlertTriangle,
+  Clock3,
+  Repeat2,
+  ChevronDown,
+  ChevronUp,
+  Check,
+  MapPin,
+  User,
+  Hourglass,
+  CalendarClock,
+  DollarSign,
+  ArrowRightLeft,
+} from "lucide-react";
+import {
+  DIAS_PARA_ALERTA,
+  diasDesde,
+  fechaCorta,
+  formatearFecha,
+  formatearMonto,
+  formatoDias,
+} from "@/lib/herramientas/inventario";
 import { RECEPCION_PENDIENTE } from "@/lib/herramientas/dominio";
 import {
   FILTROS,
@@ -26,6 +49,7 @@ const COLOR_LUGAR = {
 };
 
 const VISTAS = [
+  { clave: "detalles", label: "Detalles" },
   { clave: "mapa", label: "Mapa" },
   { clave: "linea", label: "Línea de tiempo" },
   { clave: "lista", label: "Lista" },
@@ -155,7 +179,11 @@ function Mapa({ movimientos, puedeConfirmar, onConfirmar }) {
   }, [movimientos]);
 
   if (estaciones.length === 0) {
-    return <p className="py-8 text-center text-sm text-[var(--fg-muted)]">No hay movimientos de ese tipo.</p>;
+    return (
+      <p className="py-8 text-center text-sm text-[var(--fg-muted)]">
+        {movimientos.length === 0 ? "Todavía no hay movimientos registrados." : "No hay movimientos de ese tipo."}
+      </p>
+    );
   }
 
   const idActual = estaciones[estaciones.length - 1]?.id;
@@ -299,17 +327,112 @@ function Lista({ movimientos, puedeConfirmar, onConfirmar }) {
  * el mapa "por donde anduvo", la linea "que paso y cuando", la lista "los datos
  * de cada movimiento".
  */
-export function HistorialHerramienta({ movimientos, puedeConfirmar, onConfirmar }) {
+
+function DatoResumen({ icono: Icono, label, valor, nota }) {
+  return (
+    <div className="min-w-0">
+      <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-[var(--fg-subtle)]">
+        <Icono className="h-3 w-3 shrink-0" aria-hidden="true" />
+        {label}
+      </p>
+      <p className="mt-0.5 break-words text-sm font-semibold text-foreground">{valor}</p>
+      {nota ? <p className="text-[11px] font-normal text-[var(--warning)]">{nota}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * Lo primero que se lee: donde esta, con quien, cuanto lleva, desde cuando,
+ * cuanto vale y que paso ultimo. Es el mismo bloque que la app del cliente
+ * tiene arriba del mapa.
+ */
+function ResumenActual({ herramienta, estaciones, ultimoMovimiento, verValorizacion }) {
+  const h = herramienta;
+  const ultima = estaciones[estaciones.length - 1];
+  const desde = ultima?.desde ?? (ultimoMovimiento?.fechaMovimiento ? new Date(ultimoMovimiento.fechaMovimiento) : null);
+  const dias = diasDesde(desde);
+  const enTaller = h.estadoOperativo === "EN REPARACIÓN";
+
+  const ultimo = ultimoMovimiento
+    ? `${ultimoMovimiento.tipoMovimiento ?? "Movimiento"}${ultimoMovimiento.origen ? ` desde ${ultimoMovimiento.origen}` : ""}`
+    : "Sin movimientos registrados";
+
+  return (
+    <div className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-4">
+      <div className={`grid grid-cols-2 gap-4 sm:grid-cols-3 ${verValorizacion ? "lg:grid-cols-6" : "lg:grid-cols-5"}`}>
+        <DatoResumen icono={MapPin} label="Ubicación actual" valor={h.ubicacionActual || "—"} />
+        <DatoResumen icono={User} label="Custodio" valor={h.custodioActual || "Sin custodio"} />
+        <DatoResumen
+          icono={Hourglass}
+          label={enTaller ? "En reparación hace" : "Permanencia en sitio"}
+          valor={formatoDias(dias)}
+          nota={dias !== null && dias >= DIAS_PARA_ALERTA ? "Más de un mes" : null}
+        />
+        <DatoResumen icono={CalendarClock} label="Desde" valor={desde ? formatearFecha(desde) : "—"} />
+        {verValorizacion ? (
+          <DatoResumen
+            icono={DollarSign}
+            label="Valor referencial"
+            valor={h.valorCompra > 0 ? formatearMonto(h.valorCompra) : "—"}
+          />
+        ) : null}
+        <DatoResumen icono={ArrowRightLeft} label="Último movimiento" valor={ultimo} />
+      </div>
+      {h.estadoOperativo ? (
+        <p className="mt-3 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--fg-muted)]">
+          Estado operativo: <span className="font-semibold text-foreground">{h.estadoOperativo}</span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function Detalle({ label, children }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-xs text-[var(--fg-subtle)]">{label}</p>
+      <p className="text-sm font-medium text-foreground break-words">{children || "—"}</p>
+    </div>
+  );
+}
+
+function Detalles({ herramienta, verValorizacion }) {
+  const h = herramienta;
+  return (
+    <div className="grid gap-4 rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-4 sm:grid-cols-2">
+      <Detalle label="Código">
+        <span className="font-mono">{h.codigo}</span>
+      </Detalle>
+      <Detalle label="Marca">{h.marca}</Detalle>
+      <Detalle label="Modelo">{h.modelo}</Detalle>
+      <Detalle label="N° de serie">{h.numeroSerie}</Detalle>
+      <Detalle label="Categoría">{h.categoria}</Detalle>
+      <Detalle label="Fuente de energía">{h.fuenteEnergia}</Detalle>
+      <Detalle label="Condición física">{h.condicionFisica}</Detalle>
+      <Detalle label="Tipo de ubicación">{h.tipoUbicacion}</Detalle>
+      <Detalle label="Última salida">{formatearFecha(h.fechaUltimaSalida)}</Detalle>
+      <Detalle label="Última devolución">{formatearFecha(h.fechaUltimaDevolucion)}</Detalle>
+      <Detalle label="Próximo mantenimiento">{formatearFecha(h.proximoMantenimiento)}</Detalle>
+      {/* Solo para Administrador y Oficina Tecnica: el servidor no manda estas
+          dos columnas al resto. */}
+      {verValorizacion ? <Detalle label="Valor referencial">{formatearMonto(h.valorCompra)}</Detalle> : null}
+      {verValorizacion ? <Detalle label="Fecha de compra">{formatearFecha(h.fechaCompra)}</Detalle> : null}
+      {h.observaciones ? (
+        <div className="sm:col-span-2">
+          <p className="text-xs text-[var(--fg-subtle)]">Observaciones</p>
+          <p className="text-sm text-foreground break-words whitespace-pre-wrap">{h.observaciones}</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function HistorialHerramienta({ herramienta, movimientos, puedeConfirmar, onConfirmar, verValorizacion }) {
   const [vista, setVista] = useState("mapa");
   const [filtro, setFiltro] = useState("todos");
 
   const visibles = useMemo(() => filtrarMovimientos(movimientos, filtro), [movimientos, filtro]);
-
-  if (movimientos.length === 0) {
-    return (
-      <p className="text-sm text-[var(--fg-muted)]">Esta herramienta todavía no tiene movimientos registrados.</p>
-    );
-  }
+  const estaciones = useMemo(() => construirRecorrido(visibles), [visibles]);
 
   const props = { movimientos: visibles, puedeConfirmar, onConfirmar };
 
@@ -331,6 +454,15 @@ export function HistorialHerramienta({ movimientos, puedeConfirmar, onConfirmar 
         ))}
       </div>
 
+      <ResumenActual
+        herramienta={herramienta}
+        estaciones={estaciones}
+        ultimoMovimiento={movimientos[0]}
+        verValorizacion={verValorizacion}
+      />
+
+      {/* Los atajos solo tienen sentido sobre el historial, no sobre Detalles. */}
+      {vista === "detalles" ? null : (
       <div className="flex flex-wrap gap-1.5">
         {FILTROS.map((f) => (
           <button
@@ -346,7 +478,9 @@ export function HistorialHerramienta({ movimientos, puedeConfirmar, onConfirmar 
           </button>
         ))}
       </div>
+      )}
 
+      {vista === "detalles" ? <Detalles herramienta={herramienta} verValorizacion={verValorizacion} /> : null}
       {vista === "mapa" ? <Mapa {...props} /> : null}
       {vista === "linea" ? <LineaDeTiempo {...props} /> : null}
       {vista === "lista" ? <Lista {...props} /> : null}

@@ -22,6 +22,7 @@ import { useSesionHerramientas } from "@/hooks/herramientas/useSesionHerramienta
 import { useColumnOptions } from "@/hooks/useColumnOptions";
 import { AccionesHerramienta } from "@/components/herramientas/AccionesHerramienta";
 import { HistorialHerramienta } from "@/components/herramientas/HistorialHerramienta";
+import { FotosHerramienta } from "@/components/herramientas/FotosHerramienta";
 import { RECEPCION_PENDIENTE } from "@/lib/herramientas/dominio";
 import {
   DIAS_PARA_ALERTA,
@@ -91,7 +92,6 @@ export default function FichaHerramientaPage({ params }) {
   const [herramienta, setHerramienta] = useState(null);
   const [movimientos, setMovimientos] = useState([]);
   const [error, setError] = useState(null);
-  const [fotoRota, setFotoRota] = useState(false);
 
   // Las obras salen de los labels reales de la columna, no del inventario: hay
   // que poder mandar una herramienta a una obra donde todavia no hay ninguna.
@@ -248,10 +248,6 @@ export default function FichaHerramientaPage({ params }) {
   const tono = ESTADO_TONO[h.estadoOperativo] ?? ESTADO_TONO.default;
   const dias = permanenciaDe(h);
   const vencida = mantencionVencida(h);
-  const srcFoto = h.foto
-    ? `/api/monday/archivo?boardKey=ControlHerramientasBoard&itemId=${encodeURIComponent(id)}&columna=foto`
-    : null;
-
   const ultimo = movimientos[0] ?? null;
   const pendientes = movimientos.filter((m) => m.recepcion === RECEPCION_PENDIENTE).length;
 
@@ -366,86 +362,22 @@ export default function FichaHerramientaPage({ params }) {
           ) : null}
         </section>
 
-        {srcFoto && !fotoRota ? (
-          <section className="bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-[var(--radius-lg)] overflow-hidden">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={srcFoto}
-              alt={`Foto de ${h.name}`}
-              onError={() => setFotoRota(true)}
-              className="w-full max-h-[45vh] object-contain bg-[var(--surface-2)]"
-            />
-          </section>
-        ) : null}
+        <FotosHerramienta
+          itemId={id}
+          tieneFoto={Boolean(h.foto)}
+          puedeSubir={puedeModificar}
+          onSubida={cargar}
+        />
 
-        <section className="bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-[var(--radius-lg)] p-4">
-          <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-            <Wrench className="w-4 h-4 text-[var(--accent)]" />
-            Datos de la herramienta
-          </h2>
-          {h.marca || h.modelo || h.numeroSerie || h.fuenteEnergia || h.fechaUltimaSalida ? (
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
-              <Dato label="Marca">{h.marca}</Dato>
-              <Dato label="Modelo">{h.modelo}</Dato>
-              <Dato label="N° de serie">{h.numeroSerie}</Dato>
-              <Dato label="Fuente de energía">{h.fuenteEnergia}</Dato>
-              <Dato label="Última salida">{formatearFecha(h.fechaUltimaSalida)}</Dato>
-              <Dato label="Última devolución">{formatearFecha(h.fechaUltimaDevolucion)}</Dato>
-              <Dato label="Próximo mantenimiento">{formatearFecha(h.proximoMantenimiento)}</Dato>
-            </dl>
-          ) : (
-            <p className="text-sm text-[var(--fg-muted)]">
-              Esta herramienta todavía no tiene cargados marca, modelo ni número de serie.
-            </p>
-          )}
-          {h.observaciones ? (
-            <div className="mt-4 pt-3 border-t border-[var(--border-subtle)]">
-              <p className="text-[11px] uppercase tracking-wide text-[var(--fg-subtle)] mb-1">Observaciones</p>
-              <p className="text-sm text-foreground break-words whitespace-pre-wrap">{h.observaciones}</p>
-            </div>
-          ) : null}
-        </section>
-
-        {/* Solo para Administrador y Oficina Tecnica: es para contabilidad y
-            seguros. El servidor no manda estas columnas al resto. */}
-        {verValorizacion && (h.valorCompra || h.fechaCompra) ? (
-          <section className="bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-[var(--radius-lg)] p-4">
-            <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-              <CircleDollarSign className="w-4 h-4 text-[var(--chart-3)]" />
-              Valorización
-            </h2>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <Dato label="Valor de compra">
-                <span className="tabular-nums">{formatearMonto(h.valorCompra)}</span>
-              </Dato>
-              <Dato label="Fecha de compra">{formatearFecha(h.fechaCompra)}</Dato>
-            </dl>
-          </section>
-        ) : null}
-
-        <section className="bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-[var(--radius-lg)] p-4">
-          <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-            <History className="w-4 h-4 text-[var(--accent)]" />
-            Historial
-            {movimientos.length ? (
-              <span className="text-xs font-normal text-[var(--fg-subtle)] tabular-nums">({movimientos.length})</span>
-            ) : null}
-          </h2>
-          {/* Tres formas de mirar lo mismo, como en la app del cliente: el mapa
-              del recorrido, la linea de tiempo y la lista con el detalle. */}
-          <HistorialHerramienta
-            movimientos={movimientos}
-            puedeConfirmar={puedeModificar}
-            onConfirmar={confirmar}
-          />
-        </section>
-
-        {srcFoto && fotoRota ? (
-          <p className="text-center text-xs text-[var(--fg-subtle)] inline-flex items-center justify-center gap-1.5 w-full">
-            <ImageIcon className="w-3.5 h-3.5" />
-            No se pudo mostrar la foto de esta herramienta.
-          </p>
-        ) : null}
+        {/* Detalles y las tres formas de mirar el historial, como en la app del
+            cliente: el mapa del recorrido, la linea de tiempo y la lista. */}
+        <HistorialHerramienta
+          herramienta={h}
+          movimientos={movimientos}
+          puedeConfirmar={puedeModificar}
+          onConfirmar={confirmar}
+          verValorizacion={verValorizacion}
+        />
       </main>
     </div>
   );

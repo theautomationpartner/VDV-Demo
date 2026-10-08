@@ -46,11 +46,8 @@ export default function InventarioHerramientasPage() {
   const [filas, setFilas] = useState([]);
   const [busqueda, setBusqueda] = useState("");
   const [filtroObra, setFiltroObra] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("vigente");
   const [filtroCategoria, setFiltroCategoria] = useState("");
-  // Arranca en el inventario vigente: las dadas de baja no son inventario, son
-  // historia, y si aparecen las primeras de la lista son las que ya no existen.
-  const [verBajas, setVerBajas] = useState(false);
   const pedidoRef = useRef(0);
 
   /**
@@ -135,25 +132,27 @@ export default function InventarioHerramientasPage() {
   const visibles = useMemo(() => {
     const termino = normalizar(busqueda);
     return filas.filter((h) => {
-      if (!verBajas && h.estadoOperativo === ESTADO_BAJA) return false;
+      // "vigente" es el valor por defecto: las dadas de baja no son inventario,
+      // son historia, y si aparecen las primeras de la lista son justo las que
+      // ya no existen. Se ven eligiendo "Todas" o "DADA DE BAJA".
+      if (filtroEstado === "vigente" && h.estadoOperativo === ESTADO_BAJA) return false;
+      if (filtroEstado !== "vigente" && filtroEstado !== "todas" && h.estadoOperativo !== filtroEstado) return false;
       if (filtroObra && h.ubicacionActual !== filtroObra) return false;
-      if (filtroEstado && h.estadoOperativo !== filtroEstado) return false;
       if (filtroCategoria && h.categoria !== filtroCategoria) return false;
       return coincide(h, termino);
     });
-  }, [filas, busqueda, verBajas, filtroObra, filtroEstado, filtroCategoria]);
+  }, [filas, busqueda, filtroObra, filtroEstado, filtroCategoria]);
 
   // Las unidades identicas en el mismo lugar se muestran en una sola fila.
   const grupos = useMemo(() => agruparHerramientas(visibles), [visibles]);
   const agrupados = grupos.filter((g) => g.unidades.length > 1).length;
 
-  const hayFiltros = Boolean(filtroObra || filtroEstado || filtroCategoria || verBajas);
+  const hayFiltros = Boolean(filtroObra || filtroCategoria) || filtroEstado !== "vigente";
 
   const limpiarFiltros = () => {
     setFiltroObra("");
-    setFiltroEstado("");
+    setFiltroEstado("vigente");
     setFiltroCategoria("");
-    setVerBajas(false);
   };
 
   if (cargandoSesion || loading) {
@@ -193,7 +192,7 @@ export default function InventarioHerramientasPage() {
               {visibles.length} unidad{visibles.length !== 1 ? "es" : ""} en {grupos.length} modelo
               {grupos.length !== 1 ? "s" : ""}
               {agrupados ? ` · ${agrupados} agrupado${agrupados !== 1 ? "s" : ""}` : ""}
-              {verBajas ? "" : " · sin bajas"}
+              {filtroEstado === "vigente" ? " · sin bajas" : ""}
             </p>
           </div>
           <button
@@ -234,7 +233,24 @@ export default function InventarioHerramientasPage() {
               estaban. En el telefono quedan de a dos por fila. */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <Desplegable id="filtro-obra" label="Obra" value={filtroObra} onChange={setFiltroObra} opciones={obras} todas="Todas las obras" />
-            <Desplegable id="filtro-estado" label="Estado" value={filtroEstado} onChange={setFiltroEstado} opciones={estados} todas="Todos los estados" />
+            <div className="relative">
+              <select
+                id="filtro-estado"
+                value={filtroEstado}
+                onChange={(e) => setFiltroEstado(e.target.value)}
+                className="w-full h-11 px-3 pr-9 text-sm bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors appearance-none cursor-pointer"
+                aria-label="Estado"
+              >
+                <option value="vigente">Inventario vigente (sin bajas)</option>
+                <option value="todas">Todas, incluidas las bajas</option>
+                {estados.map((e) => (
+                  <option key={e} value={e}>
+                    {e}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--fg-subtle)] pointer-events-none" />
+            </div>
             <Desplegable
               id="filtro-categoria"
               label="Categoría"
@@ -246,26 +262,14 @@ export default function InventarioHerramientasPage() {
             />
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <label className="flex items-center gap-2 text-sm text-[var(--fg-muted)] cursor-pointer">
-              <input
-                id="ver-bajas"
-                type="checkbox"
-                checked={verBajas}
-                onChange={(e) => setVerBajas(e.target.checked)}
-                className="h-4 w-4 accent-[var(--accent)]"
-              />
-              Mostrar también las dadas de baja
-            </label>
-            {hayFiltros ? (
-              <button
-                onClick={limpiarFiltros}
-                className={`h-9 px-3 text-sm text-[var(--fg-muted)] active:text-foreground rounded-[var(--radius-md)] border border-[var(--border-subtle)] ${FOCUS_RING}`}
-              >
-                Limpiar filtros
-              </button>
-            ) : null}
-          </div>
+          {hayFiltros ? (
+            <button
+              onClick={limpiarFiltros}
+              className={`h-9 px-3 text-sm text-[var(--fg-muted)] active:text-foreground rounded-[var(--radius-md)] border border-[var(--border-subtle)] ${FOCUS_RING}`}
+            >
+              Limpiar filtros
+            </button>
+          ) : null}
         </div>
       </header>
 
