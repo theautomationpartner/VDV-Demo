@@ -71,6 +71,14 @@ export function AccionesHerramienta({ herramienta, obras, custodiosConocidos, on
 
       if (!respuesta.ok) {
         toast.error(json.error || "No se pudo registrar el movimiento.");
+        // 409 es "alguien la movio mientras tenias esto abierto". La ficha en
+        // pantalla quedo mintiendo, asi que se cierra el dialogo y se recarga
+        // sola: decirle a alguien "recarga" y dejarle el formulario viejo
+        // delante es pedirle que arregle algo que podemos arreglar nosotros.
+        if (respuesta.status === 409) {
+          setAccion(null);
+          onHecho?.();
+        }
         return;
       }
       if (json.maestroOk === false) {
