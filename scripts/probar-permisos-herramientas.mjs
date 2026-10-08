@@ -98,5 +98,24 @@ caso("fila sin obra se descarta", () =>
     0,
   ));
 
+// El mismo filtro que ahora corre sobre la ficha de UNA herramienta, no solo
+// sobre el listado: sin esto alguien con obras restringidas abria la ficha de
+// una herramienta ajena poniendo su id en la URL.
+console.log("\nFICHA SUELTA - la obra tambien se verifica al abrir una herramienta");
+caso("Jefe de Obra de M388 no puede abrir una de FORESTAL", () =>
+  assert.equal(
+    filtrarPorObrasPermitidas(sesion("herramientas", "jefe_obra", soloM388), "ControlHerramientasBoard", [
+      { id: "9", ubicacionActual: "FORESTAL" },
+    ]).length,
+    0,
+  ));
+caso("pero si una de su obra", () =>
+  assert.equal(
+    filtrarPorObrasPermitidas(sesion("herramientas", "jefe_obra", soloM388), "ControlHerramientasBoard", [
+      { id: "9", ubicacionActual: "M388" },
+    ]).length,
+    1,
+  ));
+
 console.log(fallas ? `\n>>> ${fallas} FALLAS` : "\n>>> todo pasa");
 process.exit(fallas ? 1 : 0);

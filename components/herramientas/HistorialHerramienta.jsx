@@ -43,7 +43,7 @@ function Recepcion({ m, puedeConfirmar, onConfirmar }) {
         {puedeConfirmar ? (
           <button
             onClick={() => onConfirmar(m.id)}
-            className={`inline-flex min-h-7 items-center gap-1 rounded-[var(--radius-md)] border border-[var(--accent)] px-2 text-xs font-medium text-[var(--accent)] ${FOCUS_RING}`}
+            className={`inline-flex min-h-9 items-center gap-1 rounded-[var(--radius-md)] border border-[var(--accent)] px-2.5 text-xs font-medium text-[var(--accent)] ${FOCUS_RING}`}
           >
             <Check className="h-3 w-3" />
             Confirmar
@@ -320,7 +320,7 @@ export function HistorialHerramienta({ movimientos, puedeConfirmar, onConfirmar 
           <button
             key={v.clave}
             onClick={() => setVista(v.clave)}
-            className={`rounded-[var(--radius-md)] px-3 py-1.5 text-xs font-medium transition-colors ${FOCUS_RING} ${
+            className={`min-h-9 rounded-[var(--radius-md)] px-3 text-xs font-medium transition-colors ${FOCUS_RING} ${
               vista === v.clave
                 ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
                 : "bg-[var(--surface-2)] text-[var(--fg-muted)]"
@@ -336,7 +336,7 @@ export function HistorialHerramienta({ movimientos, puedeConfirmar, onConfirmar 
           <button
             key={f.clave}
             onClick={() => setFiltro(f.clave)}
-            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${FOCUS_RING} ${
+            className={`min-h-9 rounded-full border px-3 text-xs font-medium transition-colors ${FOCUS_RING} ${
               filtro === f.clave
                 ? "border-[var(--accent)] bg-[color-mix(in_hsl,var(--accent)_14%,transparent)] text-[var(--accent)]"
                 : "border-[var(--border-subtle)] text-[var(--fg-muted)]"

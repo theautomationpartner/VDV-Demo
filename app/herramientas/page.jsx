@@ -233,9 +233,10 @@ export default function InventarioHerramientasPage() {
               un monitor sobra lugar, y esconderlos hacia que nadie supiera que
               estaban. En el telefono quedan de a dos por fila. */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            <Desplegable label="Obra" value={filtroObra} onChange={setFiltroObra} opciones={obras} todas="Todas las obras" />
-            <Desplegable label="Estado" value={filtroEstado} onChange={setFiltroEstado} opciones={estados} todas="Todos los estados" />
+            <Desplegable id="filtro-obra" label="Obra" value={filtroObra} onChange={setFiltroObra} opciones={obras} todas="Todas las obras" />
+            <Desplegable id="filtro-estado" label="Estado" value={filtroEstado} onChange={setFiltroEstado} opciones={estados} todas="Todos los estados" />
             <Desplegable
+              id="filtro-categoria"
               label="Categoría"
               value={filtroCategoria}
               onChange={setFiltroCategoria}
@@ -307,10 +308,11 @@ export default function InventarioHerramientasPage() {
   );
 }
 
-function Desplegable({ label, value, onChange, opciones, todas, className = "" }) {
+function Desplegable({ id, label, value, onChange, opciones, todas, className = "" }) {
   return (
     <div className={`relative ${className}`}>
       <select
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-full h-11 px-3 pr-9 text-sm bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-foreground focus:border-[var(--accent)] focus:ring-1 focus:ring-[color-mix(in_hsl,var(--accent)_30%,transparent)] focus:outline-none transition-colors appearance-none cursor-pointer"

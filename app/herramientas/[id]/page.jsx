@@ -293,14 +293,16 @@ export default function FichaHerramientaPage({ params }) {
             ) : null}
           </div>
 
-          <p className="mt-3 flex items-center gap-1.5 text-lg font-semibold">
-            <MapPin className="w-4 h-4 text-[var(--fg-subtle)] shrink-0" />
-            {h.ubicacionActual || "sin ubicación"}
+          <p className="mt-3 flex items-start gap-1.5 text-lg font-semibold">
+            <MapPin className="mt-1 w-4 h-4 text-[var(--fg-subtle)] shrink-0" />
+            <span className="min-w-0 break-words">{h.ubicacionActual || "sin ubicación"}</span>
           </p>
           <div className="mt-1 space-y-0.5 text-sm text-[var(--fg-muted)]">
-            <p className="flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 shrink-0" />
-              {h.custodioActual || <span className="text-[var(--fg-subtle)]">sin custodio asignado</span>}
+            <p className="flex items-start gap-1.5">
+              <User className="mt-0.5 w-3.5 h-3.5 shrink-0" />
+              <span className="min-w-0 break-words">
+                {h.custodioActual || <span className="text-[var(--fg-subtle)]">sin custodio asignado</span>}
+              </span>
             </p>
             {dias !== null ? (
               <p className={`flex items-center gap-1.5 ${dias >= DIAS_PARA_ALERTA ? "text-[var(--warning)]" : ""}`}>

@@ -957,10 +957,17 @@ async function manejarPost(request) {
       }
       if (op === "item") {
         const item = await handleItemById(boardKey, schema, params);
-        // Mismo recorte que arriba, para un item suelto: la ficha de una
-        // herramienta pide siempre el precio de compra, y es el servidor el que
-        // decide si lo entrega. Ver quitarColumnasRestringidas.
         if (AUTH_LAYERS_ENABLED && item) {
+          // La obra, igual que en una lectura de lista. Sin esto el recorte por
+          // obra era solo del LISTADO: alguien con obras restringidas abria la
+          // ficha de una herramienta ajena poniendo su id en la URL. Hoy la
+          // unica pantalla que lee un item suelto es la ficha de herramientas,
+          // asi que esto no cambia nada de lo que ya andaba.
+          if (filtrarPorObrasPermitidas(sesion, boardKey, [item]).length === 0) {
+            return Response.json({ error: "Tu cuenta no tiene acceso a esa obra." }, { status: 403 });
+          }
+          // Y las columnas que esta sesion no puede ver, como el precio de
+          // compra de una herramienta. Ver quitarColumnasRestringidas.
           return Response.json({ result: quitarColumnasRestringidas(sesion, boardKey, [item])[0] });
         }
         return Response.json({ result: item });
