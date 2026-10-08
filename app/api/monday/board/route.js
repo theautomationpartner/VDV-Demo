@@ -43,8 +43,26 @@ const AUTH_LAYERS_ENABLED = process.env.AUTH_LAYERS_ENABLED === "true";
  * para decidir la conversion, no una adivinanza.
  */
 function coerceColumnValue(cv) {
-  const { text, column } = cv;
+  const { text, column, value } = cv;
   if (text == null || text === "") return null;
+
+  /**
+   * Una columna de ESTADO vacia no devuelve "" en `text`: monday devuelve el
+   * label que tiene asignado el color GRIS, que es el color con que dibuja una
+   * celda sin valor. Lo unico que distingue los dos casos es `value`, que es
+   * null cuando la celda esta vacia de verdad.
+   *
+   * Medido contra la cuenta el 08-oct: en el tablero de movimientos, una celda
+   * vacia de "Tipo movimiento" se lee como "Devolucion" y una de "Estado al
+   * recibir" como "Regular"; en el maestro, una UBICACION ACTUAL vacia se lee
+   * como "NUEVO". Los 40 movimientos del cliente mostraban al menos un label
+   * que no tenian, y una herramienta real figuraba en una obra donde no esta.
+   *
+   * En toda la cuenta son unas 56 filas de 2.146, repartidas entre vales,
+   * ordenes, facturas y pagos. Todas mostraban un dato falso.
+   */
+  if (column?.type === "status" && value == null) return null;
+
   if (column?.type === "numbers") {
     const n = Number(text);
     return Number.isNaN(n) ? text : n;

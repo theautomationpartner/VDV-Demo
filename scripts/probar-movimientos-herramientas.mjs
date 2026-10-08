@@ -1,97 +1,479 @@
 /**
- * Prueba los 7 movimientos de una herramienta de punta a punta, contra monday
- * de verdad y contra la app levantada en local.
+ * Prueba a fondo Control de Herramientas contra monday de verdad y contra la
+ * app levantada en local.
  *
  *   npm run dev            (en otra terminal)
- *   node scripts/probar-movimientos-herramientas.mjs
+ *   npm run probar-movimientos-herramientas
  *
- * Crea una herramienta "ZZ TEST", le hace salida, traslado, devolucion con
- * falla, envio y regreso de taller, perdida y baja, verifica como queda el
- * maestro despues de cada una, prueba que la guarda de estado rechace una
- * accion imposible y que la recepcion no se pueda confirmar dos veces. Al
- * terminar BORRA la herramienta y todos sus movimientos.
+ * Cubre, en este orden:
+ *   1. las 7 acciones, verificando COLUMNA POR COLUMNA lo que queda en los dos
+ *      tableros -no solo que la llamada devuelva 200-
+ *   2. la maquina de estados completa: desde cada estado, que acciones se
+ *      aceptan y cuales se rechazan
+ *   3. las guardas de datos: custodio fuera del directorio, destino que falta,
+ *      condicion que falta, accion inventada, herramienta que no existe
+ *   4. la confirmacion de recepcion: que movimientos la piden, cuales no, y
+ *      que no se pueda confirmar dos veces
+ *   5. los casos de borde que tienen una regla propia: devolucion con falla con
+ *      y sin taller, regreso a bodega vs a obra, y que el envio a reparacion NO
+ *      toque la ubicacion
+ *   6. texto con acentos, comillas y saltos de linea
  *
- * Necesita un .tok al lado con el token de monday. Hace falta porque la unica
- * forma de saber que esto funciona es mirar como queda el tablero: la logica
- * escribe dos tableros en orden y un error ahi no da ningun sintoma visible
- * hasta que alguien nota que una herramienta figura donde no esta.
+ * Al terminar BORRA todo lo que creo. Si algo falla, igual limpia.
+ *
+ * Por que hace falta: la logica escribe DOS tableros en orden y un error ahi no
+ * da ningun sintoma hasta que alguien nota que una herramienta figura donde no
+ * esta. La unica forma de saber que anda es mirar como queda el tablero.
  */
 import { mon } from "./monday-token.mjs";
+
 const MAESTRO = "18430928907";
-const MOVS = "18430928943";
+const MOVIMIENTOS = "18430928943";
 const API = "http://localhost:3000/api/herramientas";
 
-const COL = { codigo:"text_mm7687am", estado:"color_mm76r560", tipoUbic:"color_mm765ngx",
-  ubic:"color_mm76ncrk", custodio:"text_mm764j8g", salida:"date_mm76td04", devol:"date_mm76kdht",
-  cond:"color_mm76b1fq" };
+// Los ids reales, verificados con npm run validar-schemas.
+const M = {
+  codigo: "text_mm7687am",
+  estado: "color_mm76r560",
+  tipoUbic: "color_mm765ngx",
+  ubic: "color_mm76ncrk",
+  custodio: "text_mm764j8g",
+  cond: "color_mm76b1fq",
+  ultSalida: "date_mm76td04",
+  ultDevol: "date_mm76kdht",
+  categoria: "dropdown_mm76v0b9",
+};
+const V = {
+  idMaestro: "text_mm761181",
+  codigo: "text_mm76997n",
+  herramienta: "text_mm76cqvb",
+  categoria: "text_mm76djdk",
+  tipo: "color_mm76b3kk",
+  fecha: "date_mm76jsah",
+  obra: "color_mm76vnzv",
+  origen: "text_mm76s0s6",
+  destino: "text_mm76mdd5",
+  entrega: "text_mm76mpcy",
+  recibe: "text_mm767hsg",
+  alSalir: "color_mm764jg3",
+  alRecibir: "color_mm76bsqh",
+  observaciones: "long_text_mm76vxn5",
+  recepcion: "color_mm7y936c",
+  confirmadaPor: "text_mm7ygdnm",
+  fechaConfirmacion: "date_mm7y9yrs",
+};
 
-async function post(ruta, body) {
-  const r = await fetch(`${API}/${ruta}`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
-  return { status: r.status, json: await r.json().catch(()=>({})) };
-}
-async function estado(id) {
-  const d = await mon(`query($i:[ID!]){ items(ids:$i){ name column_values(ids:${JSON.stringify(Object.values(COL))}){ id text } } }`, { i:[id] });
-  const m = Object.fromEntries(d.items[0].column_values.map(c=>[c.id,c.text]));
-  return { estado:m[COL.estado], tipoUbic:m[COL.tipoUbic], ubic:m[COL.ubic], custodio:m[COL.custodio],
-           salida:m[COL.salida], devol:m[COL.devol], cond:m[COL.cond] };
-}
-const ver = (e) => `${(e.estado??"-").padEnd(20)} ${(e.tipoUbic??"-").padEnd(12)} ${(e.ubic??"-").padEnd(16)} custodio:${e.custodio||"(vacio)"}`;
+// Dos personas que SI estan en Equipo VDV (verificado el 08-oct).
+const DEL_EQUIPO = "claudio leyton";
+const OTRO_DEL_EQUIPO = "Isabel Delgado";
 
-// 1. herramienta de prueba
-const creada = await mon(`mutation($b:ID!,$n:String!,$v:JSON!){ create_item(board_id:$b,item_name:$n,column_values:$v){ id } }`,
-  { b: MAESTRO, n: "ZZ TEST movimientos (borrar)",
-    v: JSON.stringify({ [COL.codigo]:"ZZ-TEST", [COL.estado]:{label:"DISPONIBLE"}, [COL.tipoUbic]:{label:"BODEGA"}, [COL.ubic]:{label:"BODEGA CENTRAL"} }) });
-const id = creada.create_item.id;
-console.log(`herramienta de prueba: ${id}`);
-console.log("inicial       ", ver(await estado(id)));
-
+const creadas = [];
 let fallas = 0;
-async function paso(titulo, body, esperado) {
-  const r = await post("movimiento", { itemId: id, ...body });
-  const e = await estado(id);
-  const ok = Object.entries(esperado).every(([k,v]) => (e[k] ?? "") === v);
-  if (!ok || r.status !== 200) { fallas++; console.log(`  FALLA ${titulo}: http ${r.status} ${JSON.stringify(r.json).slice(0,120)}`);
-    console.log("         esperaba", JSON.stringify(esperado), "\n         quedo   ", JSON.stringify(e)); }
-  else console.log(`  ok ${titulo.padEnd(26)} ${ver(e)}${r.json.esperaConfirmacion ? "  [pendiente de confirmar]" : ""}`);
-  return r;
+let pasadas = 0;
+
+function ok(nombre) {
+  pasadas += 1;
+  console.log(`  ok    ${nombre}`);
+}
+function falla(nombre, detalle) {
+  fallas += 1;
+  console.log(`  FALLA ${nombre}`);
+  if (detalle) console.log(`        ${detalle}`);
+}
+function comparar(nombre, obtenido, esperado) {
+  const a = obtenido ?? "";
+  const b = esperado ?? "";
+  if (String(a) === String(b)) ok(nombre);
+  else falla(nombre, `esperaba ${JSON.stringify(b)}, quedo ${JSON.stringify(a)}`);
 }
 
-console.log("\n--- los 6 movimientos ---");
-const rSalida = await paso("salida a M388", { accion:"salida", destino:"M388", custodio:"Juan Perez", condicion:"Buena" },
-  { estado:"EN USO", tipoUbic:"OBRA", ubic:"M388", custodio:"Juan Perez" });
-await paso("traslado a FORESTAL", { accion:"traslado", destino:"FORESTAL", custodio:"Ana Soto", condicion:"Buena" },
-  { estado:"EN USO", ubic:"FORESTAL", custodio:"Ana Soto" });
-await paso("devolucion con falla", { accion:"devolucion", destino:"BODEGA CENTRAL", condicion:"Mala/Con falla" },
-  { estado:"REQUIERE REPARACIÓN", tipoUbic:"BODEGA", ubic:"BODEGA CENTRAL", custodio:"" });
-await paso("envio a reparacion", { accion:"enviarReparacion" },
-  { estado:"EN REPARACIÓN", tipoUbic:"REPARACIÓN" });
-await paso("regreso de reparacion", { accion:"regresoReparacion", destino:"BODEGA CENTRAL", condicion:"Buena" },
-  { estado:"DISPONIBLE", tipoUbic:"BODEGA", ubic:"BODEGA CENTRAL" });
-await paso("perdida", { accion:"perdida" }, { estado:"EXTRAVIADA" });
-await paso("baja", { accion:"baja" }, { estado:"DADA DE BAJA", tipoUbic:"BAJA" });
+async function post(ruta, cuerpo) {
+  const r = await fetch(`${API}/${ruta}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(cuerpo),
+  });
+  return { status: r.status, json: await r.json().catch(() => ({})) };
+}
 
-console.log("\n--- la guarda de estado ---");
-const r = await post("movimiento", { itemId: id, accion:"salida", destino:"M388", custodio:"X", condicion:"Buena" });
-if (r.status === 409) console.log(`  ok no deja sacar algo dado de baja (409): ${r.json.error.slice(0,80)}`);
-else { fallas++; console.log(`  FALLA: deberia rechazar, dio ${r.status}`); }
+/** Crea una herramienta de prueba en el estado que haga falta. */
+async function crearHerramienta(sufijo, valores = {}) {
+  const base = {
+    [M.codigo]: `ZZ-${sufijo}`,
+    [M.estado]: { label: "DISPONIBLE" },
+    [M.tipoUbic]: { label: "BODEGA" },
+    [M.ubic]: { label: "BODEGA CENTRAL" },
+    [M.categoria]: { labels: ["Taladro"] },
+  };
+  const r = await mon(
+    `mutation($b:ID!,$n:String!,$v:JSON!){ create_item(board_id:$b,item_name:$n,column_values:$v){ id } }`,
+    { b: MAESTRO, n: `ZZ TEST ${sufijo} (borrar)`, v: JSON.stringify({ ...base, ...valores }) },
+  );
+  const id = r.create_item.id;
+  creadas.push(id);
+  return id;
+}
 
-console.log("\n--- confirmacion de recepcion ---");
-const c1 = await post("confirmar", { movimientoId: rSalida.json.movimientoId });
-console.log(c1.status === 200 ? "  ok se confirma la salida" : `  FALLA confirmar: ${c1.status} ${JSON.stringify(c1.json)}`);
-if (c1.status !== 200) fallas++;
-const c2 = await post("confirmar", { movimientoId: rSalida.json.movimientoId });
-if (c2.status === 409) console.log("  ok no se puede confirmar dos veces (409)");
-else { fallas++; console.log(`  FALLA: la segunda confirmacion dio ${c2.status}`); }
+/**
+ * Una columna de ESTADO vacia no devuelve "" en `text`: monday devuelve el label
+ * que tiene el color gris. Solo `value` los distingue. Se lee igual que la app
+ * (ver coerceColumnValue), si no el test compara contra una mentira.
+ */
+function textoReal(c) {
+  if (c.value == null && /^color_/.test(c.id)) return "";
+  return c.text ?? "";
+}
 
-const mv = await mon(`query($i:[ID!]){ items(ids:$i){ column_values(ids:["color_mm7y936c","text_mm7ygdnm","date_mm7y9yrs"]){ id text } } }`, { i:[rSalida.json.movimientoId] });
-console.log("  en monday:", JSON.stringify(Object.fromEntries(mv.items[0].column_values.map(c=>[c.id,c.text]))));
+async function leerMaestro(id) {
+  const d = await mon(
+    `query($i:[ID!]){ items(ids:$i){ name column_values(ids:${JSON.stringify(Object.values(M))}){ id text value } } }`,
+    { i: [id] },
+  );
+  const porId = Object.fromEntries(d.items[0].column_values.map((c) => [c.id, textoReal(c)]));
+  const salida = { name: d.items[0].name };
+  for (const [clave, col] of Object.entries(M)) salida[clave] = porId[col] ?? null;
+  return salida;
+}
 
-// 2. limpieza: la herramienta y todos sus movimientos
-console.log("\n--- limpieza ---");
-const todos = await mon(`query{ boards(ids:["${MOVS}"]){ items_page(limit:200){ items{ id column_values(ids:["text_mm761181"]){ text } } } } }`);
-const mios = todos.boards[0].items_page.items.filter(i => i.column_values[0]?.text === String(id));
-for (const m of mios) await mon(`mutation($i:ID!){ delete_item(item_id:$i){ id } }`, { i: m.id });
-await mon(`mutation($i:ID!){ delete_item(item_id:$i){ id } }`, { i: id });
-console.log(`  borrados: ${mios.length} movimientos + la herramienta ${id}`);
+async function leerMovimientos(idMaestro) {
+  const d = await mon(
+    `query{ boards(ids:["${MOVIMIENTOS}"]){ items_page(limit:200){ items{ id name
+      column_values(ids:${JSON.stringify(Object.values(V))}){ id text value } } } } }`,
+  );
+  return d.boards[0].items_page.items
+    .map((i) => {
+      const porId = Object.fromEntries(i.column_values.map((c) => [c.id, textoReal(c)]));
+      const fila = { id: i.id, name: i.name };
+      for (const [clave, col] of Object.entries(V)) fila[clave] = porId[col] ?? null;
+      return fila;
+    })
+    .filter((m) => m.idMaestro === String(idMaestro));
+}
 
-console.log(fallas ? `\n>>> ${fallas} FALLAS` : "\n>>> todo pasa");
+const hoy = new Date().toISOString().slice(0, 10);
+
+// ---------------------------------------------------------------- 1. columnas
+async function bloqueColumnas() {
+  console.log("\n1. QUE QUEDA ESCRITO EN MONDAY, columna por columna");
+  const id = await crearHerramienta("cols");
+
+  const r = await post("movimiento", {
+    itemId: id,
+    accion: "salida",
+    destino: "M388",
+    custodio: DEL_EQUIPO,
+    condicion: "Buena",
+    observaciones: "Sale para la losa del 3er piso",
+  });
+  if (r.status !== 200) return falla("la salida devolvio 200", JSON.stringify(r.json));
+
+  const h = await leerMaestro(id);
+  console.log("  -- el maestro --");
+  comparar("estado operativo = EN USO", h.estado, "EN USO");
+  comparar("tipo ubicacion = OBRA", h.tipoUbic, "OBRA");
+  comparar("ubicacion actual = M388", h.ubic, "M388");
+  comparar("custodio = quien recibe", h.custodio, DEL_EQUIPO);
+  comparar("condicion fisica = USADO", h.cond, "USADO");
+  comparar("fecha ultima salida = hoy", h.ultSalida, hoy);
+  comparar("fecha ultima devolucion sigue vacia", h.ultDevol, "");
+
+  const [m] = await leerMovimientos(id);
+  console.log("  -- el movimiento --");
+  comparar("nombre del item", m.name, "Salida a obra: ZZ TEST cols (borrar)");
+  comparar("id del maestro", m.idMaestro, String(id));
+  comparar("codigo copiado", m.codigo, "ZZ-cols");
+  comparar("nombre de la herramienta copiado", m.herramienta, "ZZ TEST cols (borrar)");
+  comparar("categoria copiada", m.categoria, "Taladro");
+  comparar("tipo de movimiento", m.tipo, "Salida");
+  comparar("fecha del movimiento = hoy", m.fecha, hoy);
+  comparar("obra = destino", m.obra, "M388");
+  comparar("origen = donde estaba", m.origen, "BODEGA CENTRAL");
+  comparar("destino", m.destino, "M388");
+  comparar("recibe", m.recibe, DEL_EQUIPO);
+  comparar("estado AL SALIR", m.alSalir, "Buena");
+  comparar("estado al recibir vacio en una salida", m.alRecibir, "");
+  comparar("observaciones", m.observaciones, "Sale para la losa del 3er piso");
+  comparar("recepcion = Pendiente", m.recepcion, "Pendiente");
+  return id;
+}
+
+// ------------------------------------------------------- 2. maquina de estados
+const ACCIONES_POR_ESTADO = {
+  DISPONIBLE: ["salida", "perdida", "baja"],
+  "EN USO": ["devolucion", "traslado", "perdida", "baja"],
+  "REQUIERE REPARACIÓN": ["enviarReparacion", "baja"],
+  "EN REPARACIÓN": ["regresoReparacion", "baja"],
+  EXTRAVIADA: ["baja"],
+  "DADA DE BAJA": [],
+};
+const TODAS = ["salida", "devolucion", "traslado", "enviarReparacion", "regresoReparacion", "perdida", "baja"];
+
+function datosPara(accion) {
+  const d = {};
+  if (["salida", "devolucion", "traslado", "regresoReparacion"].includes(accion)) d.destino = "M388";
+  if (["salida", "traslado"].includes(accion)) d.custodio = DEL_EQUIPO;
+  if (["salida", "devolucion", "traslado", "regresoReparacion"].includes(accion)) d.condicion = "Buena";
+  return d;
+}
+
+async function bloqueEstados() {
+  console.log("\n2. LA MAQUINA DE ESTADOS: que se puede hacer desde cada estado");
+  for (const [estado, permitidas] of Object.entries(ACCIONES_POR_ESTADO)) {
+    const rechazadas = TODAS.filter((a) => !permitidas.includes(a));
+    let bien = 0;
+    const mal = [];
+
+    for (const accion of rechazadas) {
+      const id = await crearHerramienta(`est-${rechazadas.indexOf(accion)}`, { [M.estado]: { label: estado } });
+      const r = await post("movimiento", { itemId: id, accion, ...datosPara(accion) });
+      if (r.status === 409) bien += 1;
+      else mal.push(`${accion} dio ${r.status}`);
+    }
+    for (const accion of permitidas) {
+      const id = await crearHerramienta(`estok-${permitidas.indexOf(accion)}`, { [M.estado]: { label: estado } });
+      const r = await post("movimiento", { itemId: id, accion, ...datosPara(accion) });
+      if (r.status === 200) bien += 1;
+      else mal.push(`${accion} deberia andar y dio ${r.status}: ${r.json.error ?? ""}`);
+    }
+
+    if (mal.length === 0) ok(`${estado.padEnd(21)} ${permitidas.length} permitidas, ${rechazadas.length} rechazadas`);
+    else falla(`${estado}`, mal.join(" | "));
+  }
+}
+
+// ------------------------------------------------------------- 3. las guardas
+async function bloqueGuardas() {
+  console.log("\n3. LAS GUARDAS DE DATOS");
+  const id = await crearHerramienta("guardas");
+
+  let r = await post("movimiento", { itemId: id, accion: "salida", destino: "M388", custodio: "Juan Inventado", condicion: "Buena" });
+  if (r.status === 400 && /Equipo VDV/.test(r.json.error ?? "")) ok("custodio fuera del directorio -> rechaza");
+  else falla("custodio fuera del directorio", `${r.status} ${r.json.error}`);
+
+  r = await post("movimiento", { itemId: id, accion: "salida", custodio: DEL_EQUIPO, condicion: "Buena" });
+  if (r.status === 400) ok("salida sin destino -> rechaza");
+  else falla("salida sin destino", `${r.status}`);
+
+  r = await post("movimiento", { itemId: id, accion: "salida", destino: "M388", custodio: DEL_EQUIPO });
+  if (r.status === 400) ok("salida sin condicion -> rechaza");
+  else falla("salida sin condicion", `${r.status}`);
+
+  r = await post("movimiento", { itemId: id, accion: "teletransportar", destino: "M388" });
+  if (r.status === 400) ok("accion inventada -> rechaza");
+  else falla("accion inventada", `${r.status}`);
+
+  r = await post("movimiento", { itemId: "999999999", accion: "salida", destino: "M388", custodio: DEL_EQUIPO, condicion: "Buena" });
+  if (r.status === 404) ok("herramienta que no existe -> 404");
+  else falla("herramienta que no existe", `${r.status}`);
+
+  r = await post("movimiento", { accion: "salida" });
+  if (r.status === 400) ok("pedido sin herramienta -> rechaza");
+  else falla("pedido sin herramienta", `${r.status}`);
+
+  // Despues de todos los rechazos, la herramienta tiene que estar intacta.
+  const h = await leerMaestro(id);
+  comparar("ningun rechazo toco la herramienta", h.estado, "DISPONIBLE");
+  const movs = await leerMovimientos(id);
+  comparar("ningun rechazo dejo un movimiento", String(movs.length), "0");
+}
+
+// ------------------------------------------------------- 4. la confirmacion
+async function bloqueConfirmacion(idConSalida) {
+  console.log("\n4. LA CONFIRMACION DE RECEPCION");
+
+  const [mov] = await leerMovimientos(idConSalida);
+  let r = await post("confirmar", { movimientoId: mov.id });
+  if (r.status === 200) ok("se confirma una salida pendiente");
+  else falla("confirmar una salida", `${r.status} ${r.json.error}`);
+
+  const [despues] = await leerMovimientos(idConSalida);
+  comparar("recepcion = Confirmada", despues.recepcion, "Confirmada");
+  comparar("fecha de confirmacion = hoy", despues.fechaConfirmacion, hoy);
+
+  r = await post("confirmar", { movimientoId: mov.id });
+  if (r.status === 409) ok("no se puede confirmar dos veces");
+  else falla("confirmar dos veces", `${r.status}`);
+
+  r = await post("confirmar", { movimientoId: "999999999" });
+  if (r.status === 404) ok("confirmar algo que no existe -> 404");
+  else falla("confirmar lo que no existe", `${r.status}`);
+
+  // Una baja no espera confirmacion: no tiene a nadie del otro lado.
+  const id = await crearHerramienta("sinconf");
+  await post("movimiento", { itemId: id, accion: "baja" });
+  const [baja] = await leerMovimientos(id);
+  comparar("una baja NO queda pendiente", baja.recepcion, "");
+  r = await post("confirmar", { movimientoId: baja.id });
+  if (r.status === 400) ok("no se puede confirmar algo que no lo pide");
+  else falla("confirmar una baja", `${r.status}`);
+
+  console.log("  -- cuales piden confirmacion --");
+  for (const [accion, esperado] of [
+    ["salida", "Pendiente"],
+    ["traslado", "Pendiente"],
+    ["devolucion", "Pendiente"],
+    ["enviarReparacion", ""],
+    ["perdida", ""],
+  ]) {
+    const estadoPrevio =
+      accion === "devolucion" || accion === "traslado" ? "EN USO" : accion === "enviarReparacion" ? "REQUIERE REPARACIÓN" : "DISPONIBLE";
+    const idA = await crearHerramienta(`conf-${accion}`, { [M.estado]: { label: estadoPrevio } });
+    await post("movimiento", { itemId: idA, accion, ...datosPara(accion) });
+    const [m] = await leerMovimientos(idA);
+    comparar(`${accion.padEnd(18)} -> ${esperado || "(no pide)"}`, m?.recepcion, esperado);
+  }
+}
+
+// --------------------------------------------------------- 5. casos de borde
+async function bloqueBordes() {
+  console.log("\n5. LOS CASOS CON REGLA PROPIA");
+
+  // Devolucion con falla, SIN mandar al taller.
+  let id = await crearHerramienta("dev1", { [M.estado]: { label: "EN USO" }, [M.ubic]: { label: "M388" }, [M.custodio]: DEL_EQUIPO });
+  await post("movimiento", { itemId: id, accion: "devolucion", destino: "BODEGA CENTRAL", condicion: "Mala/Con falla" });
+  let h = await leerMaestro(id);
+  comparar("devolucion con falla sin taller -> REQUIERE REPARACION", h.estado, "REQUIERE REPARACIÓN");
+  comparar("  y queda en BODEGA", h.tipoUbic, "BODEGA");
+  comparar("  el custodio se vacia", h.custodio, "");
+  comparar("  condicion fisica = DAÑADO", h.cond, "DAÑADO");
+  comparar("  fecha ultima devolucion = hoy", h.ultDevol, hoy);
+  let [m] = await leerMovimientos(id);
+  comparar("  entrega = quien la tenia", m.entrega, DEL_EQUIPO);
+  comparar("  estado AL RECIBIR", m.alRecibir, "Mala/Con falla");
+
+  // Devolucion con falla, mandandola al taller en el mismo acto.
+  id = await crearHerramienta("dev2", { [M.estado]: { label: "EN USO" }, [M.ubic]: { label: "M388" } });
+  await post("movimiento", { itemId: id, accion: "devolucion", destino: "BODEGA CENTRAL", condicion: "Mala/Con falla", enviarReparacion: true });
+  h = await leerMaestro(id);
+  comparar("devolucion con falla AL TALLER -> EN REPARACION", h.estado, "EN REPARACIÓN");
+  comparar("  y tipo ubicacion = REPARACION", h.tipoUbic, "REPARACIÓN");
+
+  // Devolucion sana.
+  id = await crearHerramienta("dev3", { [M.estado]: { label: "EN USO" }, [M.ubic]: { label: "M388" } });
+  await post("movimiento", { itemId: id, accion: "devolucion", destino: "BODEGA CENTRAL", condicion: "Buena" });
+  h = await leerMaestro(id);
+  comparar("devolucion sana -> DISPONIBLE", h.estado, "DISPONIBLE");
+
+  // El envio a reparacion NO toca la ubicacion: la herramienta sigue siendo de su obra.
+  id = await crearHerramienta("rep1", { [M.estado]: { label: "REQUIERE REPARACIÓN" }, [M.ubic]: { label: "M388" }, [M.custodio]: DEL_EQUIPO });
+  await post("movimiento", { itemId: id, accion: "enviarReparacion" });
+  h = await leerMaestro(id);
+  comparar("enviar a taller -> EN REPARACION", h.estado, "EN REPARACIÓN");
+  comparar("  NO cambia la ubicacion", h.ubic, "M388");
+  comparar("  NO borra el custodio", h.custodio, DEL_EQUIPO);
+
+  // Vuelve del taller a bodega (sin custodio) vs a una obra (con custodio).
+  id = await crearHerramienta("rep2", { [M.estado]: { label: "EN REPARACIÓN" } });
+  await post("movimiento", { itemId: id, accion: "regresoReparacion", destino: "BODEGA CENTRAL", condicion: "Buena" });
+  h = await leerMaestro(id);
+  comparar("vuelve del taller sin custodio -> DISPONIBLE", h.estado, "DISPONIBLE");
+  comparar("  tipo ubicacion = BODEGA", h.tipoUbic, "BODEGA");
+
+  id = await crearHerramienta("rep3", { [M.estado]: { label: "EN REPARACIÓN" } });
+  await post("movimiento", { itemId: id, accion: "regresoReparacion", destino: "M388", custodio: OTRO_DEL_EQUIPO, condicion: "Buena" });
+  h = await leerMaestro(id);
+  comparar("vuelve del taller con custodio -> EN USO", h.estado, "EN USO");
+  comparar("  tipo ubicacion = OBRA", h.tipoUbic, "OBRA");
+  comparar("  custodio", h.custodio, OTRO_DEL_EQUIPO);
+
+  // Un traslado tambien es salir: si no, la permanencia seguiria contando desde
+  // la obra anterior.
+  id = await crearHerramienta("tras", { [M.estado]: { label: "EN USO" }, [M.ubic]: { label: "M388" }, [M.custodio]: DEL_EQUIPO });
+  await post("movimiento", { itemId: id, accion: "traslado", destino: "FORESTAL", custodio: OTRO_DEL_EQUIPO, condicion: "Buena" });
+  h = await leerMaestro(id);
+  comparar("traslado cambia la obra", h.ubic, "FORESTAL");
+  comparar("  cambia el custodio", h.custodio, OTRO_DEL_EQUIPO);
+  comparar("  y pisa la fecha de ultima salida", h.ultSalida, hoy);
+  [m] = await leerMovimientos(id);
+  comparar("  entrega = el custodio anterior", m.entrega, DEL_EQUIPO);
+  comparar("  origen = la obra anterior", m.origen, "M388");
+
+  // Perdida y baja.
+  id = await crearHerramienta("perd");
+  await post("movimiento", { itemId: id, accion: "perdida" });
+  h = await leerMaestro(id);
+  comparar("perdida -> EXTRAVIADA", h.estado, "EXTRAVIADA");
+  comparar("  no toca la ubicacion", h.ubic, "BODEGA CENTRAL");
+
+  id = await crearHerramienta("baja", { [M.estado]: { label: "EXTRAVIADA" } });
+  await post("movimiento", { itemId: id, accion: "baja" });
+  h = await leerMaestro(id);
+  comparar("baja -> DADA DE BAJA", h.estado, "DADA DE BAJA");
+  comparar("  tipo ubicacion = BAJA", h.tipoUbic, "BAJA");
+}
+
+// -------------------------------------------------------------- 6. el texto
+async function bloqueTexto() {
+  console.log("\n6. TEXTO CON ACENTOS, COMILLAS Y SALTOS");
+  const id = await crearHerramienta("texto");
+  const raro = 'Ñandú "roto" — se le salió el mandril\nSegunda línea; con punto y coma';
+  const r = await post("movimiento", {
+    itemId: id,
+    accion: "salida",
+    destino: ". JUAN XXIII",
+    custodio: DEL_EQUIPO,
+    condicion: "Mala/Con falla",
+    observaciones: raro,
+  });
+  if (r.status !== 200) return falla("la salida con texto raro", JSON.stringify(r.json));
+  const [m] = await leerMovimientos(id);
+  comparar("las observaciones vuelven iguales", m.observaciones, raro);
+  const h = await leerMaestro(id);
+  comparar("una obra que empieza con punto se guarda bien", h.ubic, ". JUAN XXIII");
+}
+
+// ------------------------------------------------------------------ limpieza
+async function limpiar() {
+  console.log("\nLIMPIEZA");
+  let movs = 0;
+  const d = await mon(
+    `query{ boards(ids:["${MOVIMIENTOS}"]){ items_page(limit:500){ items{ id column_values(ids:["${V.idMaestro}"]){ text } } } } }`,
+  );
+  for (const item of d.boards[0].items_page.items) {
+    if (creadas.includes(item.column_values[0]?.text)) {
+      await mon(`mutation($i:ID!){ delete_item(item_id:$i){ id } }`, { i: item.id });
+      movs += 1;
+    }
+  }
+  for (const id of creadas) {
+    await mon(`mutation($i:ID!){ delete_item(item_id:$i){ id } }`, { i: id }).catch(() => {});
+  }
+  console.log(`  borradas ${creadas.length} herramientas de prueba y ${movs} movimientos`);
+
+  // Que no quede ningun ZZ TEST suelto de una corrida anterior que se corto.
+  const sobrantes = await mon(
+    `query{ boards(ids:["${MAESTRO}"]){ items_page(limit:500){ items{ id name } } } }`,
+  );
+  const zz = sobrantes.boards[0].items_page.items.filter((i) => /^ZZ TEST /.test(i.name));
+  if (zz.length) console.log(`  OJO: quedaron ${zz.length} ZZ TEST de antes: ${zz.map((i) => i.name).join(", ")}`);
+  else console.log("  no quedo ningun ZZ TEST suelto");
+}
+
+// -------------------------------------------------------------------- correr
+/** Borra lo que haya quedado de una corrida que se corto por la mitad. */
+async function limpiarSobrantes() {
+  const h = await mon(`query{ boards(ids:["${MAESTRO}"]){ items_page(limit:500){ items{ id name } } } }`);
+  const zz = h.boards[0].items_page.items.filter((i) => /^ZZ TEST /.test(i.name));
+  if (!zz.length) return;
+  console.log(`(habia ${zz.length} ZZ TEST de una corrida anterior, se borran)`);
+  for (const i of zz) creadas.push(String(i.id));
+}
+
+try {
+  await limpiarSobrantes();
+  const idConSalida = await bloqueColumnas();
+  await bloqueEstados();
+  await bloqueGuardas();
+  if (idConSalida) await bloqueConfirmacion(idConSalida);
+  await bloqueBordes();
+  await bloqueTexto();
+} catch (error) {
+  fallas += 1;
+  console.log("\nSE CORTO:", error.message.slice(0, 400));
+} finally {
+  await limpiar();
+}
+
+console.log(`\n${"=".repeat(52)}`);
+console.log(fallas ? `>>> ${pasadas} bien, ${fallas} FALLAS` : `>>> las ${pasadas} comprobaciones pasan`);
+process.exit(fallas ? 1 : 0);
