@@ -245,8 +245,11 @@ async function handleItems(boardKey, schema, params) {
   // monday expone la fecha de creacion en query_params (verificado en vivo).
   let orderByRule = null;
   if (orderBy?.column) {
-    const columnaOrden =
-      orderBy.column === "createdAt" ? "__creation_log__" : resolveColumnId(boardKey, orderBy.column);
+    // Las dos fechas que monday expone como columnas especiales y que no estan
+    // en ningun schema. `updatedAt` hace falta para listar por "lo ultimo que
+    // se toco", que es como ordena el inventario de herramientas.
+    const ESPECIALES = { createdAt: "__creation_log__", updatedAt: "__last_updated__" };
+    const columnaOrden = ESPECIALES[orderBy.column] ?? resolveColumnId(boardKey, orderBy.column);
     orderByRule = [{ column_id: columnaOrden, direction: orderBy.direction === "asc" ? "asc" : "desc" }];
   }
 

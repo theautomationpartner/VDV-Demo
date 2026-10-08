@@ -71,6 +71,10 @@ export default function InventarioHerramientasPage() {
         // columna un Jefe de Obra no veria ninguna herramienta. Ver
         // filtrarPorObrasPermitidas en lib/server/board-access-policy.js.
         .withColumns(COLUMNAS_LISTADO)
+        // La ultima tocada primero, igual que la app del cliente. Sin esto el
+        // orden es el crudo de monday y lo recien cargado queda al final: las
+        // dos herramientas con foto caian en las filas 81 y 83 de 83.
+        .orderBy({ column: "updatedAt", direction: "desc" })
         .withPagination({ limit: TOPE })
         .execute();
       if (mio !== pedidoRef.current) return;
