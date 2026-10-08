@@ -602,6 +602,7 @@ function ObrasPicker({
   obras,
   etiqueta = "Obras permitidas",
   textoTodas = "Tiene acceso a todas las obras (sin restricción).",
+  nota,
 }) {
   const selected = useMemo(() => value.split(",").map((s) => s.trim()).filter(Boolean), [value]);
   const [modoRestringido, setModoRestringido] = useState(selected.length > 0);
@@ -685,6 +686,7 @@ function ObrasPicker({
       ) : (
         <p className="text-[11px] text-muted-foreground">{textoTodas}</p>
       )}
+      {nota ? <p className="mt-1 text-[11px] text-[hsl(var(--warning,38_92%_50%))]">{nota}</p> : null}
     </div>
   );
 }
@@ -1514,10 +1516,25 @@ export default function WhitelistAdminPage() {
                       </Select>
                     </div>
 
-                    {a.app === "vale-express" && (
+                    {/* Herramientas tambien acota por obra: es lo que hace que
+                        un Jefe de Obra vea solo las suyas. Usa el mismo picker
+                        porque son las mismas 34 obras -verificado contra los
+                        tres tableros- y porque ofrecer dos listas distintas de
+                        obras para la misma persona seria confuso.
+
+                        OJO: al Bodeguero el recorte no le aplica aunque se le
+                        carguen obras. Es a pedido del cliente: necesita ver las
+                        herramientas de las otras obras para pedir prestado en
+                        vez de arrendar. Ver veTodaLaEmpresa. */}
+                    {(a.app === "vale-express" || a.app === HERRAMIENTAS_APP) && (
                       <ObrasPicker
                         value={a.obras}
                         onChange={(next) => updateAsignacion(index, { obras: next, restrictObras: next.trim().length > 0 })}
+                        nota={
+                          a.app === HERRAMIENTAS_APP && a.appRol !== "jefe_obra"
+                            ? "Este rol ve las herramientas de toda la empresa aunque se le acoten obras."
+                            : undefined
+                        }
                       />
                     )}
 
