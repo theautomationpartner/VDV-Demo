@@ -25,7 +25,12 @@
  * da ningun sintoma hasta que alguien nota que una herramienta figura donde no
  * esta. La unica forma de saber que anda es mirar como queda el tablero.
  */
+import { register } from "node:module";
+import { pathToFileURL } from "node:url";
 import { mon } from "./monday-token.mjs";
+
+register("./alias-loader.mjs", pathToFileURL(import.meta.filename));
+const { desfaseConElHistorial } = await import("../lib/herramientas/dominio.js");
 
 const MAESTRO = "18430928907";
 const MOVIMIENTOS = "18430928943";
@@ -422,6 +427,93 @@ async function bloqueTexto() {
   comparar("una obra que empieza con punto se guarda bien", h.ubic, ". JUAN XXIII");
 }
 
+/**
+ * El movimiento con los nombres que usa la app. `leerMovimientos` devuelve las
+ * claves cortas de este script (tipo, recibe, alSalir) y desfaseConElHistorial
+ * espera las del dominio: sin esta traduccion recibe undefined y no opina.
+ */
+function comoLoVeLaApp(m) {
+  return {
+    tipoMovimiento: m.tipo,
+    destino: m.destino,
+    obra: m.obra,
+    recibeCustodio: m.recibe,
+    estadoAlSalir: m.alSalir,
+    estadoAlRecibir: m.alRecibir,
+  };
+}
+
+// ------------------------------------------------- 7. la ficha contra el historial
+async function bloqueDesfase() {
+  console.log("\n7. CUANDO LA FICHA NO COINCIDE CON SU HISTORIAL");
+  const id = await crearHerramienta("desfase");
+
+  await post("movimiento", { itemId: id, accion: "salida", destino: "M388", custodio: DEL_EQUIPO, condicion: "Buena" });
+  let h = await leerMaestro(id);
+  comparar("tras la salida la ficha dice M388", h.ubic, "M388");
+
+  // Se simula lo que pasa si monday acepta el movimiento y rechaza la ficha:
+  // se deja la herramienta como estaba antes, con el movimiento ya escrito.
+  await mon(
+    `mutation($b:ID!,$i:ID!,$v:JSON!){ change_multiple_column_values(board_id:$b,item_id:$i,column_values:$v){ id } }`,
+    {
+      b: MAESTRO,
+      i: id,
+      v: JSON.stringify({
+        [M.estado]: { label: "DISPONIBLE" },
+        [M.tipoUbic]: { label: "BODEGA" },
+        [M.ubic]: { label: "BODEGA CENTRAL" },
+        [M.custodio]: "",
+      }),
+    },
+  );
+
+  const [ultimo] = await leerMovimientos(id);
+  const antes = await leerMaestro(id);
+  const detectado = desfaseConElHistorial(
+    {
+      estadoOperativo: antes.estado,
+      tipoUbicacion: antes.tipoUbic,
+      ubicacionActual: antes.ubic,
+      custodioActual: antes.custodio,
+    },
+    comoLoVeLaApp(ultimo),
+  );
+  if (detectado) ok(`se detecta el desfase (${detectado.diferencias.length} columnas)`);
+  else falla("se detecta el desfase", "no devolvio nada");
+
+  const r = await post("poner-al-dia", { itemId: id });
+  if (r.status === 200) ok("poner al dia responde 200");
+  else falla("poner al dia", `${r.status} ${r.json.error}`);
+
+  h = await leerMaestro(id);
+  comparar("  vuelve a EN USO", h.estado, "EN USO");
+  comparar("  vuelve a M388", h.ubic, "M388");
+  comparar("  vuelve el custodio", h.custodio, DEL_EQUIPO);
+
+  // Llamarlo cuando ya esta al dia no tiene que romper ni inventar nada.
+  const otra = await post("poner-al-dia", { itemId: id });
+  if (otra.status === 200 && otra.json.yaEstaba) ok("si ya estaba al dia, lo dice y no toca nada");
+  else falla("poner al dia dos veces", JSON.stringify(otra.json));
+
+  // Y lo mas importante: que no invente desfases donde no los hay.
+  const limpia = await crearHerramienta("sindesfase");
+  await post("movimiento", { itemId: limpia, accion: "salida", destino: "FORESTAL", custodio: DEL_EQUIPO, condicion: "Buena" });
+  const hl = await leerMaestro(limpia);
+  const [ml] = await leerMovimientos(limpia);
+  const falso = desfaseConElHistorial(
+    {
+      estadoOperativo: hl.estado,
+      tipoUbicacion: hl.tipoUbic,
+      ubicacionActual: hl.ubic,
+      custodioActual: hl.custodio,
+    },
+    comoLoVeLaApp(ml),
+  );
+  if (!falso) ok("una herramienta sana NO da falso positivo");
+  else falla("falso positivo", JSON.stringify(falso.diferencias));
+}
+
 // ------------------------------------------------------------------ limpieza
 async function limpiar() {
   console.log("\nLIMPIEZA");
@@ -467,6 +559,7 @@ try {
   if (idConSalida) await bloqueConfirmacion(idConSalida);
   await bloqueBordes();
   await bloqueTexto();
+  await bloqueDesfase();
 } catch (error) {
   fallas += 1;
   console.log("\nSE CORTO:", error.message.slice(0, 400));

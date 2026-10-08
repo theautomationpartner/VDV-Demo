@@ -17,13 +17,14 @@ import {
   CircleDollarSign,
   Check,
   Clock3,
+  AlertTriangle,
 } from "lucide-react";
 import { useSesionHerramientas } from "@/hooks/herramientas/useSesionHerramientas";
 import { useColumnOptions } from "@/hooks/useColumnOptions";
 import { AccionesHerramienta } from "@/components/herramientas/AccionesHerramienta";
 import { HistorialHerramienta } from "@/components/herramientas/HistorialHerramienta";
 import { FotosHerramienta } from "@/components/herramientas/FotosHerramienta";
-import { RECEPCION_PENDIENTE } from "@/lib/herramientas/dominio";
+import { NOMBRE_COLUMNA, RECEPCION_PENDIENTE, desfaseConElHistorial } from "@/lib/herramientas/dominio";
 import {
   DIAS_PARA_ALERTA,
   formatoDias,
@@ -114,6 +115,7 @@ export default function FichaHerramientaPage({ params }) {
   const [custodios, setCustodios] = useState([]);
   // Si el historial toco el tope y puede estar faltando lo mas viejo.
   const [truncado, setTruncado] = useState(false);
+  const [poniendoAlDia, setPoniendoAlDia] = useState(false);
 
   const cargar = useCallback(async () => {
     setRefetching(true);
@@ -229,6 +231,29 @@ export default function FichaHerramientaPage({ params }) {
     }
   };
 
+  const ponerAlDia = async () => {
+    setPoniendoAlDia(true);
+    try {
+      const respuesta = await fetch("/api/herramientas/poner-al-dia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: id }),
+      });
+      const json = await respuesta.json().catch(() => ({}));
+      if (!respuesta.ok) {
+        toast.error(json.error || "No se pudo poner al día.");
+        return;
+      }
+      toast.success(json.yaEstaba ? "Ya estaba al día." : "Ficha puesta al día.");
+      cargar();
+    } catch (err) {
+      console.error("[HERRAMIENTAS] No se pudo poner al dia:", err);
+      toast.error("No se pudo conectar. Probá de nuevo.");
+    } finally {
+      setPoniendoAlDia(false);
+    }
+  };
+
   if (cargandoSesion || loading) {
     return (
       <div className="min-h-dvh bg-background flex items-center justify-center">
@@ -261,6 +286,15 @@ export default function FichaHerramientaPage({ params }) {
   const dias = permanenciaDe(h);
   const vencida = mantencionVencida(h);
   const ultimo = movimientos[0] ?? null;
+  /**
+   * Si la ficha quedo diciendo algo distinto de lo que dice su ultimo
+   * movimiento. Pasa cuando el movimiento se escribio pero la herramienta no
+   * -monday caido, la conexion que se corta- y es grave para el negocio: la
+   * herramienta figura donde ya no esta y alguien la va a ir a buscar. Se
+   * detecta ACA, al abrir la ficha, para no depender de que alguien haya visto
+   * un cartel en el momento en que fallo.
+   */
+  const desfase = desfaseConElHistorial(h, ultimo);
   const pendientes = movimientos.filter((m) => m.recepcion === RECEPCION_PENDIENTE).length;
 
   return (
@@ -295,6 +329,42 @@ export default function FichaHerramientaPage({ params }) {
       </header>
 
       <main className="px-4 py-4 pb-10 space-y-3 max-w-3xl mx-auto">
+        {desfase ? (
+          <section className="rounded-[var(--radius-lg)] border border-[var(--warning)] bg-[color-mix(in_hsl,var(--warning)_10%,transparent)] p-4">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-[var(--warning)]">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              Esta ficha no coincide con su historial
+            </h2>
+            <p className="mt-1.5 text-sm text-foreground">
+              El último movimiento fue <strong>{ultimo.tipoMovimiento}</strong> del{" "}
+              {formatearFecha(ultimo.fechaMovimiento)}, pero la ficha no llegó a actualizarse.
+            </p>
+            <ul className="mt-2 space-y-0.5 text-sm text-[var(--fg-muted)]">
+              {desfase.diferencias.map((d) => (
+                <li key={d.clave}>
+                  El <strong className="text-foreground">{NOMBRE_COLUMNA[d.clave] ?? d.clave}</strong> dice{" "}
+                  <strong className="text-foreground">{d.dice || "(vacío)"}</strong> y debería decir{" "}
+                  <strong className="text-foreground">{d.deberia || "(vacío)"}</strong>.
+                </li>
+              ))}
+            </ul>
+            {puedeModificar ? (
+              <button
+                onClick={ponerAlDia}
+                disabled={poniendoAlDia}
+                className={`mt-3 inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--warning)] px-4 text-sm font-medium text-[var(--background)] disabled:opacity-50 ${FOCUS_RING}`}
+              >
+                <RefreshCw className={`h-4 w-4 ${poniendoAlDia ? "animate-spin" : ""}`} />
+                Poner al día
+              </button>
+            ) : (
+              <p className="mt-2 text-xs text-[var(--fg-muted)]">
+                Pedile a un bodeguero o administrador que la ponga al día.
+              </p>
+            )}
+          </section>
+        ) : null}
+
         {/* Donde esta, con quien, hace cuanto, y que se puede hacer: todo junto
             y arriba. Es lo que alguien viene a mirar y a resolver; el resto de
             la ficha es consulta. */}
