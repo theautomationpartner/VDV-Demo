@@ -22,31 +22,32 @@ const FOCUS_RING =
  * que no sirve como src directo: va por nuestra ruta, que ademas verifica que
  * esta sesion pueda ver esa obra. Hoy solo 3 de las 145 tienen foto, asi que
  * son 3 pedidos, no 145.
+ *
+ * El icono se dibuja SIEMPRE, y la foto se apoya encima cuando llega. Esa
+ * vuelta es porque la foto tarda un segundo de mas -son dos saltos: nuestra
+ * ruta le pregunta la URL a monday y recien ahi redirige al archivo- y el
+ * recuadro quedaba en blanco mientras tanto, que es lo que se notaba al abrir
+ * el listado.
  */
 function Miniatura({ herramienta }) {
   const [rota, setRota] = useState(false);
-  const base =
-    "h-10 w-10 min-w-10 shrink-0 rounded-[var(--radius-md)] border border-[var(--border-subtle)] overflow-hidden";
+  const hayFoto = Boolean(herramienta.foto) && !rota;
 
-  if (!herramienta.foto || rota) {
-    return (
-      <div
-        className={`${base} bg-[var(--surface-2)] text-[var(--fg-subtle)] flex items-center justify-center`}
-        aria-label={`Sin foto: ${herramienta.name}`}
-      >
-        <Camera className="h-4 w-4" />
-      </div>
-    );
-  }
   return (
-    <div className={`${base} bg-[var(--surface-2)]`}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={`/api/monday/archivo?boardKey=ControlHerramientasBoard&itemId=${encodeURIComponent(herramienta.id)}&columna=foto`}
-        alt={`Foto de ${herramienta.name}`}
-        onError={() => setRota(true)}
-        className="h-full w-full object-cover"
-      />
+    <div
+      className="relative h-10 w-10 min-w-10 shrink-0 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--fg-subtle)]"
+      aria-label={hayFoto ? undefined : `Sin foto: ${herramienta.name}`}
+    >
+      <Camera className="absolute inset-0 m-auto h-4 w-4" />
+      {hayFoto ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={`/api/monday/archivo?boardKey=ControlHerramientasBoard&itemId=${encodeURIComponent(herramienta.id)}&columna=foto`}
+          alt={`Foto de ${herramienta.name}`}
+          onError={() => setRota(true)}
+          className="relative h-full w-full object-cover"
+        />
+      ) : null}
     </div>
   );
 }

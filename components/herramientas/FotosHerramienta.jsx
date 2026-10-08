@@ -121,13 +121,18 @@ export function FotosHerramienta({ itemId, tieneFoto, puedeSubir, onSubida }) {
 
       <div className="mt-3">
         {src && !rota ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={src}
-            alt="Foto de la herramienta"
-            onError={() => setRota(true)}
-            className="max-h-72 w-auto max-w-full rounded-[var(--radius-md)] border border-[var(--border-subtle)] object-contain bg-[var(--surface-2)]"
-          />
+          /* El recuadro se reserva antes de que llegue la foto. La imagen viaja
+             en dos saltos -monday da la URL, recien ahi se baja el archivo- y
+             sin el alto reservado la ficha pegaba un salto al aparecer. */
+          <div className="flex min-h-24 items-center justify-center rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-2)]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt="Foto de la herramienta"
+              onError={() => setRota(true)}
+              className="max-h-72 w-auto max-w-full rounded-[var(--radius-md)] object-contain"
+            />
+          </div>
         ) : (
           <div className="flex min-h-24 items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--border-default)] bg-[var(--surface-2)] px-4 text-center">
             <p className="text-sm text-[var(--fg-muted)]">
