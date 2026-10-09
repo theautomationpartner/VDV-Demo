@@ -32,6 +32,10 @@ export function AccionesHerramienta({ herramienta, obras, custodiosConocidos, on
   const [observaciones, setObservaciones] = useState("");
   const [enviando, setEnviando] = useState(false);
 
+  // `custodio` guarda el ID de la ficha; el nombre se busca para mostrarlo y
+  // para que el servidor pueda nombrar a quien rechaza.
+  const nombreDelCustodio = custodiosConocidos.find((c) => c.id === custodio)?.nombre ?? "";
+
   const disponibles = accionesDisponibles(herramienta.estadoOperativo);
   const config = accion ? ACCIONES[accion] : null;
 
@@ -61,7 +65,14 @@ export function AccionesHerramienta({ herramienta, obras, custodiosConocidos, on
           itemId: herramienta.id,
           accion,
           destino: config.pideDestino ? destino : undefined,
-          custodio: config.pideCustodio ? custodio.trim() : undefined,
+          /**
+           * Va el ID DE LA FICHA en Equipo VDV, no el nombre escrito. El
+           * nombre viaja igual porque el servidor lo usa para el mensaje de
+           * error, pero el que decide es el id: asi el dia que renombren a
+           * alguien, lo que quedo guardado sigue apuntando a la persona.
+           */
+          custodioId: config.pideCustodio ? custodio || undefined : undefined,
+          custodio: config.pideCustodio ? nombreDelCustodio : undefined,
           condicion: config.pideCondicion ? condicion : undefined,
           enviarReparacion,
           observaciones: observaciones.trim(),
@@ -112,7 +123,7 @@ export function AccionesHerramienta({ herramienta, obras, custodiosConocidos, on
   }
 
   const faltaDestino = config?.pideDestino && !destino;
-  const faltaCustodio = config?.pideCustodio && accion !== "regresoReparacion" && !custodio.trim();
+  const faltaCustodio = config?.pideCustodio && accion !== "regresoReparacion" && !custodio;
 
   return (
     <>
@@ -174,8 +185,9 @@ export function AccionesHerramienta({ herramienta, obras, custodiosConocidos, on
                   ) : null}
                 </label>
                 {/* Cerrado al directorio: el custodio tiene que ser alguien de
-                    "Equipo VDV". El servidor lo vuelve a verificar, porque por
-                    la API se manda cualquier texto. */}
+                    "Equipo VDV", y lo que viaja es el id de su ficha. El
+                    servidor lo vuelve a verificar, porque por la API se manda
+                    cualquier cosa. */}
                 <select
                   id="mov-custodio"
                   value={custodio}
@@ -186,8 +198,8 @@ export function AccionesHerramienta({ herramienta, obras, custodiosConocidos, on
                     {accion === "regresoReparacion" ? "Queda en bodega" : "Elegir…"}
                   </option>
                   {custodiosConocidos.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}
                     </option>
                   ))}
                 </select>

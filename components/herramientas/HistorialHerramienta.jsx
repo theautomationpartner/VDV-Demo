@@ -19,6 +19,7 @@ import {
   ArrowRightLeft,
 } from "lucide-react";
 import {
+  custodioDe,
   DIAS_PARA_ALERTA,
   diasDesde,
   fechaCorta,
@@ -364,7 +365,7 @@ function ResumenActual({ herramienta, estaciones, ultimoMovimiento, verValorizac
     <div className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-4">
       <div className={`grid grid-cols-2 gap-4 sm:grid-cols-3 ${mostrarValor ? "lg:grid-cols-6" : "lg:grid-cols-5"}`}>
         <DatoResumen icono={MapPin} label="Ubicación actual" valor={h.ubicacionActual || "—"} />
-        <DatoResumen icono={User} label="Custodio" valor={h.custodioActual || "Sin custodio"} />
+        <DatoResumen icono={User} label="Custodio" valor={custodioDe(h) || "Sin custodio"} />
         <DatoResumen
           icono={Hourglass}
           label={enTaller ? "En reparación hace" : "Permanencia en sitio"}

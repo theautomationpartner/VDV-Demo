@@ -8,6 +8,7 @@ import { ControlArriendosItemsBoard } from "@/lib/board-sdk";
 import { comprimir } from "@/lib/client/comprimir-imagen";
 import { formatearMonto } from "@/lib/herramientas/inventario";
 import { Firma } from "@/components/arriendos/Firma";
+import { FOCO_CAMPO, FOCO_BOTON } from "@/lib/ui-foco";
 import {
   ESTADOS_CERRADOS,
   ITEM_DANADO,
@@ -17,7 +18,8 @@ import {
   costoDeItem,
 } from "@/lib/arriendos/dominio";
 
-const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]";
+// Botones. Los campos usan FOCO_CAMPO: ver lib/ui-foco.js.
+const FOCUS_RING = FOCO_BOTON;
 
 const ESTADOS = [
   { valor: ITEM_DEVUELTO, label: "Devuelto", ayuda: "Volvió bien" },
@@ -247,7 +249,7 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
                   value={fecha}
                   max={hoyEnChile()}
                   onChange={(e) => setFecha(e.target.value)}
-                  className={`mt-1 h-11 w-full rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 text-sm text-foreground ${FOCUS_RING}`}
+                  className={`mt-1 h-11 w-full rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 text-sm text-foreground ${FOCO_CAMPO}`}
                 />
               </label>
               <label className="block">
@@ -256,7 +258,7 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
                   value={nota}
                   onChange={(e) => setNota(e.target.value)}
                   placeholder="Opcional"
-                  className={`mt-1 h-11 w-full rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 text-sm text-foreground placeholder:text-[var(--fg-subtle)] ${FOCUS_RING}`}
+                  className={`mt-1 h-11 w-full rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 text-sm text-foreground placeholder:text-[var(--fg-subtle)] ${FOCO_CAMPO}`}
                 />
               </label>
             </div>
@@ -399,7 +401,7 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
                   onChange={(e) => setRecibe(e.target.value)}
                     aria-label="Nombre de quien recibe el equipo"
                   placeholder="Nombre de quien se lleva el equipo"
-                  className={`mt-1 h-11 w-full rounded-[var(--radius-md)] border bg-[var(--surface-1)] px-3 text-sm text-foreground placeholder:text-[var(--fg-subtle)] ${FOCUS_RING} ${
+                  className={`mt-1 h-11 w-full rounded-[var(--radius-md)] border bg-[var(--surface-1)] px-3 text-sm text-foreground placeholder:text-[var(--fg-subtle)] ${FOCO_CAMPO} ${
                     recibe.trim() ? "border-[var(--border-subtle)]" : "border-[var(--warning)]"
                   }`}
                 />

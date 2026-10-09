@@ -122,11 +122,21 @@ try {
   else falla("la pantalla", "no se ve el listado");
 
   await page.locator("button").filter({ hasText: "Nuevo arriendo" }).first().click();
-  await page.waitForTimeout(4000);
   const d = page.locator('[role="dialog"]');
 
   // Paso 1: primero el proveedor, despues su orden de compra.
   const provs = d.locator("button").filter({ hasText: /orden\(es\)/ });
+
+  /**
+   * Se espera a que aparezca el primer proveedor, no cuatro segundos.
+   *
+   * El paso 1 cruza las ordenes de compra con el tablero de proveedores, y eso
+   * son dos pedidos a monday. Con la espera fija el test fallaba de a ratos
+   * diciendo "no listo ningun proveedor" con la pantalla perfecta: habia
+   * tardado un segundo mas. Mismo motivo que el aviso de "ya lo tenemos" mas
+   * abajo.
+   */
+  await provs.first().waitFor({ state: "visible", timeout: 60_000 }).catch(() => {});
   const cuantosProv = await provs.count();
   if (cuantosProv > 0) ok(`el paso 1 lista ${cuantosProv} proveedores`);
   else falla("el paso 1", "no listo ningun proveedor");
@@ -428,7 +438,22 @@ try {
   await d3.locator("button").filter({ hasText: "Continuar" }).click();
   await page.waitForTimeout(1200);
   await d3.locator("input").first().fill("rotomartillo inalambrico");
-  await page.waitForTimeout(2500);
+
+  /**
+   * Se espera A QUE APAREZCA, no una cantidad de segundos.
+   *
+   * El cruce necesita el inventario entero -145 herramientas- y ese pedido a
+   * monday tarda lo que tarda. Con un `waitForTimeout(2500)` el test fallaba
+   * una de cada tantas corridas diciendo "el aviso no aparecio", cuando la
+   * pantalla estaba bien: solo habia tardado 3 segundos en vez de 2. Un test
+   * que falla a veces es peor que no tenerlo, porque enseña a ignorarlo.
+   */
+  await d3
+    .locator("text=/ya tiene \\d+ disponible/")
+    .first()
+    .waitFor({ state: "visible", timeout: 30_000 })
+    .catch(() => {});
+
   await foto(page, "10-aviso-ya-lo-tenemos");
   const t3 = await d3.innerText();
   if (/ya tiene \d+ disponible/.test(t3)) ok(`avisa: "${t3.match(/VDV ya tiene[^\n]*/)?.[0]}"`);
