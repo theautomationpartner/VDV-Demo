@@ -305,7 +305,7 @@ try {
   const dd = page.locator('[role="dialog"]');
   await foto(page, "07-devolucion-abierta");
 
-  const registrar = dd.locator("button").filter({ hasText: "Registrar devolución" });
+  const registrar = dd.locator("button").filter({ hasText: /^Devolver \d+ ítem/ });
   if (await registrar.isDisabled()) ok("sin foto, el boton de registrar esta apagado");
   else falla("la foto obligatoria", "dejo registrar sin foto");
 
@@ -314,20 +314,25 @@ try {
   else falla("el aviso de la foto", "no aparece");
 
   // Se sube la foto como lo haria una persona: por el input de archivo.
-  // Una foto por CADA item marcado: "Devolver todo" los marca a todos, y la
-  // foto es obligatoria para cada uno.
-  const entradas = dd.locator('input[type="file"]');
-  const cuantasFotos = await entradas.count();
-  console.log(`        (${cuantasFotos} item(s) esperando foto)`);
-  for (let i = 0; i < cuantasFotos; i += 1) {
-    await entradas.nth(i).setInputFiles({ name: `zz-${i}.png`, mimeType: "image/png", buffer: PNG });
-    await page.waitForTimeout(5000);
-  }
+  // UNA sola foto para toda la devolucion: se copia a cada item al guardar.
+  const textoAntes = await dd.innerText();
+  if (/Una misma foto cubre todos/.test(textoAntes)) ok("avisa que una foto cubre todos los ítems");
+  else falla("el aviso de la foto", "no aparece");
+  if (/Ítems a devolver \(\d+ de \d+\)/.test(textoAntes)) ok("muestra el contador de ítems a devolver");
+  else falla("el contador", "no aparece");
+  if (/cierra en \$/.test(textoAntes)) ok("cada ítem dice cuánto cierra");
+  else falla("la vista previa por ítem", "no muestra el cierre");
+  if (/Costo que queda cerrado/.test(textoAntes)) ok("y hay total de lo que deja de acumular");
+  else falla("el costo cerrado", "no aparece");
+
+  await dd.locator("#foto-devolucion-galeria").setInputFiles({
+    name: "zz-prueba.png", mimeType: "image/png", buffer: PNG,
+  });
+  await page.waitForTimeout(2500);
   await foto(page, "08-devolucion-con-foto");
 
-  const guardadas = (await dd.innerText()).match(/Foto guardada/g)?.length ?? 0;
-  if (guardadas === cuantasFotos) ok(`las ${cuantasFotos} foto(s) se subieron`);
-  else falla("las fotos", `se guardaron ${guardadas} de ${cuantasFotos}`);
+  if (/Foto lista/.test(await dd.innerText())) ok("la foto quedó cargada");
+  else falla("la foto", "el botón no confirma");
 
   if (!(await registrar.isDisabled())) ok("ahora si deja registrar");
   else falla("el boton", "sigue apagado con la foto puesta");
@@ -337,7 +342,21 @@ try {
   await foto(page, "09-despues-de-devolver");
 
   console.log("\n  --- lo que quedo en monday despues de devolver ---");
-  const m2 = await enMonday(arriendoId);
+  /**
+   * Se ESPERA a que monday lo refleje, no se lee una sola vez.
+   *
+   * Su lista es eventually consistent: un subelemento recien actualizado puede
+   * volver con el estado viejo durante unos segundos. Leyendo al toque, la
+   * prueba fallaba de a ratos sobre una app que habia hecho lo correcto.
+   */
+  let m2 = null;
+  for (let intento = 0; intento < 10; intento += 1) {
+    m2 = await enMonday(arriendoId);
+    const primero = m2.item.subitems[0];
+    const est = primero?.column_values.find((c) => c.id === CI.estado)?.text;
+    if (est && est !== "Activo") break;
+    await new Promise((r) => setTimeout(r, 3000));
+  }
   const sub = m2.item.subitems[0];
   const subVal = (cid) => sub.column_values.find((c) => c.id === cid)?.text ?? null;
   chequear("estado del item", subVal(CI.estado), "Devuelto");
