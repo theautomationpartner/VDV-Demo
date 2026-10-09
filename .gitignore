@@ -46,3 +46,7 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Los scripts para grabar el video demo, con sus node_modules, los cuadros en
+# 4K, los mp3 y los mp4. Son varios cientos de MB y no forman parte de la app.
+video-demo/

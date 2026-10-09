@@ -205,3 +205,36 @@
     color: var(--fg-subtle, var(--muted-foreground));
   }
 }
+
+@layer base {
+  /**
+   * La manito al pasar por encima de algo que se puede apretar.
+   *
+   * Tailwind v4 saco la regla de su preflight que ponia `cursor: pointer` en
+   * los <button>, asi que desde la migracion todos quedaron con la flecha
+   * comun: no se distingue lo que se puede apretar de lo que no.
+   *
+   * No es cosmetico y no era de una pantalla: medido el 09-oct-2026 sobre la
+   * app compilada, 21 de 23 elementos clickeables en Arriendos y 87 de 92 en
+   * Herramientas mostraban `default`. Pasa en las cuatro apps de la suite,
+   * porque todas comparten este archivo.
+   *
+   * `:not(:disabled)` a proposito: un boton apagado no se puede apretar, y
+   * mostrarle la manito promete algo que no va a pasar.
+   */
+  button:not(:disabled),
+  select:not(:disabled),
+  summary,
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  /* Y el candadito en los apagados, que explica por que no responden. */
+  button:disabled,
+  select:disabled,
+  input:disabled,
+  textarea:disabled {
+    cursor: not-allowed;
+  }
+}
