@@ -63,22 +63,48 @@ const CI = {
   estado: "color_mm775j0h",
 };
 
-const texto = (cols, id) => cols.find((c) => c.id === id)?.text || null;
+/**
+ * Lee una celda COMO LA LEE LA APP.
+ *
+ * El detalle que invalida la lectura ingenua: en monday una columna de estado
+ * VACIA no devuelve "", devuelve la etiqueta que tenga asignado el color gris.
+ * En este tablero eso significa que una celda sin completar dice "TARIFA FIJA",
+ * "DAÑADO" o "NUEVO". Lo unico que distingue un dato de un hueco es que `value`
+ * venga en null, y eso es lo que mira la API de la app
+ * (app/api/monday/board/route.js). Si el test no hace lo mismo, valida contra
+ * una entrada que la app nunca recibe -y pasa en verde mientras la pantalla
+ * muestra otra cosa, que es exactamente lo que paso la primera vez-.
+ */
+const texto = (cols, id) => {
+  const c = cols.find((x) => x.id === id);
+  if (!c) return null;
+  if (c.value === null || c.value === undefined) return null;
+  return c.text || null;
+};
 const mapear = (cols, mapa) =>
   Object.fromEntries(Object.entries(mapa).map(([k, id]) => [k, texto(cols, id)]));
 
 /**
- * Lo que muestra la app de Pablo, copiado de su pantalla el 09-10-2026.
- * `permanenciaVibe` se anota aparte porque en los devueltos NO coincide a
- * proposito: ver el comentario de `resumenDeArriendo`.
+ * Lo que tiene que dar, sabiendo que tres de los cuatro arriendos estan
+ * incompletos en el tablero.
+ *
+ * La app de Pablo muestra $612.161 de gasto total, pero ese numero se apoya en
+ * celdas vacias: lee "TARIFA FIJA" donde nadie cargo la tarifa y cobra "torre"
+ * una sola vez. Suponer lo contrario -que es por dia- daria $285.000 para el
+ * mismo arriendo. Con esa diferencia no hay default honesto, asi que lo unico
+ * correcto es no sumarlo y decir que falta el dato.
+ *
+ * El unico arriendo con todo cargado es "Andamio torre", y ahi los dos numeros
+ * coinciden, que es lo que prueba que la formula es la correcta.
  */
 const ESPERADO = {
-  "Andamio torre": { neto: 497171, conIva: 591633, items: 3, enObra: 0, unidades: 26, conDano: 1, permanenciaVibe: 22 },
-  torre: { neto: 15000, conIva: 17850, items: 1, enObra: 1, unidades: 1, conDano: 0, permanenciaVibe: 19 },
-  "test arriendo": { neto: 2250, conIva: 2678, items: 1, enObra: 0, unidades: 5, conDano: 0, permanenciaVibe: 24 },
-  s: { neto: 0, conIva: 0, items: 1, enObra: 0, unidades: 0, conDano: 0, permanenciaVibe: null },
+  "Andamio torre": { confiable: true, neto: 497171, conIva: 591633, items: 3, enObra: 0, unidades: 26, conDano: 1 },
+  torre: { confiable: false, falta: "el tipo de tarifa" },
+  "test arriendo": { confiable: false, falta: "el tipo de tarifa" },
+  s: { confiable: false },
 };
-const TOTAL_ESPERADO = { neto: 514421, conIva: 612161 };
+/** Solo lo calculable entra al total. */
+const TOTAL_ESPERADO = { neto: 497171, conIva: 591633 };
 
 let bien = 0;
 let mal = 0;
@@ -92,8 +118,8 @@ const d = await pedir(`query {
     items_page(limit: 50) {
       items {
         id name
-        column_values { id text }
-        subitems { id name column_values { id text } }
+        column_values { id text value }
+        subitems { id name column_values { id text value } }
       }
     }
   }
@@ -110,11 +136,13 @@ for (const it of arriendos) {
   const items = (it.subitems ?? []).map((s) => mapear(s.column_values, CI));
   const r = resumenDeArriendo(arriendo, items, HOY);
 
-  netoTotal += r.neto;
-  conIvaTotal += r.conIva;
+  if (r.confiable) {
+    netoTotal += r.neto;
+    conIvaTotal += r.conIva;
+  }
 
   const esp = ESPERADO[it.name];
-  console.log(`"${it.name}"  (${arriendo.tipoTarifa ?? "sin tarifa"})`);
+  console.log(`"${it.name}"  (${arriendo.tipoTarifa ?? "SIN tipo de tarifa cargado"})`);
   if (!esp) {
     console.log("  (no estaba en la captura, se saltea)");
     continue;
@@ -125,6 +153,17 @@ for (const it of arriendos) {
       ? ok(`${campo} = ${obtenido}`)
       : falla(`${campo}`, `esperaba ${esperado}, dio ${obtenido}`);
 
+  comparar("se puede calcular", r.confiable, esp.confiable);
+  if (!esp.confiable) {
+    if (esp.falta && !r.faltan.includes(esp.falta)) {
+      falla("que falta", `esperaba "${esp.falta}", dijo: ${r.faltan.join(", ") || "(nada)"}`);
+    } else {
+      ok(`avisa que falta: ${r.faltan.join(", ")}`);
+    }
+    console.log("");
+    continue;
+  }
+
   comparar("neto", r.neto, esp.neto);
   comparar("con IVA", r.conIva, esp.conIva);
   comparar("items", r.total, esp.items);
@@ -132,13 +171,15 @@ for (const it of arriendos) {
   comparar("unidades", r.unidades, esp.unidades);
   comparar("con daño", r.conDano, esp.conDano);
 
-  // La permanencia: se informa la diferencia, no se falla por ella.
+  // La permanencia: la app de Pablo sigue contando hasta hoy aunque el equipo
+  // ya haya vuelto. Aca el reloj se detiene al devolver, asi que se informa la
+  // diferencia en vez de fallar por ella.
   const inicio = aFecha(arriendo.fechaInicioArriendo);
   const comoLaVibe = inicio ? diasEntre(inicio, HOY) : null;
-  if (r.permanencia !== esp.permanenciaVibe) {
+  if (r.permanencia !== comoLaVibe) {
     console.log(
-      `  DISTINTO permanencia: nosotros ${r.permanencia} (para el reloj al devolver), ` +
-        `la vibe ${esp.permanenciaVibe} (sigue contando hasta hoy = ${comoLaVibe})`,
+      `  DISTINTO permanencia: nosotros ${r.permanencia} (el reloj para al devolver), ` +
+        `la vibe ${comoLaVibe} (sigue contando hasta hoy)`,
     );
   } else {
     ok(`permanencia = ${r.permanencia}`);

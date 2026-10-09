@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import {
   normalizarRolHerramientas,
+  puedeGestionarArriendos,
   puedeModificarHerramientas,
+  puedeVerCostosArriendo,
   puedeVerValorizacion,
   veTodaLaEmpresa,
 } from "@/lib/herramientas-roles";
@@ -60,6 +62,13 @@ export function useSesionHerramientas() {
     tieneAcceso: Boolean(sesion),
     puedeModificar: puedeModificarHerramientas(sesion?.role),
     verValorizacion: puedeVerValorizacion(sesion?.role),
+    /**
+     * Arriendos. Va aparte de `verValorizacion` porque NO es la misma gente: el
+     * Bodeguero ve lo que cuesta un arriendo pero no el precio de compra del
+     * inventario. Ver puedeVerCostosArriendo en lib/herramientas-roles.js.
+     */
+    verCostosArriendo: puedeVerCostosArriendo(sesion?.role),
+    gestionarArriendos: puedeGestionarArriendos(sesion?.role),
     /**
      * Las obras que esta persona puede ver, o `null` si las ve todas. El
      * Bodeguero ve todo aunque su cuenta este acotada: lo necesita para saber
