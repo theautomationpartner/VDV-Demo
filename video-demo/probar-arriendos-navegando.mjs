@@ -334,11 +334,46 @@ try {
   if (/Foto lista/.test(await dd.innerText())) ok("la foto quedó cargada");
   else falla("la foto", "el botón no confirma");
 
+  // Quien recibe y la firma: los dos obligatorios.
+  if (await registrar.isDisabled()) ok("con la foto pero sin quién recibe, sigue apagado");
+  else falla("quién recibe obligatorio", "dejó registrar sin ese dato");
+
+  await dd.locator('input[placeholder="Nombre de quien se lleva el equipo"]').fill("Juan del proveedor");
+  await page.waitForTimeout(500);
+  if (await registrar.isDisabled()) ok("y sin la firma tampoco deja");
+  else falla("la firma obligatoria", "alcanzó con el nombre");
+
+  // Se firma: tres trazos con el puntero sobre el lienzo.
+  const lienzo = dd.locator("canvas").first();
+  // Se lo lleva a la vista ANTES de medirlo: el recuadro de firma esta al final
+  // de un contenedor con scroll, y con el fuera de pantalla el clic caia sobre
+  // el fondo del dialogo y lo cerraba.
+  await lienzo.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(500);
+  const caja = await lienzo.boundingBox();
+  await page.mouse.move(caja.x + 30, caja.y + 70);
+  await page.mouse.down();
+  await page.mouse.move(caja.x + 90, caja.y + 30, { steps: 8 });
+  await page.mouse.move(caja.x + 150, caja.y + 90, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(1200);
+  await foto(page, "08b-firmado");
+
+  if (/Firmada/.test(await dd.innerText())) ok("la firma se dibujó y quedó registrada");
+  else falla("la firma", "el recuadro no la reconoció");
+  if (!(await registrar.isDisabled())) ok("con todo cargado, habilita");
+  else falla("el botón", "sigue apagado con nombre y firma");
+
   if (!(await registrar.isDisabled())) ok("ahora si deja registrar");
   else falla("el boton", "sigue apagado con la foto puesta");
 
   await registrar.click();
-  await page.waitForTimeout(9000);
+  // Se espera a que el dialogo CIERRE, no un tiempo fijo: la devolucion sube
+  // la foto Y la firma a cada item antes de registrar, asi que tarda lo que
+  // tarde. Con un tiempo fijo la prueba empezaba a leer monday mientras la
+  // operacion seguia en curso y veia los valores de antes.
+  await dd.waitFor({ state: "detached", timeout: 90_000 }).catch(() => {});
+  await page.waitForTimeout(3000);
   await foto(page, "09-despues-de-devolver");
 
   console.log("\n  --- lo que quedo en monday despues de devolver ---");
@@ -350,13 +385,18 @@ try {
    * prueba fallaba de a ratos sobre una app que habia hecho lo correcto.
    */
   let m2 = null;
-  for (let intento = 0; intento < 10; intento += 1) {
+  for (let intento = 0; intento < 12; intento += 1) {
     m2 = await enMonday(arriendoId);
     const primero = m2.item.subitems[0];
     const est = primero?.column_values.find((c) => c.id === CI.estado)?.text;
-    if (est && est !== "Activo") break;
+    const devueltas = Number(m2.val(C.cantidadDevuelta)) || 0;
+    // Se espera a que propaguen LOS DOS: el item y el encabezado. monday los
+    // publica por separado, asi que el item puede aparecer devuelto mientras el
+    // encabezado todavia devuelve lo de antes.
+    if (est && est !== "Activo" && devueltas > 0) break;
     await new Promise((r) => setTimeout(r, 3000));
   }
+  console.log(`        (monday al dia despues de esperar)`);
   const sub = m2.item.subitems[0];
   const subVal = (cid) => sub.column_values.find((c) => c.id === cid)?.text ?? null;
   chequear("estado del item", subVal(CI.estado), "Devuelto");

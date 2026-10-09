@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ControlArriendosItemsBoard } from "@/lib/board-sdk";
 import { comprimir } from "@/lib/client/comprimir-imagen";
 import { formatearMonto } from "@/lib/herramientas/inventario";
+import { Firma } from "@/components/arriendos/Firma";
 import {
   ESTADOS_CERRADOS,
   ITEM_DANADO,
@@ -53,6 +54,8 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
   const [nota, setNota] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [foto, setFoto] = useState(null);
+  const [recibe, setRecibe] = useState("");
+  const [firma, setFirma] = useState(null);
   const [subiendo, setSubiendo] = useState(false);
   const camara = useRef(null);
   const galeria = useRef(null);
@@ -63,6 +66,8 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
     setFecha(hoyEnChile());
     setNota("");
     setFoto(null);
+    setRecibe("");
+    setFirma(null);
   };
 
   const [iniciado, setIniciado] = useState(false);
@@ -138,6 +143,14 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
       toast.error("Falta la foto de la devolución.");
       return;
     }
+    if (!recibe.trim()) {
+      toast.error("Falta decir quién recibe el equipo.");
+      return;
+    }
+    if (!firma) {
+      toast.error("Falta la firma de quien recibe.");
+      return;
+    }
 
     setGuardando(true);
     try {
@@ -148,8 +161,17 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
       for (const d of devoluciones) {
         try {
           await itemsBoard.item(d.itemId).uploadFile({ columnId: COLUMNA_FOTO, file: foto, reemplazar: true });
+          /**
+           * La firma va a la MISMA columna de archivos, sin reemplazar.
+           *
+           * El tablero no tiene una columna propia para la firma y crearla no
+           * esta a nuestro alcance desde la app. Una columna de archivos de
+           * monday admite varios, asi que quedan los dos; se distinguen por el
+           * nombre ("firma-recepcion.png" contra la foto).
+           */
+          await itemsBoard.item(d.itemId).uploadFile({ columnId: COLUMNA_FOTO, file: firma });
         } catch (error) {
-          console.error("[ARRIENDOS] no se pudo subir la foto de un ítem:", error);
+          console.error("[ARRIENDOS] no se pudo subir la foto o la firma de un ítem:", error);
           sinFoto.push(d.itemId);
         }
       }
@@ -161,7 +183,12 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
       const respuesta = await fetch("/api/arriendos/devolver", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ arriendoId: arriendo.id, devoluciones, nota: nota.trim() || null }),
+        body: JSON.stringify({
+          arriendoId: arriendo.id,
+          devoluciones,
+          nota: nota.trim() || null,
+          recibe: recibe.trim(),
+        }),
       });
       const json = await respuesta.json().catch(() => ({}));
       if (!respuesta.ok) {
@@ -189,7 +216,8 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
 
   if (!arriendo) return null;
 
-  const puedeGuardar = marcados.length > 0 && Boolean(foto) && !guardando && !subiendo;
+  const puedeGuardar =
+    marcados.length > 0 && Boolean(foto) && Boolean(firma) && recibe.trim().length > 0 && !guardando && !subiendo;
 
   return (
     <Dialog open={abierto} onOpenChange={(v) => !v && onCerrar?.()}>
@@ -364,6 +392,28 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
                   <span className="text-[11px] text-[var(--warning)]">obligatoria</span>
                 )}
               </div>
+            </div>
+
+            {/* ------------------------- quien recibe del lado del proveedor */}
+            <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-2.5">
+              <label className="block">
+                <span className="text-sm font-medium text-foreground">
+                  ¿Quién recibe?<span className="ml-0.5 text-[var(--accent)]">*</span>
+                </span>
+                <input
+                  value={recibe}
+                  onChange={(e) => setRecibe(e.target.value)}
+                  placeholder="Nombre de quien se lleva el equipo"
+                  className={`mt-1 h-11 w-full rounded-[var(--radius-md)] border bg-[var(--surface-1)] px-3 text-sm text-foreground placeholder:text-[var(--fg-subtle)] ${FOCUS_RING} ${
+                    recibe.trim() ? "border-[var(--border-subtle)]" : "border-[var(--warning)]"
+                  }`}
+                />
+              </label>
+              <p className="text-[11px] text-[var(--fg-subtle)]">
+                Es la persona del proveedor que viene a buscarlo. Se escribe a mano porque no es
+                del equipo de VDV.
+              </p>
+              <Firma onCambio={setFirma} requerida />
             </div>
 
             {/* --------------------------------- lo que deja de acumular */}

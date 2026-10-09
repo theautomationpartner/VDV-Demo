@@ -38,7 +38,7 @@ export async function POST(request) {
     return Response.json({ error: "El pedido no tiene un cuerpo válido." }, { status: 400 });
   }
 
-  const { arriendoId, devoluciones, nota } = cuerpo ?? {};
+  const { arriendoId, devoluciones, nota, recibe } = cuerpo ?? {};
 
   try {
     // La obra: no alcanza con poder gestionar. Sin esto, alguien con una obra
@@ -53,7 +53,7 @@ export async function POST(request) {
       }
     }
 
-    const resultado = await devolverItems({ arriendoId, devoluciones, nota, quien: sesion });
+    const resultado = await devolverItems({ arriendoId, devoluciones, nota, recibe, quien: sesion });
     return Response.json(resultado);
   } catch (err) {
     if (err instanceof ArriendoError) {
