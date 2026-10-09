@@ -178,6 +178,81 @@ console.log("\n7. LAS FOTOS");
   else falla("columna indebida", "lo dejo");
 }
 
+console.log("\n8. LA ALERTA EN MIS PENDIENTES");
+{
+  const { pendientesDeArriendos } = await import("../lib/pendientes.js");
+
+  // La sesion de la bandeja es la de Herramientas (hr_session), que guarda el
+  // rol como `role` y no como `appRol`.
+  const hr = (role, extra = {}) => ({ role, obras: [], restrictObras: false, ...extra });
+
+  const arriendo = (id, obra, { vencido = false, dias = 3 } = {}) => ({
+    id,
+    name: `Andamio ${id}`,
+    codigoArriendo: `ARR-000${id}`,
+    obra,
+    resumen: { cerrado: false, permanencia: dias, confiable: true, conIva: 100000 },
+    alertas: vencido ? [{ nivel: "vencido" }] : [],
+  });
+
+  const datos = [
+    arriendo(1, "M388", { vencido: true }),
+    arriendo(2, "SELMAN", { dias: 20 }),
+    arriendo(3, "M388", { dias: 2 }),
+    { ...arriendo(4, "M388", { vencido: true }), resumen: { cerrado: true, permanencia: 30, confiable: true, conIva: 0 } },
+  ];
+
+  const admin = pendientesDeArriendos(datos, hr("administrador"));
+  if (admin.length === 2) ok("al administrador le aparecen los 2 que hay que devolver");
+  else falla("administrador", `le aparecieron ${admin.length}: ${admin.map((x) => x.clave).join(", ")}`);
+
+  if (!admin.some((x) => x.clave === "arriendo:3")) ok("el que lleva 2 dias NO aparece");
+  else falla("arriendo de 2 dias", "aparecio y no deberia");
+
+  if (!admin.some((x) => x.clave === "arriendo:4")) ok("el ya devuelto NO aparece");
+  else falla("arriendo cerrado", "aparecio y no deberia");
+
+  const vencido = admin.find((x) => x.clave === "arriendo:1");
+  // `observado` tiene que ser false: en esta bandeja significa "esperando al
+  // proveedor", y con true los vencidos caian bajo "ya los revisaste" y no
+  // contaban en "para hacer ahora". Se verifica que SI entren ahi.
+  const { paraHacerAhora } = await import("../lib/pendientes.js");
+  if (paraHacerAhora(admin).length === 2) ok("los 2 cuentan como 'para hacer ahora'");
+  else falla("para hacer ahora", `conto ${paraHacerAhora(admin).length} de 2`);
+  if (vencido?.observado === false) ok("ninguno queda como 'esperando al proveedor'");
+  else falla("el vencido", "quedo marcado como observado y no corresponde");
+  if (/fecha de fin pactada/i.test(vencido?.motivo ?? "")) ok("y explica por que");
+  else falla("el motivo del vencido", `dice "${vencido?.motivo}"`);
+
+  const demorado = admin.find((x) => x.clave === "arriendo:2");
+  if (/20 d/.test(demorado?.motivo ?? "")) ok("el demorado dice cuantos dias lleva");
+  else falla("el motivo del demorado", `dice "${demorado?.motivo}"`);
+
+  const tecnica = pendientesDeArriendos(datos, hr("oficina_tecnica"));
+  if (tecnica.length === 2) ok("oficina tecnica ve los mismos 2");
+  else falla("oficina tecnica", `vio ${tecnica.length}`);
+
+  // El bodeguero ve toda la empresa en el INVENTARIO, pero la alerta se le
+  // acota a sus obras: con el otro criterio la bandeja se le vuelve ruido.
+  const bodeguero = pendientesDeArriendos(datos, hr("bodeguero", { obras: ["M388"], restrictObras: true }));
+  if (bodeguero.length === 1 && bodeguero[0].obra === "M388") {
+    ok("al bodeguero de M388 solo le aparece el de M388");
+  } else {
+    falla("bodeguero por obra", `le aparecieron ${bodeguero.length}: ${bodeguero.map((x) => x.obra).join(", ")}`);
+  }
+
+  const bodegueroTodo = pendientesDeArriendos(datos, hr("bodeguero"));
+  if (bodegueroTodo.length === 2) ok("un bodeguero sin obras acotadas ve los 2");
+  else falla("bodeguero sin restriccion", `vio ${bodegueroTodo.length}`);
+
+  const jefe = pendientesDeArriendos(datos, hr("jefe_obra", { obras: ["M388"], restrictObras: true }));
+  if (jefe.length === 0) ok("al jefe de obra NO le aparece ninguno (no puede devolver)");
+  else falla("jefe de obra", `le aparecieron ${jefe.length}`);
+
+  const sinApp = pendientesDeArriendos(datos, null);
+  if (sinApp.length === 0) ok("sin sesion de Herramientas, ninguno");
+  else falla("sin sesion", `le aparecieron ${sinApp.length}`);
+}
 console.log("\n====================================================");
 console.log(`>>> ${bien} bien, ${mal} ${mal === 1 ? "falla" : "fallas"}`);
 process.exit(mal ? 1 : 0);

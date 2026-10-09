@@ -4,13 +4,17 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { claveDe, traerDatosPortal, yaTraido } from "@/hooks/portal-proveedor/portalDatos";
 import { aplicarVbRecientes } from "@/lib/client/vb-recientes";
+import { ControlArriendosBoard } from "@/lib/board-sdk";
+import { COLUMNAS_ITEM, COLUMNAS_LISTADO, TOPE, prepararArriendo } from "@/lib/arriendos/listado";
 import {
   contratosEsperandoFirma,
   marcarSinCobertura,
   ocSinAprobador,
   ordenarPendientes,
+  pendientesDeArriendos,
   pendientesDeContratos,
   pendientesDeOc,
+  puedeDeberArriendos,
   puedeDeberContratos,
   puedeVerOc,
 } from "@/lib/pendientes";
@@ -51,6 +55,9 @@ const leerSesionPortal = () => leerSesion("pp_session");
 /** La del OC Tracker, que es donde vive el vinculo con el usuario de monday. */
 const leerSesionOc = () => leerSesion("og_session");
 
+/** La de Control de Herramientas, que es de donde cuelgan los arriendos. */
+const leerSesionHerramientas = () => leerSesion("hr_session");
+
 /**
  * Las ordenes del tablero, de la foto que ya mantiene la tarea programada.
  *
@@ -90,6 +97,43 @@ async function traerOrdenes() {
   })();
 
   return _oc.promise;
+}
+
+/**
+ * Los arriendos activos, con sus items.
+ *
+ * Se leen en vivo: el tablero es chico -decenas de arriendos- y el costo se
+ * calcula al leer, asi que no hay snapshot que pueda quedar viejo. Mismo TTL de
+ * 5 minutos que las ordenes, por lo mismo: esto lo llama la bandeja Y el
+ * contador del menu lateral.
+ */
+const ARR_TTL_MS = 5 * 60 * 1000;
+let _arr = { datos: null, time: 0, promise: null };
+
+async function traerArriendos() {
+  if (_arr.datos && Date.now() - _arr.time < ARR_TTL_MS) return _arr.datos;
+  if (_arr.promise) return _arr.promise;
+
+  _arr.promise = (async () => {
+    try {
+      const r = await new ControlArriendosBoard()
+        .items()
+        .withColumns(COLUMNAS_LISTADO)
+        .withSubItems("ControlArriendosItemsBoard", COLUMNAS_ITEM)
+        .withPagination({ limit: TOPE })
+        .execute();
+      const listos = (r.items ?? []).map((f) => prepararArriendo(f));
+      _arr = { datos: listos, time: Date.now(), promise: null };
+      return listos;
+    } catch (error) {
+      // Un 403 aca significa que esta persona no tiene la app: no es un error.
+      console.warn("[pendientes] no se pudieron traer los arriendos:", error?.message);
+      _arr = { datos: [], time: Date.now(), promise: null };
+      return [];
+    }
+  })();
+
+  return _arr.promise;
 }
 
 const COBERTURA_TTL_MS = 5 * 60 * 1000;
@@ -149,10 +193,12 @@ async function recargar() {
   cargando = (async () => {
     const sesion = leerSesionPortal();
     const sesionOc = leerSesionOc();
+    const sesionHr = leerSesionHerramientas();
     const conContratos = puedeDeberContratos(sesion);
     const conOc = puedeVerOc(sesionOc);
+    const conArriendos = puedeDeberArriendos(sesionHr);
 
-    if (!conContratos && !conOc) {
+    if (!conContratos && !conOc && !conArriendos) {
       publicar({ items: [], cargando: false, activo: false, ocHuerfanas: 0 });
       return;
     }
@@ -172,10 +218,11 @@ async function recargar() {
     }
 
     try {
-      const [datos, cobertura, ordenes] = await Promise.all([
+      const [datos, cobertura, ordenes, arriendos] = await Promise.all([
         conContratos ? traerDatosPortal(sesion) : Promise.resolve({ contratos: [] }),
         conContratos ? traerCobertura() : Promise.resolve(null),
         conOc ? traerOrdenes() : Promise.resolve([]),
+        conArriendos ? traerArriendos() : Promise.resolve([]),
       ]);
       const contratos = aplicarVbRecientes(datos.contratos);
       publicar({
@@ -183,6 +230,7 @@ async function recargar() {
           ...marcarSinCobertura(pendientesDeContratos(contratos, sesion), cobertura),
           ...contratosEsperandoFirma(contratos, sesion),
           ...pendientesDeOc(ordenes, sesionOc),
+          ...pendientesDeArriendos(arriendos, sesionHr),
         ]),
         // No son filas: es un aviso de que hay ordenes que no le van a caer a
         // nadie. Ver ocSinAprobador.
