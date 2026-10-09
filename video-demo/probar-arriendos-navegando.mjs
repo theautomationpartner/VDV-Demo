@@ -62,7 +62,10 @@ const C = {
   cantidadActiva: "numeric_mm76jjmq", cantidadDevuelta: "numeric_mm76x7qp",
   oc: "board_relation_mm76vaqe", proveedor: "board_relation_mm76eppy", responsable: "board_relation_mm79bptf",
 };
-const CI = { estado: "color_mm775j0h", fechaDevolucion: "date_mm77cxq5", foto: "file_mm7c46se", cantidad: "numeric_mm77cw29" };
+const CI = {
+  estado: "color_mm775j0h", fechaDevolucion: "date_mm77cxq5", foto: "file_mm7c46se",
+  cantidad: "numeric_mm77cw29", quienRecibe: "text_mm7z5hjd", firma: "file_mm7z9jev",
+};
 
 /** Lee el arriendo de prueba desde monday. */
 async function enMonday(id) {
@@ -404,6 +407,10 @@ try {
   else falla("la fecha de devolucion", "quedo vacia");
   if ((subVal(CI.foto) ?? "").trim()) ok("la foto quedo guardada en el item");
   else falla("la foto en monday", "la columna quedo vacia");
+  if ((subVal(CI.quienRecibe) ?? "").trim() === "Juan del proveedor") ok(`quien recibio quedo en su columna: ${subVal(CI.quienRecibe)}`);
+  else falla("quien recibe", `la columna dice "${subVal(CI.quienRecibe)}"`);
+  if ((subVal(CI.firma) ?? "").trim()) ok("la firma quedo en su propia columna");
+  else falla("la firma en monday", "la columna quedo vacia");
 
   // Se devolvieron TODOS (el dialogo venia de "Devolver todo"), asi que el
   // arriendo tiene que quedar cerrado.

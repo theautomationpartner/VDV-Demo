@@ -29,6 +29,7 @@ const hoyEnChile = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Ame
 
 const itemsBoard = new ControlArriendosItemsBoard();
 const COLUMNA_FOTO = "file_mm7c46se";
+const COLUMNA_FIRMA = "file_mm7z9jev";
 
 /**
  * Devolver items de un arriendo.
@@ -161,15 +162,8 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
       for (const d of devoluciones) {
         try {
           await itemsBoard.item(d.itemId).uploadFile({ columnId: COLUMNA_FOTO, file: foto, reemplazar: true });
-          /**
-           * La firma va a la MISMA columna de archivos, sin reemplazar.
-           *
-           * El tablero no tiene una columna propia para la firma y crearla no
-           * esta a nuestro alcance desde la app. Una columna de archivos de
-           * monday admite varios, asi que quedan los dos; se distinguen por el
-           * nombre ("firma-recepcion.png" contra la foto).
-           */
-          await itemsBoard.item(d.itemId).uploadFile({ columnId: COLUMNA_FOTO, file: firma });
+          // La firma en SU columna, separada de la foto del equipo.
+          await itemsBoard.item(d.itemId).uploadFile({ columnId: COLUMNA_FIRMA, file: firma, reemplazar: true });
         } catch (error) {
           console.error("[ARRIENDOS] no se pudo subir la foto o la firma de un ítem:", error);
           sinFoto.push(d.itemId);
@@ -403,6 +397,7 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
                 <input
                   value={recibe}
                   onChange={(e) => setRecibe(e.target.value)}
+                    aria-label="Nombre de quien recibe el equipo"
                   placeholder="Nombre de quien se lleva el equipo"
                   className={`mt-1 h-11 w-full rounded-[var(--radius-md)] border bg-[var(--surface-1)] px-3 text-sm text-foreground placeholder:text-[var(--fg-subtle)] ${FOCUS_RING} ${
                     recibe.trim() ? "border-[var(--border-subtle)]" : "border-[var(--warning)]"
