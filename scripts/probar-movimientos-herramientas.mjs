@@ -47,6 +47,9 @@ const M = {
   tipoUbic: "color_mm765ngx",
   ubic: "color_mm76ncrk",
   custodio: "text_mm764j8g",
+  // El custodio apuntando a su ficha en Equipo VDV. Es el dato que manda; el
+  // texto de arriba es la copia para leer.
+  custodioVdv: "board_relation_mm79270j",
   cond: "color_mm76b1fq",
   ultSalida: "date_mm76td04",
   ultDevol: "date_mm76kdht",
@@ -77,6 +80,11 @@ const V = {
 // Dos personas que SI estan en Equipo VDV (verificado el 08-oct).
 const DEL_EQUIPO = "claudio leyton";
 const OTRO_DEL_EQUIPO = "Isabel Delgado";
+
+// Las fichas de esas dos en Equipo VDV, para comprobar que el vinculo quedo
+// apuntando a la persona correcta y no solo "a alguien".
+const FICHA_DEL_EQUIPO = "13070169485"; // claudio leyton
+const FICHA_OTRO = "13070190358"; // Isabel Delgado
 
 const creadas = [];
 let fallas = 0;
@@ -136,13 +144,21 @@ function textoReal(c) {
 }
 
 async function leerMaestro(id) {
+  /**
+   * `linked_item_ids` hay que pedirlo con el fragmento del tipo: en una
+   * columna de conexion `text` y `value` vienen SIEMPRE null, asi que leerla
+   * como las demas daba "vacia" aunque estuviera escrita.
+   */
   const d = await mon(
-    `query($i:[ID!]){ items(ids:$i){ name column_values(ids:${JSON.stringify(Object.values(M))}){ id text value } } }`,
+    `query($i:[ID!]){ items(ids:$i){ name column_values(ids:${JSON.stringify(Object.values(M))}){
+       id text value ... on BoardRelationValue { linked_item_ids } } } }`,
     { i: [id] },
   );
   const porId = Object.fromEntries(d.items[0].column_values.map((c) => [c.id, textoReal(c)]));
   const salida = { name: d.items[0].name };
   for (const [clave, col] of Object.entries(M)) salida[clave] = porId[col] ?? null;
+  const rel = d.items[0].column_values.find((c) => c.id === M.custodioVdv);
+  salida.custodioVdv = (rel?.linked_item_ids ?? []).map(String);
   return salida;
 }
 
@@ -184,6 +200,7 @@ async function bloqueColumnas() {
   comparar("tipo ubicacion = OBRA", h.tipoUbic, "OBRA");
   comparar("ubicacion actual = M388", h.ubic, "M388");
   comparar("custodio = quien recibe", h.custodio, DEL_EQUIPO);
+  comparar("y queda vinculado a su ficha de Equipo VDV", h.custodioVdv.join(","), FICHA_DEL_EQUIPO);
   comparar("condicion fisica = USADO", h.cond, "USADO");
   comparar("fecha ultima salida = hoy", h.ultSalida, hoy);
   comparar("fecha ultima devolucion sigue vacia", h.ultDevol, "");
@@ -346,6 +363,9 @@ async function bloqueBordes() {
   comparar("devolucion con falla sin taller -> REQUIERE REPARACION", h.estado, "REQUIERE REPARACIÓN");
   comparar("  y queda en BODEGA", h.tipoUbic, "BODEGA");
   comparar("  el custodio se vacia", h.custodio, "");
+  // Las DOS columnas, no solo el texto: si el vinculo quedara puesto, la
+  // herramienta seguiria figurando a cargo de quien ya la devolvio.
+  comparar("  y el vinculo a su ficha tambien", h.custodioVdv.join(","), "");
   comparar("  condicion fisica = DAÑADO", h.cond, "DAÑADO");
   comparar("  fecha ultima devolucion = hoy", h.ultDevol, hoy);
   let [m] = await leerMovimientos(id);
@@ -386,6 +406,7 @@ async function bloqueBordes() {
   comparar("vuelve del taller con custodio -> EN USO", h.estado, "EN USO");
   comparar("  tipo ubicacion = OBRA", h.tipoUbic, "OBRA");
   comparar("  custodio", h.custodio, OTRO_DEL_EQUIPO);
+  comparar("  y el vinculo apunta a la ficha de ESA persona", h.custodioVdv.join(","), FICHA_OTRO);
 
   // Un traslado tambien es salir: si no, la permanencia seguiria contando desde
   // la obra anterior.

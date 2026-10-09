@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { MapPin, User, Clock, Calendar, Wrench, DollarSign, Camera, ChevronDown } from "lucide-react";
 import {
+  custodioDe,
   DIAS_PARA_ALERTA,
   ESTADO_TONO,
   fechaCorta,
@@ -97,7 +98,7 @@ function Datos({ h, verValor }) {
       </Campo>
 
       <Campo icono={User} label="A cargo de">
-        {h.custodioActual || "Sin custodio"}
+        {custodioDe(h) || "Sin custodio"}
       </Campo>
 
       {/* Solo para Administrador y Oficina Tecnica. El servidor ni siquiera

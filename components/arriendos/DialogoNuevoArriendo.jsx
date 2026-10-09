@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FOCO_CAMPO, FOCO_BOTON } from "@/lib/ui-foco";
 import { Spinner } from "@/components/ui/spinner";
 import { ControlArriendosBoard, ControlHerramientasBoard } from "@/lib/board-sdk";
 import { leerCache, guardarCache } from "@/lib/client/cache-persistente";
@@ -32,10 +33,11 @@ const arriendosBoard = new ControlArriendosBoard();
 const COLUMNA_GUIA = "file_mm76cp1t";
 const COLUMNA_FOTO_LLEGADA = "file_mm7c4an7";
 
-const FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]";
+// Los botones del dialogo. Los CAMPOS usan FOCO_CAMPO, que es otra cosa:
+// ver lib/ui-foco.js.
+const FOCUS_RING = FOCO_BOTON;
 
-const INPUT = `h-11 w-full rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 text-sm text-foreground placeholder:text-[var(--fg-subtle)] ${FOCUS_RING}`;
+const INPUT = `h-11 w-full rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 text-sm text-foreground placeholder:text-[var(--fg-subtle)] ${FOCO_CAMPO}`;
 const BOTON_SEC = `inline-flex min-h-10 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--border-default)] px-3 text-sm font-medium text-foreground ${FOCUS_RING}`;
 
 const PASOS = [

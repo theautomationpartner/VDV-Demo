@@ -42,6 +42,7 @@ import { descargarReporteArriendo } from "@/lib/arriendos/reporte";
 import { fechaCorta } from "@/lib/herramientas/inventario";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
+import { FOCO_CAMPO, FOCO_BOTON } from "@/lib/ui-foco";
 
 const arriendosBoard = new ControlArriendosBoard();
 const CACHE_KEY = "hr_arriendos";
@@ -390,7 +391,7 @@ export default function ArriendosPage() {
             value={filtroObra}
             aria-label="Filtrar por obra"
             onChange={(e) => setFiltroObra(e.target.value)}
-            className={`h-11 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 text-sm text-foreground ${FOCUS_RING}`}
+            className={`h-11 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 text-sm text-foreground ${FOCO_CAMPO}`}
           >
             <option value="">Todas las obras</option>
             {obras.map((o) => (
@@ -403,7 +404,7 @@ export default function ArriendosPage() {
             value={filtroProveedor}
             aria-label="Filtrar por proveedor"
             onChange={(e) => setFiltroProveedor(e.target.value)}
-            className={`h-11 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 text-sm text-foreground ${FOCUS_RING}`}
+            className={`h-11 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 text-sm text-foreground ${FOCO_CAMPO}`}
           >
             <option value="">Todos los proveedores</option>
             {proveedores.map((p) => (
@@ -416,7 +417,7 @@ export default function ArriendosPage() {
             value={filtroCategoria}
             aria-label="Filtrar por categoría"
             onChange={(e) => setFiltroCategoria(e.target.value)}
-            className={`h-11 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 text-sm text-foreground ${FOCUS_RING}`}
+            className={`h-11 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 text-sm text-foreground ${FOCO_CAMPO}`}
           >
             <option value="">Todas las categorías</option>
             {categorias.map((c) => (

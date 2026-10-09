@@ -27,6 +27,7 @@ import { HistorialHerramienta } from "@/components/herramientas/HistorialHerrami
 import { FotosHerramienta } from "@/components/herramientas/FotosHerramienta";
 import { NOMBRE_COLUMNA, RECEPCION_PENDIENTE, desfaseConElHistorial } from "@/lib/herramientas/dominio";
 import {
+  custodioDe,
   DIAS_PARA_ALERTA,
   formatoDias,
   mantencionVencida,
@@ -162,19 +163,28 @@ export default function FichaHerramientaPage({ params }) {
       setHerramienta(ficha);
       setError(null);
 
-      // Quien puede quedar a cargo: SOLO la gente activa de "Equipo VDV". No se
-      // mezclan los custodios que ya figuran cargados -hay nombres sueltos de
-      // antes- porque el servidor rechaza cualquiera que no este en el
-      // directorio, y ofrecer algo que va a rebotar es peor que no ofrecerlo.
+      /**
+       * Quien puede quedar a cargo: SOLO la gente activa de "Equipo VDV". No se
+       * mezclan los custodios que ya figuran cargados -hay nombres sueltos de
+       * antes- porque el servidor rechaza cualquiera que no este en el
+       * directorio, y ofrecer algo que va a rebotar es peor que no ofrecerlo.
+       *
+       * Va el ID de la ficha ademas del nombre: es lo que se manda al guardar.
+       * Antes viajaba el nombre escrito, y eso tenia dos agujeros -dos personas
+       * que se llaman igual, y que renombren a alguien- que ningun arreglo
+       * del lado del texto puede tapar.
+       */
+      const vistos = new Set();
       setCustodios(
-        [
-          ...new Set(
-            (equipo.items || [])
-              .filter((p) => (p.estado ?? "").toUpperCase() !== "INACTIVO")
-              .map((p) => p.name?.trim())
-              .filter(Boolean),
-          ),
-        ].sort((a, b) => a.localeCompare(b, "es")),
+        (equipo.items || [])
+          .filter((p) => (p.estado ?? "").toUpperCase() !== "INACTIVO")
+          .map((p) => ({ id: String(p.id), nombre: p.name?.trim() }))
+          .filter((p) => {
+            if (!p.id || !p.nombre || vistos.has(p.id)) return false;
+            vistos.add(p.id);
+            return true;
+          })
+          .sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
       );
 
       // Se compara contra lo que devolvio monday ANTES de filtrar por esta
@@ -434,7 +444,7 @@ export default function FichaHerramientaPage({ params }) {
             <p className="flex items-start gap-1.5">
               <User className="mt-0.5 w-3.5 h-3.5 shrink-0" />
               <span className="min-w-0 break-words">
-                {h.custodioActual || <span className="text-[var(--fg-subtle)]">sin custodio asignado</span>}
+                {custodioDe(h) || <span className="text-[var(--fg-subtle)]">sin custodio asignado</span>}
               </span>
             </p>
             {dias !== null ? (

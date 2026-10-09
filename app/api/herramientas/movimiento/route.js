@@ -43,7 +43,8 @@ export async function POST(request) {
     return Response.json({ error: "El pedido no tiene un cuerpo válido." }, { status: 400 });
   }
 
-  const { itemId, accion, destino, custodio, condicion, enviarReparacion, observaciones } = cuerpo ?? {};
+  const { itemId, accion, destino, custodio, custodioId, condicion, enviarReparacion, observaciones } =
+    cuerpo ?? {};
   if (!itemId || !accion) {
     return Response.json({ error: "Falta la herramienta o la acción." }, { status: 400 });
   }
@@ -68,7 +69,13 @@ export async function POST(request) {
     const resultado = await registrarMovimiento({
       itemId,
       accion,
-      datos: { destino, custodio, condicion, enviarReparacion, observaciones },
+      /**
+       * `custodioId` es la ficha de la persona en Equipo VDV y es lo que manda
+       * la pantalla. `custodio` -el nombre escrito- se sigue aceptando para no
+       * romper a quien llame por API sin el id; el servidor resuelve uno u
+       * otro contra el directorio y escribe siempre lo mismo.
+       */
+      datos: { destino, custodio, custodioId, condicion, enviarReparacion, observaciones },
       quien: sesion,
     });
     return Response.json(resultado);

@@ -20,7 +20,8 @@
     "probar-movimientos-herramientas": "node scripts/probar-movimientos-herramientas.mjs",
     "probar-permisos-en-vivo": "node scripts/probar-permisos-en-vivo.mjs",
     "probar-appconfig": "node scripts/probar-appconfig-whitelist.mjs",
-    "probar-confirmaciones": "node scripts/probar-confirmaciones-pendientes.mjs"
+    "probar-confirmaciones": "node scripts/probar-confirmaciones-pendientes.mjs",
+    "vincular-custodios": "node scripts/vincular-custodios.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
