@@ -162,7 +162,7 @@ export default function MisPendientesPage() {
       ) : !activo ? (
         <Card className="border-border p-8">
           <p className="text-center text-sm text-muted-foreground">
-            No tenés tareas de aprobación asignadas. Los pasos que da cada persona se configuran en
+            No tenés nada asignado que dependa de vos. Lo que le toca a cada persona se configura en
             Usuarios y Roles.
           </p>
         </Card>
@@ -171,7 +171,7 @@ export default function MisPendientesPage() {
           <div className="flex flex-col items-center gap-2 text-center">
             <CheckCircle2 className="h-6 w-6 text-green-400" aria-hidden />
             <p className="text-sm font-medium text-foreground">Estás al día</p>
-            <p className="text-sm text-muted-foreground">No hay nada esperando tu aprobación.</p>
+            <p className="text-sm text-muted-foreground">No hay nada esperando algo tuyo.</p>
           </div>
         </Card>
       ) : (
@@ -180,11 +180,11 @@ export default function MisPendientesPage() {
             <Card className="border-border p-6">
               <div className="flex flex-col items-center gap-2 text-center">
                 <CheckCircle2 className="h-6 w-6 text-green-400" aria-hidden />
-                <p className="text-sm font-medium text-foreground">Nada para firmar ahora</p>
+                <p className="text-sm font-medium text-foreground">Nada para hacer ahora</p>
                 <p className="text-sm text-muted-foreground">
                   {items.length > 0
                     ? "Hay cosas tuyas más abajo, pero ninguna depende de vos hoy."
-                    : "No hay nada esperando tu aprobación."}
+                    : "No hay nada esperando algo tuyo."}
                 </p>
               </div>
             </Card>

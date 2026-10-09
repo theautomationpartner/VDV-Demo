@@ -19,7 +19,8 @@
     "probar-alta-arriendo-en-vivo": "node scripts/probar-alta-arriendo-en-vivo.mjs",
     "probar-movimientos-herramientas": "node scripts/probar-movimientos-herramientas.mjs",
     "probar-permisos-en-vivo": "node scripts/probar-permisos-en-vivo.mjs",
-    "probar-appconfig": "node scripts/probar-appconfig-whitelist.mjs"
+    "probar-appconfig": "node scripts/probar-appconfig-whitelist.mjs",
+    "probar-confirmaciones": "node scripts/probar-confirmaciones-pendientes.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
