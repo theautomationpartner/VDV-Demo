@@ -68,7 +68,11 @@
     --border-subtle: hsl(260 8% 19%);
     --border-default: hsl(260 8% 25%);
     --fg-muted: hsl(260 8% 66%);
-    --fg-subtle: hsl(260 8% 50%);
+    /* 50% daba 3,93:1 sobre --surface-1 y el texto de ayuda no llegaba al
+       minimo legible (4,5:1). Medido en la app compilada el 09-oct-2026. Es el
+       mismo tono y sigue siendo el escalon mas callado -por debajo de
+       --fg-muted, que esta en 66%-: solo se corrio lo justo para que se lea. */
+    --fg-subtle: hsl(260 8% 58%);
     --accent-soft: hsl(262 72% 64%);
     --success: hsl(145 50% 46%);
     --warning: hsl(35 62% 56%);

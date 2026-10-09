@@ -24,7 +24,7 @@ const CACHE_KEY = "hr_inventario";
 // Foco visible para los <button> y <select> nativos de esta pantalla: ninguno
 // usa el Button de shadcn/ui, que ya trae su propio focus-visible.
 const FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]";
 
 /**
  * El inventario entero, sin paginar.

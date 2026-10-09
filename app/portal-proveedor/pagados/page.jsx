@@ -112,7 +112,7 @@ export default function PagadosPage() {
   return (
     <div className="h-dvh flex flex-col">
       <div className="h-14 border-b border-border flex items-center px-4 md:px-6 bg-background shrink-0">
-        <Link href="/portal-proveedor/dashboard" aria-label="Volver" className="mr-3 -ml-1 flex min-h-12 min-w-12 items-center justify-center rounded-md active:bg-accent/50 md:min-h-0 md:min-w-0 md:p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"><ArrowLeft className="w-5 h-5 text-muted-foreground" /></Link>
+        <Link href="/portal-proveedor/dashboard" aria-label="Volver" className="mr-3 -ml-1 flex min-h-12 min-w-12 items-center justify-center rounded-md active:bg-accent/50 md:min-h-0 md:min-w-0 md:p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ArrowLeft className="w-5 h-5 text-muted-foreground" /></Link>
         <div className="flex items-center gap-2.5"><CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" /><h1 className="text-base md:text-lg font-semibold text-green-400">Pagado</h1></div>
       </div>
       <div className="flex-1 overflow-y-auto">

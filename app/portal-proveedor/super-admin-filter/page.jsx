@@ -192,7 +192,7 @@ export default function SuperAdminFilterPage() {
             type="button"
             onClick={() => setActiveTab('filter')}
             aria-pressed={activeTab === 'filter'}
-            className={`flex-1 min-h-12 md:min-h-9 py-2 px-3 rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+            className={`flex-1 min-h-12 md:min-h-9 py-2 px-3 rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               activeTab === 'filter' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
             }`}
           >
@@ -202,7 +202,7 @@ export default function SuperAdminFilterPage() {
             type="button"
             onClick={() => setActiveTab('users')}
             aria-pressed={activeTab === 'users'}
-            className={`flex-1 min-h-12 md:min-h-9 py-2 px-3 rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+            className={`flex-1 min-h-12 md:min-h-9 py-2 px-3 rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               activeTab === 'users' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
             }`}
           >
@@ -364,7 +364,7 @@ export default function SuperAdminFilterPage() {
                         type="button"
                         onClick={() => handleDeleteUser(user.id)}
                         aria-label={`Eliminar ${user.name}`}
-                        className="flex min-h-12 min-w-12 items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0 md:min-h-0 md:min-w-0 md:p-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        className="flex min-h-12 min-w-12 items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0 md:min-h-0 md:min-w-0 md:p-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
