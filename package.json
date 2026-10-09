@@ -15,6 +15,7 @@
     "validar-schemas": "node scripts/validar-schemas.mjs",
     "probar-permisos-herramientas": "node scripts/probar-permisos-herramientas.mjs",
     "probar-costos-arriendo": "node scripts/probar-costos-arriendo.mjs",
+    "probar-permisos-arriendo": "node scripts/probar-permisos-arriendo.mjs",
     "probar-movimientos-herramientas": "node scripts/probar-movimientos-herramientas.mjs",
     "probar-permisos-en-vivo": "node scripts/probar-permisos-en-vivo.mjs",
     "probar-appconfig": "node scripts/probar-appconfig-whitelist.mjs"
