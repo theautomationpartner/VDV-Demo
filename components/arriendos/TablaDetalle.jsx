@@ -4,7 +4,7 @@ import { FileText } from "lucide-react";
 import { formatearMonto, fechaCorta } from "@/lib/herramientas/inventario";
 
 const FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]";
 
 /**
  * La tabla de abajo del Historico: una fila por arriendo, con su periodo y su

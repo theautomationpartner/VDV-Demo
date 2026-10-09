@@ -11,7 +11,7 @@ const materialesBoard = new BaseDeDatosMaterialesBoard();
 // Foco visible (teclado) para los botones nativos de este dialogo - ninguno usa
 // el componente Button de shadcn/ui (que ya trae su propio focus-visible), asi
 // que cada <button> a mano necesita este anillo para cumplir WCAG 2.1 AA.
-const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]";
 
 // Fallback: los labels reales salen de monday (useColumnOptions, abajo). Estas
 // listas solo se usan mientras carga o si monday no responde - no hay que

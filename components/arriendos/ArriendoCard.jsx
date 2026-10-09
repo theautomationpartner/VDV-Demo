@@ -19,7 +19,7 @@ import { ESTADOS_CERRADOS, ITEM_DANADO, ITEM_PERDIDO } from "@/lib/arriendos/dom
 import { TONO_ESTADO } from "@/lib/arriendos/listado";
 
 const FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]";
 
 /** Los avisos de arriba de la tarjeta, en palabras. */
 const TEXTO_ALERTA = {
@@ -161,7 +161,7 @@ function Items({ arriendo, verCostos, puedeGestionar, onDevolverItem }) {
             {puedeGestionar && onDevolverItem && !cerrado ? (
               <button
                 onClick={() => onDevolverItem?.(arriendo, item)}
-                className={`mt-2 inline-flex min-h-8 items-center gap-1 rounded-[var(--radius-md)] border border-[var(--accent)] px-2.5 text-[11px] font-medium text-[var(--accent)] ${FOCUS_RING}`}
+                className={`mt-2 inline-flex min-h-11 items-center gap-1 rounded-[var(--radius-md)] border border-[var(--accent)] px-2.5 text-[11px] font-medium text-[var(--accent)] ${FOCUS_RING}`}
               >
                 <Undo2 className="h-3 w-3" />
                 Devolver este ítem
@@ -245,7 +245,7 @@ export function ArriendoCard({ arriendo, verCostos, puedeGestionar, onDevolverTo
                   <span className="tabular-nums">
                     {resumen.diarioConIva > 0 ? `${formatearMonto(resumen.diarioConIva)}/día` : "—"}
                   </span>
-                  <span className="block text-[10px] font-normal text-[var(--fg-subtle)]">
+                  <span className="block text-[10px] font-normal text-[var(--fg-muted)]">
                     IVA incl. · neto {formatearMonto(resumen.diarioNeto)}
                   </span>
                 </>
@@ -257,7 +257,7 @@ export function ArriendoCard({ arriendo, verCostos, puedeGestionar, onDevolverTo
               {resumen.confiable ? (
                 <>
                   <span className="tabular-nums">{formatearMonto(resumen.conIva)}</span>
-                  <span className="block text-[10px] font-normal text-[var(--fg-subtle)]">
+                  <span className="block text-[10px] font-normal text-[var(--fg-muted)]">
                     IVA incl. · neto {formatearMonto(resumen.neto)}
                   </span>
                 </>
@@ -296,7 +296,7 @@ export function ArriendoCard({ arriendo, verCostos, puedeGestionar, onDevolverTo
         {puedeGestionar && onDevolverTodo && !resumen.cerrado ? (
           <button
             onClick={() => onDevolverTodo?.(arriendo)}
-            className={`inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 text-xs font-medium text-[var(--accent-foreground)] ${FOCUS_RING}`}
+            className={`inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 text-xs font-medium text-[var(--accent-foreground)] ${FOCUS_RING}`}
           >
             <Undo2 className="h-3.5 w-3.5" />
             Devolver todo
@@ -305,7 +305,7 @@ export function ArriendoCard({ arriendo, verCostos, puedeGestionar, onDevolverTo
         {onReporte ? (
         <button
           onClick={() => onReporte(arriendo)}
-          className={`inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--border-default)] px-3 text-xs font-medium text-foreground ${FOCUS_RING}`}
+          className={`inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--border-default)] px-3 text-xs font-medium text-foreground ${FOCUS_RING}`}
         >
           <FileText className="h-3.5 w-3.5" />
           Generar reporte
@@ -314,7 +314,7 @@ export function ArriendoCard({ arriendo, verCostos, puedeGestionar, onDevolverTo
         <button
           onClick={() => setAbierto((v) => !v)}
           aria-expanded={abierto}
-          className={`ml-auto inline-flex min-h-9 items-center gap-1 rounded-[var(--radius-md)] px-2 text-xs text-[var(--fg-muted)] ${FOCUS_RING}`}
+          className={`ml-auto inline-flex min-h-11 items-center gap-1 rounded-[var(--radius-md)] px-2 text-xs text-[var(--fg-muted)] ${FOCUS_RING}`}
         >
           Ver ítems ({resumen.enObra} en obra)
           <ChevronDown className={`h-3.5 w-3.5 transition-transform ${abierto ? "rotate-180" : ""}`} />

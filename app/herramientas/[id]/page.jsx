@@ -20,6 +20,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useSesionHerramientas } from "@/hooks/herramientas/useSesionHerramientas";
+import { olvidarConfirmaciones } from "@/hooks/usePendientes";
 import { useColumnOptions } from "@/hooks/useColumnOptions";
 import { AccionesHerramienta } from "@/components/herramientas/AccionesHerramienta";
 import { HistorialHerramienta } from "@/components/herramientas/HistorialHerramienta";
@@ -42,7 +43,7 @@ const movimientosBoard = new ControlHerramientasMovimientosBoard();
 const equipoBoard = new EquipoVdvBoard();
 
 const FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]";
 
 const COLUMNAS_MOVIMIENTO = [
   "idMaestro",
@@ -248,6 +249,9 @@ export default function FichaHerramientaPage({ params }) {
         return;
       }
       toast.success("Recepción confirmada.");
+      // La bandeja de "Mis Pendientes" cachea 5 minutos: sin esto el contador
+      // del menu sigue contando lo que se acaba de confirmar.
+      olvidarConfirmaciones();
       cargar();
     } catch (err) {
       console.error("[HERRAMIENTAS] No se pudo confirmar:", err);

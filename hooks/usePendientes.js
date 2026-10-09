@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { claveDe, traerDatosPortal, yaTraido } from "@/hooks/portal-proveedor/portalDatos";
 import { aplicarVbRecientes } from "@/lib/client/vb-recientes";
-import { ControlArriendosBoard } from "@/lib/board-sdk";
+import { ControlArriendosBoard, ControlHerramientasMovimientosBoard } from "@/lib/board-sdk";
 import { COLUMNAS_ITEM, COLUMNAS_LISTADO, TOPE, prepararArriendo } from "@/lib/arriendos/listado";
+import { COLUMNAS_CONFIRMACION, RECEPCION_PENDIENTE } from "@/lib/herramientas/dominio";
 import {
+  confirmacionesPendientes,
   contratosEsperandoFirma,
   marcarSinCobertura,
   ocSinAprobador,
@@ -15,6 +17,7 @@ import {
   pendientesDeContratos,
   pendientesDeOc,
   puedeDeberArriendos,
+  puedeDeberConfirmaciones,
   puedeDeberContratos,
   puedeVerOc,
 } from "@/lib/pendientes";
@@ -136,6 +139,59 @@ async function traerArriendos() {
   return _arr.promise;
 }
 
+/**
+ * Los movimientos de herramienta que esperan que alguien confirme que llegaron.
+ *
+ * Se filtra en el SERVIDOR por el estado -`where`-, no trayendo todo y
+ * descartando aca: el tablero de movimientos crece para siempre (una fila por
+ * cada salida, devolucion y traslado de 145 herramientas) mientras que lo
+ * pendiente son unas pocas filas en cualquier momento. Trayendo todo, esta
+ * consulta se iria agrandando sola hasta volverse el pedido mas caro de la
+ * suite, y corre en CADA navegacion.
+ */
+const CONF_TTL_MS = 5 * 60 * 1000;
+let _conf = { datos: null, time: 0, promise: null };
+
+async function traerConfirmaciones() {
+  if (_conf.datos && Date.now() - _conf.time < CONF_TTL_MS) return _conf.datos;
+  if (_conf.promise) return _conf.promise;
+
+  _conf.promise = (async () => {
+    try {
+      const r = await new ControlHerramientasMovimientosBoard()
+        .items()
+        .withColumns(COLUMNAS_CONFIRMACION)
+        .where({ recepcion: { eq: RECEPCION_PENDIENTE } })
+        .withPagination({ limit: 200 })
+        .execute();
+      const filas = r.items ?? [];
+      _conf = { datos: filas, time: Date.now(), promise: null };
+      return filas;
+    } catch (error) {
+      // Un 403 aca significa que esta persona no tiene la app: no es un error.
+      console.warn("[pendientes] no se pudieron traer las confirmaciones:", error?.message);
+      _conf = { datos: [], time: Date.now(), promise: null };
+      return [];
+    }
+  })();
+
+  return _conf.promise;
+}
+
+/**
+ * Tirar la foto de las confirmaciones, para que la proxima navegacion la pida
+ * de nuevo.
+ *
+ * La llama la ficha de la herramienta despues de confirmar. Sin esto, el
+ * recorrido natural -entro por la bandeja, confirmo, vuelvo- te devolvia a una
+ * lista que seguia mostrando lo mismo y a un contador que seguia diciendo 1
+ * durante cinco minutos. Volves a hacer click, llegas a la ficha, y el boton ya
+ * no esta: la bandeja te mando a hacer algo que ya estaba hecho.
+ */
+export function olvidarConfirmaciones() {
+  _conf = { datos: null, time: 0, promise: null };
+}
+
 const COBERTURA_TTL_MS = 5 * 60 * 1000;
 let _cobertura = { datos: null, time: 0, promise: null };
 
@@ -197,8 +253,9 @@ async function recargar() {
     const conContratos = puedeDeberContratos(sesion);
     const conOc = puedeVerOc(sesionOc);
     const conArriendos = puedeDeberArriendos(sesionHr);
+    const conConfirmaciones = puedeDeberConfirmaciones(sesionHr);
 
-    if (!conContratos && !conOc && !conArriendos) {
+    if (!conContratos && !conOc && !conArriendos && !conConfirmaciones) {
       publicar({ items: [], cargando: false, activo: false, ocHuerfanas: 0 });
       return;
     }
@@ -218,11 +275,12 @@ async function recargar() {
     }
 
     try {
-      const [datos, cobertura, ordenes, arriendos] = await Promise.all([
+      const [datos, cobertura, ordenes, arriendos, confirmaciones] = await Promise.all([
         conContratos ? traerDatosPortal(sesion) : Promise.resolve({ contratos: [] }),
         conContratos ? traerCobertura() : Promise.resolve(null),
         conOc ? traerOrdenes() : Promise.resolve([]),
         conArriendos ? traerArriendos() : Promise.resolve([]),
+        conConfirmaciones ? traerConfirmaciones() : Promise.resolve([]),
       ]);
       const contratos = aplicarVbRecientes(datos.contratos);
       publicar({
@@ -231,6 +289,7 @@ async function recargar() {
           ...contratosEsperandoFirma(contratos, sesion),
           ...pendientesDeOc(ordenes, sesionOc),
           ...pendientesDeArriendos(arriendos, sesionHr),
+          ...confirmacionesPendientes(confirmaciones, sesionHr),
         ]),
         // No son filas: es un aviso de que hay ordenes que no le van a caer a
         // nadie. Ver ocSinAprobador.

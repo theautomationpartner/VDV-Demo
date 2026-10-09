@@ -11,7 +11,7 @@ const herramientasBoard = new ControlHerramientasBoard();
 const COLUMNA_FOTO = resolveColumnId("ControlHerramientasBoard", "foto");
 
 const FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]";
 
 const boton =
   "inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-subtle)] px-3 text-sm font-medium text-foreground transition-colors hover:bg-[var(--surface-2)] disabled:opacity-50";

@@ -23,6 +23,12 @@ import { mkdirSync, readFileSync, existsSync, writeFileSync } from "node:fs";
 import { levantarApp, abrirNavegador, cookieSesion, CUENTA_TAP, BASE, APP } from "./comun.mjs";
 
 const NOMBRE = "ZZ PRUEBA - andamio navegado";
+
+/** Un PNG de 1x1: lo mas chico que monday acepta como imagen. */
+const PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
 const CARPETA = "capturas/navegando";
 mkdirSync(CARPETA, { recursive: true });
 
@@ -56,7 +62,10 @@ const C = {
   cantidadActiva: "numeric_mm76jjmq", cantidadDevuelta: "numeric_mm76x7qp",
   oc: "board_relation_mm76vaqe", proveedor: "board_relation_mm76eppy", responsable: "board_relation_mm79bptf",
 };
-const CI = { estado: "color_mm775j0h", fechaDevolucion: "date_mm77cxq5", foto: "file_mm7c46se", cantidad: "numeric_mm77cw29" };
+const CI = {
+  estado: "color_mm775j0h", fechaDevolucion: "date_mm77cxq5", foto: "file_mm7c46se",
+  cantidad: "numeric_mm77cw29", quienRecibe: "text_mm7z5hjd", firma: "file_mm7z9jev",
+};
 
 /** Lee el arriendo de prueba desde monday. */
 async function enMonday(id) {
@@ -116,11 +125,18 @@ try {
   await page.waitForTimeout(4000);
   const d = page.locator('[role="dialog"]');
 
-  // Paso 1: elegir una OC.
+  // Paso 1: primero el proveedor, despues su orden de compra.
+  const provs = d.locator("button").filter({ hasText: /orden\(es\)/ });
+  const cuantosProv = await provs.count();
+  if (cuantosProv > 0) ok(`el paso 1 lista ${cuantosProv} proveedores`);
+  else falla("el paso 1", "no listo ningun proveedor");
+  await provs.first().click();
+  await page.waitForTimeout(1500);
+
   const ocs = d.locator("button").filter({ hasText: /^OC / });
   const cuantasOc = await ocs.count();
-  if (cuantasOc > 0) ok(`el paso 1 lista ${cuantasOc} ordenes de compra`);
-  else falla("el paso 1", "no listo ninguna orden");
+  if (cuantasOc > 0) ok(`y ${cuantasOc} orden(es) de ese proveedor`);
+  else falla("las ordenes del proveedor", "no listo ninguna");
   const textoOc = (await ocs.first().innerText()).split("\n")[0];
   await ocs.first().click();
   await page.waitForTimeout(2500);
@@ -129,7 +145,8 @@ try {
   await d.locator("button").filter({ hasText: "Continuar" }).click();
   await page.waitForTimeout(1200);
 
-  // Paso 2: el equipo.
+  // Paso 2: el equipo. El nombre se escribe siempre: ya no se autocompleta con
+  // la descripcion de la linea de OC, que eran parrafos enteros.
   await d.locator("input").first().fill(NOMBRE);
   await page.waitForTimeout(1200);
   const obraPrecargada = await d.locator("select").first().inputValue();
@@ -156,20 +173,62 @@ try {
   const filasItem = d.locator('input[placeholder="Descripción del ítem"]');
   const cuantosItems = await filasItem.count();
   console.log(`        (${cuantosItems} item(s) precargados de la OC)`);
+  if (cuantosItems > 0) ok(`el paso 4 trae los ${cuantosItems} item(s) de la OC`);
+  else falla("los items de la OC", "no se precargo ninguno");
+
+  const textoItems = await d.innerText();
+  if (/Monto de la OC/.test(textoItems)) ok("y muestra el monto de la OC para comparar");
+  else falla("el contexto de la OC", "no muestra el monto");
+  if (/Subtotal/i.test(textoItems)) ok("cada item muestra su subtotal");
+  else falla("los subtotales", "no aparecen");
+  if (/por período/.test(textoItems)) ok("y hay total del periodo");
+  else falla("el total del periodo", "no aparece");
+
+  // Desmarcar un item tiene que bajar el total: es "lo que no llego".
+  const tildes = d.locator('input[type="checkbox"]');
+  if ((await tildes.count()) > 1) {
+    const antesDeDesmarcar = (await d.innerText()).match(/\$[\d.]+ por período/)?.[0];
+    await tildes.first().uncheck();
+    await page.waitForTimeout(600);
+    const despuesDeDesmarcar = (await d.innerText()).match(/\$[\d.]+ por período/)?.[0];
+    if (antesDeDesmarcar !== despuesDeDesmarcar) ok(`al desmarcar, el total baja (${antesDeDesmarcar} -> ${despuesDeDesmarcar})`);
+    else falla("desmarcar un item", "el total no cambio");
+    await tildes.first().check();
+    await page.waitForTimeout(400);
+  }
+
   if (!(await filasItem.first().inputValue())) {
     await filasItem.first().fill("ZZ item navegado");
-    await d.locator('input[placeholder="Cantidad"]').first().fill("2");
-    await d.locator('input[placeholder="Precio unitario"]').first().fill("1000");
   }
+  // Precio y cantidad: los campos ya no llevan placeholder, van por orden.
+  const numeros = d.locator('input[type="number"]');
+  if (!(await numeros.nth(0).inputValue())) await numeros.nth(0).fill("2");
+  if (!(await numeros.nth(1).inputValue())) await numeros.nth(1).fill("1000");
   await foto(page, "04-paso4-items");
   await d.locator("button").filter({ hasText: "Continuar" }).click();
   await page.waitForTimeout(1000);
 
-  // Paso 5: confirmar.
-  await d.locator('input').filter({ hasNot: page.locator('[type="date"]') }).first().fill("ZZ-NAV-001").catch(() => {});
+  // Paso 5: la guia de ingreso, que ahora es obligatoria con su foto.
+  const darDeAlta = d.locator("button").filter({ hasText: "Dar de alta" });
+  if (await darDeAlta.isDisabled()) ok("sin la guia, el boton de alta esta apagado");
+  else falla("la guia obligatoria", "dejo dar de alta sin numero ni foto");
+
+  await d.locator('input[placeholder="Ej: 45821"]').fill("ZZ-NAV-001");
+  await page.waitForTimeout(400);
+  if (await darDeAlta.isDisabled()) ok("con el numero pero sin foto, sigue apagado");
+  else falla("la foto de la guia", "alcanzo con el numero");
+
+  await d.locator("#foto-guia").setInputFiles({ name: "guia.png", mimeType: "image/png", buffer: PNG });
+  await page.waitForTimeout(900);
+  if (!(await darDeAlta.isDisabled())) ok("con la foto, habilita");
+  else falla("el boton de alta", "sigue apagado con todo cargado");
+
   await foto(page, "05-paso5-resumen");
-  await d.locator("button").filter({ hasText: "Dar de alta" }).click();
-  await page.waitForTimeout(9000);
+  await darDeAlta.click();
+  // Se espera a que el dialogo CIERRE y no un tiempo fijo: el alta ahora crea el
+  // arriendo, sus items Y sube la foto de la guia, asi que tarda lo que tarde.
+  await d.waitFor({ state: "detached", timeout: 60_000 }).catch(() => {});
+  await page.waitForTimeout(4000);
   await foto(page, "06-despues-del-alta");
 
   // La lista de monday es eventually consistent: lo recien creado tarda unos
@@ -249,7 +308,7 @@ try {
   const dd = page.locator('[role="dialog"]');
   await foto(page, "07-devolucion-abierta");
 
-  const registrar = dd.locator("button").filter({ hasText: "Registrar devolución" });
+  const registrar = dd.locator("button").filter({ hasText: /^Devolver \d+ ítem/ });
   if (await registrar.isDisabled()) ok("sin foto, el boton de registrar esta apagado");
   else falla("la foto obligatoria", "dejo registrar sin foto");
 
@@ -258,29 +317,89 @@ try {
   else falla("el aviso de la foto", "no aparece");
 
   // Se sube la foto como lo haria una persona: por el input de archivo.
-  const png = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-    "base64",
-  );
-  await dd.locator('input[type="file"]').first().setInputFiles({
-    name: "zz-prueba.png", mimeType: "image/png", buffer: png,
+  // UNA sola foto para toda la devolucion: se copia a cada item al guardar.
+  const textoAntes = await dd.innerText();
+  if (/Una misma foto cubre todos/.test(textoAntes)) ok("avisa que una foto cubre todos los ítems");
+  else falla("el aviso de la foto", "no aparece");
+  if (/Ítems a devolver \(\d+ de \d+\)/.test(textoAntes)) ok("muestra el contador de ítems a devolver");
+  else falla("el contador", "no aparece");
+  if (/cierra en \$/.test(textoAntes)) ok("cada ítem dice cuánto cierra");
+  else falla("la vista previa por ítem", "no muestra el cierre");
+  if (/Costo que queda cerrado/.test(textoAntes)) ok("y hay total de lo que deja de acumular");
+  else falla("el costo cerrado", "no aparece");
+
+  await dd.locator("#foto-devolucion-galeria").setInputFiles({
+    name: "zz-prueba.png", mimeType: "image/png", buffer: PNG,
   });
-  await page.waitForTimeout(7000);
+  await page.waitForTimeout(2500);
   await foto(page, "08-devolucion-con-foto");
 
-  const textoConFoto = await dd.innerText();
-  if (/Foto guardada/.test(textoConFoto)) ok("la foto se subio y la pantalla lo confirma");
-  else falla("la subida de la foto", `el boton sigue diciendo: ${textoConFoto.match(/Sacar foto|Foto guardada/)?.[0]}`);
+  if (/Foto lista/.test(await dd.innerText())) ok("la foto quedó cargada");
+  else falla("la foto", "el botón no confirma");
+
+  // Quien recibe y la firma: los dos obligatorios.
+  if (await registrar.isDisabled()) ok("con la foto pero sin quién recibe, sigue apagado");
+  else falla("quién recibe obligatorio", "dejó registrar sin ese dato");
+
+  await dd.locator('input[placeholder="Nombre de quien se lleva el equipo"]').fill("Juan del proveedor");
+  await page.waitForTimeout(500);
+  if (await registrar.isDisabled()) ok("y sin la firma tampoco deja");
+  else falla("la firma obligatoria", "alcanzó con el nombre");
+
+  // Se firma: tres trazos con el puntero sobre el lienzo.
+  const lienzo = dd.locator("canvas").first();
+  // Se lo lleva a la vista ANTES de medirlo: el recuadro de firma esta al final
+  // de un contenedor con scroll, y con el fuera de pantalla el clic caia sobre
+  // el fondo del dialogo y lo cerraba.
+  await lienzo.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(500);
+  const caja = await lienzo.boundingBox();
+  await page.mouse.move(caja.x + 30, caja.y + 70);
+  await page.mouse.down();
+  await page.mouse.move(caja.x + 90, caja.y + 30, { steps: 8 });
+  await page.mouse.move(caja.x + 150, caja.y + 90, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(1200);
+  await foto(page, "08b-firmado");
+
+  if (/Firmada/.test(await dd.innerText())) ok("la firma se dibujó y quedó registrada");
+  else falla("la firma", "el recuadro no la reconoció");
+  if (!(await registrar.isDisabled())) ok("con todo cargado, habilita");
+  else falla("el botón", "sigue apagado con nombre y firma");
 
   if (!(await registrar.isDisabled())) ok("ahora si deja registrar");
   else falla("el boton", "sigue apagado con la foto puesta");
 
   await registrar.click();
-  await page.waitForTimeout(9000);
+  // Se espera a que el dialogo CIERRE, no un tiempo fijo: la devolucion sube
+  // la foto Y la firma a cada item antes de registrar, asi que tarda lo que
+  // tarde. Con un tiempo fijo la prueba empezaba a leer monday mientras la
+  // operacion seguia en curso y veia los valores de antes.
+  await dd.waitFor({ state: "detached", timeout: 90_000 }).catch(() => {});
+  await page.waitForTimeout(3000);
   await foto(page, "09-despues-de-devolver");
 
   console.log("\n  --- lo que quedo en monday despues de devolver ---");
-  const m2 = await enMonday(arriendoId);
+  /**
+   * Se ESPERA a que monday lo refleje, no se lee una sola vez.
+   *
+   * Su lista es eventually consistent: un subelemento recien actualizado puede
+   * volver con el estado viejo durante unos segundos. Leyendo al toque, la
+   * prueba fallaba de a ratos sobre una app que habia hecho lo correcto.
+   */
+  let m2 = null;
+  for (let intento = 0; intento < 12; intento += 1) {
+    m2 = await enMonday(arriendoId);
+    const primero = m2.item.subitems[0];
+    const est = primero?.column_values.find((c) => c.id === CI.estado)?.text;
+    const devueltas = Number(m2.val(C.cantidadDevuelta)) || 0;
+    // Se espera a que propaguen LOS DOS: el item y el encabezado. monday los
+    // publica por separado, asi que el item puede aparecer devuelto mientras el
+    // encabezado todavia devuelve lo de antes.
+    if (est && est !== "Activo" && devueltas > 0) break;
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  console.log(`        (monday al dia despues de esperar)`);
   const sub = m2.item.subitems[0];
   const subVal = (cid) => sub.column_values.find((c) => c.id === cid)?.text ?? null;
   chequear("estado del item", subVal(CI.estado), "Devuelto");
@@ -288,9 +407,14 @@ try {
   else falla("la fecha de devolucion", "quedo vacia");
   if ((subVal(CI.foto) ?? "").trim()) ok("la foto quedo guardada en el item");
   else falla("la foto en monday", "la columna quedo vacia");
+  if ((subVal(CI.quienRecibe) ?? "").trim() === "Juan del proveedor") ok(`quien recibio quedo en su columna: ${subVal(CI.quienRecibe)}`);
+  else falla("quien recibe", `la columna dice "${subVal(CI.quienRecibe)}"`);
+  if ((subVal(CI.firma) ?? "").trim()) ok("la firma quedo en su propia columna");
+  else falla("la firma en monday", "la columna quedo vacia");
 
-  const todosDevueltos = m2.item.subitems.length === 1;
-  chequear("estado del arriendo", m2.val(C.estado), todosDevueltos ? "DEVUELTO" : "ACTIVO");
+  // Se devolvieron TODOS (el dialogo venia de "Devolver todo"), asi que el
+  // arriendo tiene que quedar cerrado.
+  chequear("estado del arriendo", m2.val(C.estado), "DEVUELTO");
   if (Number(m2.val(C.cantidadDevuelta)) > 0) ok(`cantidad devuelta: ${m2.val(C.cantidadDevuelta)}`);
   else falla("la cantidad devuelta", `dice "${m2.val(C.cantidadDevuelta)}"`);
 
@@ -299,7 +423,7 @@ try {
   await page.locator("button").filter({ hasText: "Nuevo arriendo" }).first().click();
   await page.waitForTimeout(4000);
   const d3 = page.locator('[role="dialog"]');
-  await d3.locator("label").filter({ hasText: "Todavía no hay orden" }).locator("input").check();
+  await d3.locator("label").filter({ hasText: "Ingresar sin orden de compra" }).locator("input").check();
   await d3.locator("textarea").fill("Prueba del aviso de herramientas propias.");
   await d3.locator("button").filter({ hasText: "Continuar" }).click();
   await page.waitForTimeout(1200);

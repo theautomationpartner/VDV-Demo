@@ -47,7 +47,7 @@ const arriendosBoard = new ControlArriendosBoard();
 const CACHE_KEY = "hr_arriendos";
 
 const FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]";
 
 /** Una de las tarjetas de numeros de arriba. */
 function Kpi({ icono: Icono, label, valor, detalle, tono = "var(--accent)" }) {
@@ -63,7 +63,7 @@ function Kpi({ icono: Icono, label, valor, detalle, tono = "var(--accent)" }) {
         <div className="min-w-0">
           <p className="text-[11px] font-medium text-[var(--fg-muted)]">{label}</p>
           <p className="truncate text-xl font-semibold tabular-nums text-foreground">{valor}</p>
-          {detalle ? <p className="truncate text-[11px] text-[var(--fg-subtle)]">{detalle}</p> : null}
+          {detalle ? <p className="truncate text-[11px] text-[var(--fg-muted)]">{detalle}</p> : null}
         </div>
       </div>
     </div>
@@ -78,7 +78,7 @@ function FilaBarra({ titulo, sub, monto, neto, porcentaje }) {
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{titulo}</span>
         <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">{formatearMonto(monto)}</span>
       </div>
-      <div className="mt-0.5 flex flex-wrap items-baseline justify-between gap-x-3 text-[11px] text-[var(--fg-subtle)]">
+      <div className="mt-0.5 flex flex-wrap items-baseline justify-between gap-x-3 text-[11px] text-[var(--fg-muted)]">
         <span className="truncate">{sub}</span>
         <span className="shrink-0 tabular-nums">
           neto {formatearMonto(neto)} · {porcentaje}%
@@ -118,7 +118,7 @@ function Tab({ id, icono: Icono, actual, onElegir, children }) {
     <button
       onClick={() => onElegir(id)}
       aria-pressed={activa}
-      className={`inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-md)] px-3 text-sm font-medium transition-colors ${FOCUS_RING} ${
+      className={`inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-md)] px-3 text-sm font-medium transition-colors ${FOCUS_RING} ${
         activa
           ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
           : "text-[var(--fg-muted)] hover:bg-[var(--surface-2)]"
@@ -348,7 +348,7 @@ export default function ArriendosPage() {
         {gestionarArriendos ? (
           <button
             onClick={() => setAltaAbierta(true)}
-            className={`inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 text-sm font-medium text-[var(--accent-foreground)] ${FOCUS_RING}`}
+            className={`inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 text-sm font-medium text-[var(--accent-foreground)] ${FOCUS_RING}`}
           >
             <Plus className="h-4 w-4" />
             Nuevo arriendo
@@ -357,7 +357,7 @@ export default function ArriendosPage() {
         <button
           onClick={cargar}
           disabled={refetching}
-          className={`inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--border-default)] px-3 text-sm text-foreground disabled:opacity-50 ${FOCUS_RING}`}
+          className={`inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--border-default)] px-3 text-sm text-foreground disabled:opacity-50 ${FOCUS_RING}`}
         >
           <RefreshCw className={`h-4 w-4 ${refetching ? "animate-spin" : ""}`} />
           Actualizar
@@ -378,6 +378,7 @@ export default function ArriendosPage() {
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--fg-subtle)]" />
           <input
             type="search"
+            aria-label="Buscar un arriendo por nombre, código, guía o proveedor"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar: andamio, generador, código, guía, proveedor…"
@@ -387,6 +388,7 @@ export default function ArriendosPage() {
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <select
             value={filtroObra}
+            aria-label="Filtrar por obra"
             onChange={(e) => setFiltroObra(e.target.value)}
             className={`h-11 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 text-sm text-foreground ${FOCUS_RING}`}
           >
@@ -399,6 +401,7 @@ export default function ArriendosPage() {
           </select>
           <select
             value={filtroProveedor}
+            aria-label="Filtrar por proveedor"
             onChange={(e) => setFiltroProveedor(e.target.value)}
             className={`h-11 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 text-sm text-foreground ${FOCUS_RING}`}
           >
@@ -411,6 +414,7 @@ export default function ArriendosPage() {
           </select>
           <select
             value={filtroCategoria}
+            aria-label="Filtrar por categoría"
             onChange={(e) => setFiltroCategoria(e.target.value)}
             className={`h-11 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 text-sm text-foreground ${FOCUS_RING}`}
           >
@@ -498,7 +502,7 @@ export default function ArriendosPage() {
             <section>
               <div className="mb-2 flex items-baseline justify-between">
                 <h2 className="text-sm font-semibold text-foreground">Equipos arrendados</h2>
-                <span className="text-xs tabular-nums text-[var(--fg-subtle)]">
+                <span className="text-xs tabular-nums text-[var(--fg-muted)]">
                   {visibles.length} registro{visibles.length === 1 ? "" : "s"}
                 </span>
               </div>

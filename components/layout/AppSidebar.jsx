@@ -34,10 +34,10 @@ const RUTA_PENDIENTES = "/mis-pendientes";
  * pantalla mas adentro de una app, seria un lugar mas al que hay que acordarse
  * de entrar.
  *
- * Solo aparece si esta persona puede deber algo: un subcontratista o alguien
- * sin pasos de contrato asignados NI ordenes que aprobar no la ve, asi no se le
- * convierte en una pantalla vacia. Lo decide usePendientes -> puedeDeberContratos
- * o puedeDeberOc.
+ * Solo aparece si esta persona puede deber algo, asi no se le convierte en una
+ * pantalla vacia: un subcontratista, o alguien sin pasos de contrato asignados,
+ * sin ordenes que aprobar, sin arriendos que devolver y sin herramientas que
+ * confirmar, no la ve. Lo decide usePendientes, con un puedeDeber* por fuente.
  */
 function contarPendientes(pendientes) {
   return paraHacerAhora(pendientes.items).length;
