@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Loader2, Undo2 } from "lucide-react";
+import { useState, useMemo, useRef } from "react";
+import { Camera, Check, Loader2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ControlArriendosItemsBoard } from "@/lib/board-sdk";
+import { comprimir } from "@/lib/client/comprimir-imagen";
 import { formatearMonto } from "@/lib/herramientas/inventario";
 import {
   ESTADOS_CERRADOS,
@@ -24,6 +26,9 @@ const ESTADOS = [
 /** El dia de hoy en Chile, para el valor por defecto de la fecha. */
 const hoyEnChile = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Santiago" });
 
+const itemsBoard = new ControlArriendosItemsBoard();
+const COLUMNA_FOTO = "file_mm7c46se";
+
 /**
  * Devolver items de un arriendo.
  *
@@ -41,6 +46,9 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
   const [estados, setEstados] = useState({});
   const [fecha, setFecha] = useState(hoyEnChile);
   const [guardando, setGuardando] = useState(false);
+  /** Por item: "subiendo" mientras va, true cuando quedo guardada. */
+  const [fotos, setFotos] = useState({});
+  const entradas = useRef({});
 
   // Se arma cuando el dialogo se abre, no en un efecto: al abrirlo se pasa
   // `preseleccion` y con eso alcanza.
@@ -48,6 +56,7 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
     setElegidos(new Set(ids));
     setEstados(Object.fromEntries(ids.map((id) => [id, ITEM_DEVUELTO])));
     setFecha(hoyEnChile());
+    setFotos({});
   };
 
   // La primera vez que se abre con items, se preseleccionan los que mando el
@@ -69,6 +78,30 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
     setEstados((prev) => (prev[id] ? prev : { ...prev, [id]: ITEM_DEVUELTO }));
   };
 
+  /**
+   * Sube la foto de devolucion de un item.
+   *
+   * Va ANTES de registrar la devolucion y no despues: si se registrara primero
+   * y la foto fallara, el arriendo quedaria cerrado sin la constancia de como
+   * volvio el equipo, que es justo lo que la foto viene a evitar.
+   */
+  const subirFoto = async (itemId, lista) => {
+    if (!lista?.length) return;
+    setFotos((p) => ({ ...p, [itemId]: "subiendo" }));
+    try {
+      const archivo = await comprimir(lista[0]);
+      await itemsBoard.item(itemId).uploadFile({ columnId: COLUMNA_FOTO, file: archivo, reemplazar: true });
+      setFotos((p) => ({ ...p, [itemId]: true }));
+    } catch (error) {
+      console.error("[ARRIENDOS] no se pudo subir la foto:", error);
+      setFotos((p) => ({ ...p, [itemId]: false }));
+      toast.error("No se pudo subir la foto. Probá de nuevo.");
+    }
+  };
+
+  /** Los marcados que todavia no tienen foto. */
+  const faltanFotos = [...elegidos].filter((id) => fotos[id] !== true);
+
   const guardar = async () => {
     const devoluciones = [...elegidos].map((id) => ({
       itemId: id,
@@ -77,6 +110,14 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
     }));
     if (!devoluciones.length) {
       toast.error("Elegí al menos un ítem.");
+      return;
+    }
+    if (faltanFotos.length) {
+      toast.error(
+        faltanFotos.length === 1
+          ? "Falta la foto de devolución de un ítem."
+          : `Faltan las fotos de devolución de ${faltanFotos.length} ítems.`,
+      );
       return;
     }
 
@@ -191,7 +232,8 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
                     </label>
 
                     {marcado ? (
-                      <div className="mt-2 flex flex-wrap gap-1.5 pl-6">
+                      <div className="mt-2 pl-6">
+                        <div className="flex flex-wrap items-center gap-1.5">
                         {ESTADOS.map((e) => (
                           <button
                             key={e.valor}
@@ -207,6 +249,42 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
                             {e.label}
                           </button>
                         ))}
+                        </div>
+
+                        {/* La foto es obligatoria: es la unica constancia de
+                            como volvio el equipo. Sin ella una discusion con el
+                            proveedor por un andamio danado se pierde sola. */}
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <input
+                            ref={(el) => { entradas.current[item.id] = el; }}
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            className="hidden"
+                            onChange={(e) => subirFoto(item.id, e.target.files)}
+                          />
+                          <button
+                            onClick={() => entradas.current[item.id]?.click()}
+                            disabled={fotos[item.id] === "subiendo"}
+                            className={`inline-flex min-h-8 items-center gap-1.5 rounded-[var(--radius-md)] border px-2.5 text-xs font-medium disabled:opacity-50 ${FOCUS_RING} ${
+                              fotos[item.id] === true
+                                ? "border-[var(--success)] text-[var(--success)]"
+                                : "border-[var(--warning)] text-[var(--warning)]"
+                            }`}
+                          >
+                            {fotos[item.id] === "subiendo" ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : fotos[item.id] === true ? (
+                              <Check className="h-3 w-3" />
+                            ) : (
+                              <Camera className="h-3 w-3" />
+                            )}
+                            {fotos[item.id] === true ? "Foto guardada" : "Sacar foto"}
+                          </button>
+                          {fotos[item.id] !== true ? (
+                            <span className="text-[11px] text-[var(--warning)]">obligatoria</span>
+                          ) : null}
+                        </div>
                       </div>
                     ) : null}
                   </div>
@@ -219,6 +297,11 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
               {elegidos.size === enObra.length
                 ? " El arriendo va a quedar cerrado."
                 : " El arriendo sigue cobrando por lo que quede en obra."}
+              {faltanFotos.length ? (
+                <span className="block text-[var(--warning)]">
+                  Faltan {faltanFotos.length} foto(s) de devolución para poder cerrarlo.
+                </span>
+              ) : null}
             </p>
           </>
         )}
@@ -232,7 +315,7 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
           </button>
           <button
             onClick={guardar}
-            disabled={guardando || elegidos.size === 0}
+            disabled={guardando || elegidos.size === 0 || faltanFotos.length > 0}
             className={`h-11 flex-1 inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--accent)] text-sm font-medium text-[var(--accent-foreground)] disabled:opacity-50 ${FOCUS_RING}`}
           >
             {guardando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   AlertTriangle,
   Calendar,
+  Camera,
   ChevronDown,
   Clock,
   DollarSign,
@@ -62,6 +63,9 @@ function Dato({ icono: Icono, label, children, alerta = false }) {
  */
 function BarraDevolucion({ resumen }) {
   const { total, devueltos, conDano, perdidos, porcentajeDevuelto } = resumen;
+  const conFoto = resumen.items.filter(
+    (i) => ESTADOS_CERRADOS.has(i.estado) && String(i.fotoDevolucion ?? "").trim(),
+  ).length;
   if (!total) return null;
   const buenos = devueltos - conDano - perdidos;
   const pct = (n) => (total ? (n / total) * 100 : 0);
@@ -72,6 +76,18 @@ function BarraDevolucion({ resumen }) {
         <span className="font-medium text-foreground">
           Devuelto {devueltos} de {total} ítems · {porcentajeDevuelto}%
         </span>
+        {/* La foto de devolucion es obligatoria, asi que el contador dice de
+            cuantas de las que ya volvieron quedo la constancia. */}
+        {devueltos > 0 ? (
+          <span
+            className={`inline-flex items-center gap-1 tabular-nums ${
+              conFoto < devueltos ? "text-[var(--warning)]" : "text-[var(--fg-subtle)]"
+            }`}
+          >
+            <Camera className="h-3 w-3" />
+            Fotos {conFoto} de {devueltos}
+          </span>
+        ) : null}
       </div>
       <div className="mt-1.5 flex h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-3)]">
         {buenos > 0 ? <div className="h-full bg-[var(--success)]" style={{ width: `${pct(buenos)}%` }} /> : null}
