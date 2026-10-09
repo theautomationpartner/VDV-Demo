@@ -19,6 +19,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { useSesionHerramientas } from "@/hooks/herramientas/useSesionHerramientas";
+import { useObrasArriendos } from "@/hooks/useObras";
 import { leerCache, guardarCache } from "@/lib/client/cache-persistente";
 import { formatearMonto, normalizar } from "@/lib/herramientas/inventario";
 import {
@@ -34,6 +35,13 @@ import {
   totalesDeOperacion,
 } from "@/lib/arriendos/listado";
 import { ArriendoCard } from "@/components/arriendos/ArriendoCard";
+import { DialogoNuevoArriendo } from "@/components/arriendos/DialogoNuevoArriendo";
+import { DialogoDevolucion } from "@/components/arriendos/DialogoDevolucion";
+import { TablaDetalle } from "@/components/arriendos/TablaDetalle";
+import { descargarReporteArriendo } from "@/lib/arriendos/reporte";
+import { fechaCorta } from "@/lib/herramientas/inventario";
+import { toast } from "sonner";
+import { Plus } from "lucide-react";
 
 const arriendosBoard = new ControlArriendosBoard();
 const CACHE_KEY = "hr_arriendos";
@@ -123,7 +131,18 @@ function Tab({ id, icono: Icono, actual, onElegir, children }) {
 }
 
 export default function ArriendosPage() {
-  const { cargando: cargandoSesion, tieneAcceso, verCostosArriendo } = useSesionHerramientas();
+  const {
+    cargando: cargandoSesion,
+    tieneAcceso,
+    verCostosArriendo,
+    gestionarArriendos,
+    obrasPermitidas,
+  } = useSesionHerramientas();
+
+  const { options: todasLasObras } = useObrasArriendos();
+
+  const [altaAbierta, setAltaAbierta] = useState(false);
+  const [devolviendo, setDevolviendo] = useState(null);
 
   const [vista, setVista] = useState("operacion");
   const [loading, setLoading] = useState(true);
@@ -226,10 +245,37 @@ export default function ArriendosPage() {
     );
   }, [preparados, busqueda, filtroObra, filtroProveedor, filtroCategoria]);
 
+  const abrirDevolucion = useCallback((arriendo, item) => {
+    // `preseleccion` decide que viene marcado al abrir: con un item, solo ese;
+    // desde "Devolver todo", los que sigan en obra.
+    setDevolviendo({ ...arriendo, preseleccion: item ? [item.id] : null });
+  }, []);
+
+  const generarReporte = useCallback(
+    async (arriendo) => {
+      try {
+        await descargarReporteArriendo(arriendo, { verCostos: verCostosArriendo });
+      } catch (error) {
+        console.error("[ARRIENDOS] no se pudo generar el reporte:", error);
+        toast.error("No se pudo generar el documento.");
+      }
+    },
+    [verCostosArriendo],
+  );
+
   const totales = useMemo(() => totalesDeOperacion(visibles), [visibles]);
   const revisar = useMemo(() => paraRevisar(visibles), [visibles]);
   const porObra = useMemo(() => costoActivoPorObra(visibles), [visibles]);
   const gasto = useMemo(() => totalesDeGasto(visibles), [visibles]);
+  /**
+   * Las obras para el alta salen de las ETIQUETAS de la columna en monday, no
+   * de los arriendos que ya existen: hoy el tablero solo tiene "ZZ" (las
+   * pruebas de Pablo) y con eso no se podria dar de alta en ninguna obra real.
+   */
+  const obrasParaAlta = useMemo(
+    () => (obrasPermitidas ? todasLasObras.filter((o) => obrasPermitidas.includes(o)) : todasLasObras),
+    [obrasPermitidas, todasLasObras],
+  );
 
   if (cargandoSesion || loading) {
     return (
@@ -280,6 +326,16 @@ export default function ArriendosPage() {
             </p>
           </div>
         </div>
+        <div className="flex flex-wrap gap-2">
+        {gestionarArriendos ? (
+          <button
+            onClick={() => setAltaAbierta(true)}
+            className={`inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 text-sm font-medium text-[var(--accent-foreground)] ${FOCUS_RING}`}
+          >
+            <Plus className="h-4 w-4" />
+            Nuevo arriendo
+          </button>
+        ) : null}
         <button
           onClick={cargar}
           disabled={refetching}
@@ -288,6 +344,7 @@ export default function ArriendosPage() {
           <RefreshCw className={`h-4 w-4 ${refetching ? "animate-spin" : ""}`} />
           Actualizar
         </button>
+        </div>
       </header>
 
       {error ? (
@@ -434,7 +491,15 @@ export default function ArriendosPage() {
               ) : (
                 <div className="space-y-3">
                   {visibles.map((a) => (
-                    <ArriendoCard key={a.id} arriendo={a} verCostos={verCostosArriendo} puedeGestionar={false} />
+                    <ArriendoCard
+                      key={a.id}
+                      arriendo={a}
+                      verCostos={verCostosArriendo}
+                      puedeGestionar={gestionarArriendos}
+                      onDevolverTodo={(x) => abrirDevolucion(x, null)}
+                      onDevolverItem={abrirDevolucion}
+                      onReporte={generarReporte}
+                    />
                   ))}
                 </div>
               )}
@@ -598,8 +663,23 @@ export default function ArriendosPage() {
               Tu rol no tiene acceso a los montos de los arriendos.
             </p>
           )}
+
+          <TablaDetalle arriendos={visibles} verCostos={verCostosArriendo} onReporte={generarReporte} />
         </>
       )}
+      <DialogoNuevoArriendo
+        abierto={altaAbierta}
+        onCerrar={() => setAltaAbierta(false)}
+        onListo={cargar}
+        obrasPermitidas={obrasParaAlta}
+      />
+      <DialogoDevolucion
+        arriendo={devolviendo}
+        abierto={Boolean(devolviendo)}
+        onCerrar={() => setDevolviendo(null)}
+        onListo={cargar}
+        verCostos={verCostosArriendo}
+      />
     </div>
   );
 }

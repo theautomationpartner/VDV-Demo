@@ -5,6 +5,7 @@ import {
   IngresosBoard,
   PagosVdvBoard,
   FlujoContratacionSubcontratoBoard,
+  ControlArriendosBoard,
 } from "@/lib/board-sdk";
 import { ALL_OBRAS } from "@/hooks/vale-express/useUserRole";
 import { useColumnOptions } from "@/hooks/useColumnOptions";
@@ -27,6 +28,7 @@ const valesBoard = new ValesBoard();
 const contratosBoard = new FlujoContratacionSubcontratoBoard();
 const ingresosBoard = new IngresosBoard();
 const pagosBoard = new PagosVdvBoard();
+const arriendosBoard = new ControlArriendosBoard();
 
 /** Obras de la columna OBRA del board VALES (Vale Express). */
 export function useObrasVales(fallback = ALL_OBRAS) {
@@ -56,4 +58,17 @@ export function useObrasPagos(fallback = ALL_OBRAS) {
  */
 export function useObrasContratos() {
   return useColumnOptions(contratosBoard, "obra", []);
+}
+
+/**
+ * Obras de la columna OBRA del tablero CONTROL DE ARRIENDOS.
+ *
+ * Va contra SU columna y no contra la de VALES por lo mismo que las otras: son
+ * columnas independientes en monday. Y hace falta de verdad: armar el
+ * desplegable con las obras que ya aparecen en el tablero de arriendos daria
+ * una sola opcion ("ZZ", de las pruebas de Pablo), y entonces no se podria dar
+ * de alta un arriendo en ninguna obra real.
+ */
+export function useObrasArriendos(fallback = ALL_OBRAS) {
+  return useColumnOptions(arriendosBoard, "obra", fallback);
 }
