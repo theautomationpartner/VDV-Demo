@@ -1,0 +1,10 @@
+{
+  "name": "video-demo-herramientas",
+  "private": true,
+  "type": "module",
+  "description": "Scripts para grabar el video demo de Control de Herramientas. No forma parte de la app.",
+  "dependencies": {
+    "jsonwebtoken": "^9.0.3",
+    "playwright": "^1.64.0"
+  }
+}
