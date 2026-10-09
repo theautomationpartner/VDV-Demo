@@ -138,7 +138,7 @@ export function AccionesHerramienta({ herramienta, obras, custodiosConocidos, on
       </div>
 
       <Dialog open={Boolean(accion)} onOpenChange={(abierto) => !abierto && cerrar()}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" data-app="herramientas">
           <DialogHeader>
             <DialogTitle className="text-base">{config?.titulo}</DialogTitle>
           </DialogHeader>

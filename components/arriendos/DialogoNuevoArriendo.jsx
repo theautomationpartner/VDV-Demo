@@ -293,7 +293,7 @@ export function DialogoNuevoArriendo({ abierto, onCerrar, onListo, obrasPermitid
 
   return (
     <Dialog open={abierto} onOpenChange={(v) => !v && cerrar()}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl" data-app="herramientas">
         <DialogHeader>
           <DialogTitle>Nuevo arriendo</DialogTitle>
         </DialogHeader>

@@ -115,7 +115,7 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
 
   return (
     <Dialog open={abierto} onOpenChange={(v) => !v && onCerrar?.()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" data-app="herramientas">
         <DialogHeader>
           <DialogTitle>Devolver al proveedor</DialogTitle>
         </DialogHeader>
