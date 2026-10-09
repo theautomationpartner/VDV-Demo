@@ -245,6 +245,24 @@ export default function ArriendosPage() {
     );
   }, [preparados, busqueda, filtroObra, filtroProveedor, filtroCategoria]);
 
+  /**
+   * Recargar despues de escribir, no una sino dos veces.
+   *
+   * La lista de items de monday es "eventually consistent": un item recien
+   * creado tarda unos segundos en aparecer en las consultas. Recargando una
+   * sola vez al terminar el alta, el arriendo que se acaba de crear NO sale en
+   * la lista -y la persona ve el cartel verde de "dado de alta" sobre una
+   * pantalla donde su arriendo no esta-. El mismo problema que ya documentamos
+   * en la numeracion de las OC, visto aca al navegar la pantalla.
+   *
+   * La segunda pasada es a los 3 segundos y no hace esperar a nadie: la lista
+   * se completa sola mientras la persona mira.
+   */
+  const recargarTrasEscribir = useCallback(() => {
+    cargar();
+    setTimeout(cargar, 3000);
+  }, [cargar]);
+
   const abrirDevolucion = useCallback((arriendo, item) => {
     // `preseleccion` decide que viene marcado al abrir: con un item, solo ese;
     // desde "Devolver todo", los que sigan en obra.
@@ -670,14 +688,14 @@ export default function ArriendosPage() {
       <DialogoNuevoArriendo
         abierto={altaAbierta}
         onCerrar={() => setAltaAbierta(false)}
-        onListo={cargar}
+        onListo={recargarTrasEscribir}
         obrasPermitidas={obrasParaAlta}
       />
       <DialogoDevolucion
         arriendo={devolviendo}
         abierto={Boolean(devolviendo)}
         onCerrar={() => setDevolviendo(null)}
-        onListo={cargar}
+        onListo={recargarTrasEscribir}
         verCostos={verCostosArriendo}
       />
     </div>

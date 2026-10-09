@@ -47,6 +47,14 @@ next-env.d.ts
 .vercel
 .env*
 
-# Los scripts para grabar el video demo, con sus node_modules, los cuadros en
-# 4K, los mp3 y los mp4. Son varios cientos de MB y no forman parte de la app.
-video-demo/
+# De la carpeta del video y las pruebas navegadas se versionan SOLO los
+# scripts: node_modules, los cuadros en 4K, los mp3, los mp4 y las capturas son
+# varios cientos de MB y se regeneran corriendo los scripts de nuevo.
+video-demo/node_modules/
+video-demo/cuadros/
+video-demo/capturas/
+video-demo/audio/
+video-demo/salida/
+video-demo/videos/
+video-demo/*.log
+video-demo/linea-de-tiempo.json
