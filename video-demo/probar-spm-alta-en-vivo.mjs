@@ -30,7 +30,7 @@ const SPM = "18407094103";
  * ruta corta antes de reservar el numero si no la encuentra. `clients@` es la
  * cuenta de TAP, que esta en el directorio (ficha 13070208522).
  */
-const GALLETA = cookieSesion([{ app: "generador-oc", appRol: "comprador" }], {
+const GALLETA = cookieSesion([{ app: "spm", appRol: "usuario" }], {
   uid: 31,
   email: "clients@theautomationpartner.com",
   nombre: "The Automation Partner",

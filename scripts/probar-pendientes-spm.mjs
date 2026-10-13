@@ -192,6 +192,11 @@ console.log("\nQUIEN PUEDE LEER EL TABLERO\n");
  * precio. `board-access-policy` deja pasar por defecto cualquier tablero que
  * no este en una lista, asi que sin una regla propia SPM quedaba abierto a
  * cualquier sesion valida, subcontratistas del Portal incluidos.
+ *
+ * Desde que SPM es una app aparte el piso es TENERLA: tener otra app de VDV ya
+ * no alcanza. Esta comprobado al reves a proposito -que el Generador de OC y
+ * Herramientas NO entren-, porque es el cambio que hay que notar si alguien
+ * aflojara la regla sin querer.
  */
 const sesionCon = (...apps) => ({
   uid: 1,
@@ -207,13 +212,13 @@ const dejaLeer = (sesion) => {
   }
 };
 
-comparar("quien tiene el Generador de OC lee", dejaLeer(sesionCon("generador-oc")), true);
-comparar("quien tiene Herramientas lee", dejaLeer(sesionCon("herramientas")), true);
-comparar("quien tiene Vale Express lee", dejaLeer(sesionCon("vale-express")), true);
-comparar("un SUBCONTRATISTA (solo Portal) NO", dejaLeer(sesionCon("portal-proveedor")), false);
+comparar("quien tiene la app SPM lee", dejaLeer(sesionCon("spm")), true);
+comparar("tener el Generador de OC NO alcanza", dejaLeer(sesionCon("generador-oc")), false);
+comparar("tener Herramientas tampoco", dejaLeer(sesionCon("herramientas")), false);
+comparar("un SUBCONTRATISTA (solo Portal) menos", dejaLeer(sesionCon("portal-proveedor")), false);
 comparar("sin ninguna app, NO", dejaLeer(sesionCon()), false);
 comparar("una sesion vacia, NO", dejaLeer({}), false);
-comparar("Portal + otra app si lee", dejaLeer(sesionCon("portal-proveedor", "herramientas")), true);
+comparar("SPM + otras apps si lee", dejaLeer(sesionCon("portal-proveedor", "spm")), true);
 
 console.log(`\n${mal === 0 ? "TODO PASA" : "HAY FALLAS"}: ${bien} ok, ${mal} fallas\n`);
 process.exit(mal === 0 ? 0 : 1);

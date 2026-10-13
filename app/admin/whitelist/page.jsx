@@ -23,7 +23,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Package, Handshake, UserX, MapPin, ChevronDown, FileSignature, AlertTriangle, Wrench } from "lucide-react";
+import { ShieldAlert, Lock, Plus, Pencil, Trash2, UserCog, X, Search, Users, Package, Handshake, UserX, MapPin, ChevronDown, FileSignature, AlertTriangle, Wrench, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useObrasVales, useObrasContratos } from "@/hooks/useObras";
 import { OrdenesDeCompraMaxxaBoard, ProveedoresBoard, fetchAllItems } from "@/lib/board-sdk";
@@ -41,6 +41,7 @@ import {
   HERRAMIENTAS_ROLES,
   etiquetaRolHerramientas,
 } from "@/lib/herramientas-roles";
+import { SPM_APP, SPM_ROLES } from "@/lib/spm-roles";
 import { appConfigDeAsignacion } from "@/lib/whitelist-appconfig";
 import { PASOS_VB, esSuperAprobador, pasoPorClave, pasosAsignados } from "@/lib/contratos-vb";
 
@@ -53,12 +54,14 @@ const APP_LABELS = {
   // asignaciones de produccion (ver lib/oc-roles.js).
   "generador-oc": "OC Tracker",
   [HERRAMIENTAS_APP]: "Herramientas",
+  [SPM_APP]: "Solicitudes de Material",
 };
 const APP_ICONS = {
   "vale-express": Package,
   "portal-proveedor": Handshake,
   "generador-oc": FileSignature,
   [HERRAMIENTAS_APP]: Wrench,
+  [SPM_APP]: ClipboardList,
 };
 
 const APP_ROLES = {
@@ -81,6 +84,14 @@ const APP_ROLES = {
   // Administrador / Oficina Tecnica / Bodeguero / Jefe de Obra. Los definio el
   // cliente el 07-oct-2026; ver lib/herramientas-roles.js.
   [HERRAMIENTAS_APP]: HERRAMIENTAS_ROLES,
+  /**
+   * Un solo rol, y es a proposito. VDV todavia no definio quien puede que en
+   * SPM: estan preguntadas las dos cosas que importan -quien manda la solicitud
+   * a los proveedores, y si un jefe de obra ve solo su obra-. Inventar tres
+   * roles ahora seria decidir por el cliente algo que ya le preguntamos.
+   * Ver lib/spm-roles.js.
+   */
+  [SPM_APP]: SPM_ROLES,
 };
 
 // Lista unica de todos los appRol posibles (deduplicados por value - "Super

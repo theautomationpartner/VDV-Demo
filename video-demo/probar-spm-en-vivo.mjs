@@ -45,7 +45,7 @@ try {
     throw new Error(`la app no contesta en ${BASE}`);
   }
 
-  const galleta = cookieSesion([{ app: "generador-oc", appRol: "comprador" }]);
+  const galleta = cookieSesion([{ app: "spm", appRol: "usuario" }]);
   const pedir = (cuerpo) =>
     fetch(`${BASE}/api/monday/board`, {
       method: "POST",

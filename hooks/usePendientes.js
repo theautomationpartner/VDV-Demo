@@ -323,14 +323,15 @@ async function recargar() {
     const conConfirmaciones = puedeDeberConfirmaciones(sesionHr);
 
     /**
-     * SPM no pregunta por rol, y es a proposito: VDV todavia no definio los
-     * roles de esa app. Lo que se muestra son LAS SOLICITUDES DE UNO MISMO,
-     * que no necesita ninguna definicion -quien la hizo puede verla- y es
-     * ademas la unica persona que puede hacer algo si fallo.
+     * SPM no pregunta por ROL -tiene uno solo hasta que VDV defina los suyos-
+     * pero si pide tener la app, igual que las otras cuatro fuentes.
      *
-     * El mail sale de cualquiera de las dos sesiones que lo guardan.
+     * Lo que se muestra son LAS SOLICITUDES DE UNO MISMO: quien la hizo puede
+     * verla sin que nadie defina nada, y es ademas la unica persona que puede
+     * hacer algo si fallo.
      */
-    const miMail = sesionOc?.email ?? leerSesion("ve_session")?.email ?? null;
+    const sesionSpm = leerSesion("spm_session");
+    const miMail = sesionSpm?.email ?? null;
 
     if (!conContratos && !conOc && !conArriendos && !conConfirmaciones && !miMail) {
       publicar({ items: [], cargando: false, activo: false, ocHuerfanas: 0 });

@@ -73,7 +73,7 @@ try {
   browser = await chromium.launch({ channel: "chrome" });
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 }, locale: "es-CL" });
   await ctx.addCookies([
-    cookieSesion([{ app: "generador-oc", appRol: "comprador" }], {
+    cookieSesion([{ app: "spm", appRol: "usuario" }], {
       uid: 31,
       email: "clients@theautomationpartner.com",
       nombre: "The Automation Partner",
@@ -82,8 +82,8 @@ try {
   await ctx.addInitScript(() => {
     try {
       localStorage.setItem(
-        "og_session",
-        JSON.stringify({ role: "comprador", email: "clients@theautomationpartner.com", userName: "The Automation Partner" }),
+        "spm_session",
+        JSON.stringify({ role: "usuario", email: "clients@theautomationpartner.com", userName: "The Automation Partner" }),
       );
     } catch { /* almacenamiento bloqueado */ }
   });
