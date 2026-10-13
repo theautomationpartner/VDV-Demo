@@ -476,6 +476,70 @@ try {
   );
   ok("NO se guarda: crear una solicitud quema un folio que no vuelve");
 
+  // ============================== 2c. LA ESPERA DESPUES DE MANDAR (sin mandar)
+  titulo("2c. LA ESPERA A MAKE (sin mandar nada de verdad)");
+
+  /**
+   * La app marca "Por enviar" y ahi termina su trabajo: los correos los manda
+   * Make, que tarda ~8 segundos y recien despues escribe "Enviado". La ficha se
+   * recargaba en el acto, leia la columna ANTES de ese cambio, y quedaba en
+   * "Esta saliendo en este momento" PARA SIEMPRE. A la vista parece colgada, y
+   * la reaccion natural es volver a apretar.
+   *
+   * COMO SE PRUEBA SIN MANDAR: se intercepta el pedido de envio y se contesta
+   * que si, sin dejarlo llegar al servidor. La app cree que mando y arranca la
+   * espera -que es lo que se quiere probar-, pero no sale ni un correo ni se
+   * toca una columna. Es la unica forma de probar esto sin despertar a Make.
+   */
+  let seIntentoEnviarDeVerdad = false;
+  await page.route("**/api/spm/enviar", async (ruta) => {
+    seIntentoEnviarDeVerdad = true;
+    await ruta.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, numero: "SPM-TEST" }),
+    });
+  });
+
+  // Una en Borrador, que es la unica donde el boton aparece.
+  const enBorrador = (await mon(
+    `query($b:[ID!]){ boards(ids:$b){ items_page(limit:50){ items{ id column_values(ids:["color_mm7fnd78"]){ text } } } } }`,
+    { b: ["18407094103"] },
+  )).boards[0].items_page.items.find((i) => i.column_values[0]?.text === "Borrador");
+
+  if (!enBorrador) {
+    ok("no hay ninguna solicitud en Borrador, así que no se puede probar la espera");
+  } else {
+    await page.goto(`${BASE}/spm/${enBorrador.id}`, { waitUntil: "domcontentloaded", timeout: 120_000 });
+    await page.getByText(/Materiales pedidos/).first().waitFor({ timeout: 60_000 });
+
+    const botonMandar = page.getByRole("button", { name: /Mandar a cotizar/i });
+    comprobar("el botón está", await botonMandar.isVisible());
+    await botonMandar.click();
+
+    const avisoEspera = page.getByText(/Esto se actualiza solo/);
+    comprobar(
+      "al mandar, la pantalla avisa que está esperando y que se actualiza sola",
+      await avisoEspera.waitFor({ timeout: 15_000 }).then(() => true).catch(() => false),
+      (await texto()).slice(-500),
+    );
+
+    /*
+      Y que la espera TERMINE. Esta solicitud sigue en "Borrador" -no se mando
+      nada de verdad-, asi que en la primera vuelta la app ve un estado que no
+      es "Por enviar" y tiene que cortar. Si el aviso quedara para siempre, el
+      arreglo seria solo un cartel nuevo.
+    */
+    comprobar(
+      "y la espera corta sola cuando el estado deja de ser 'Por enviar'",
+      await avisoEspera.waitFor({ state: "hidden", timeout: 40_000 }).then(() => true).catch(() => false),
+      "el aviso no se fue en 40 s: el reloj queda corriendo para siempre",
+    );
+
+    comprobar("el pedido de envío se interceptó: no salió ningún correo", seIntentoEnviarDeVerdad);
+  }
+  await page.unroute("**/api/spm/enviar");
+
   // ========================================================= 3. COTIZACIONES
   titulo("3. COTIZACIONES RECIBIDAS");
 
