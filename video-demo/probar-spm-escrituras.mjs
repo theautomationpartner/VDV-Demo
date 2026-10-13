@@ -146,6 +146,28 @@ try {
   const texto = () => page.locator("body").innerText();
 
   // ===================================================== 1. CREAR
+  /**
+   * QUE LA APP SE PUEDA ASIGNAR DESDE USUARIOS Y ROLES.
+   *
+   * Vive aca porque necesita la base DE VERDAD: el mapa de permisos sale de la
+   * fila del usuario, no de la galleta. No alcanza con que los roles existan en
+   * el codigo -si nadie puede dar de alta a alguien en SPM, la app no sirve-.
+   *
+   * Paso de verdad: andaba si se asignaba por base de datos, pero en Usuarios y
+   * Roles no aparecia, porque esa pantalla solo dibuja las apps que el que edita
+   * administra y SPM faltaba en la lista de las que no tienen rol de
+   * administracion propio (como OC Tracker y Herramientas).
+   */
+  const permisos = await page.evaluate(async () => {
+    const r = await fetch("/api/auth/whitelist", { credentials: "include" });
+    return r.ok ? r.json() : null;
+  });
+  comprobar(
+    "la app SPM se puede asignar desde Usuarios y Roles",
+    permisos?.access?.spm === "editor",
+    `el mapa de permisos dice: ${JSON.stringify(permisos?.access ?? null)}`,
+  );
+
   titulo("1. CREAR UNA SOLICITUD");
 
   await page.goto(`${BASE}/spm/nueva`, { waitUntil: "domcontentloaded", timeout: 120_000 });
