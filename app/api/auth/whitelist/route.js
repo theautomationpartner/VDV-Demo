@@ -1,6 +1,7 @@
 import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
 import { OC_APP } from "@/lib/oc-roles";
 import { HERRAMIENTAS_APP } from "@/lib/herramientas-roles";
+import { SPM_APP } from "@/lib/spm-roles";
 import {
   listarUsuariosAutorizados,
   obtenerUsuarioAutorizado,
@@ -31,20 +32,23 @@ function appAccessMap(sesion) {
     else if (a.appRol === "admin" && access[a.app] !== "editor") access[a.app] = "viewer";
   }
 
-  // Dos apps no tienen roles de ADMINISTRACION propios, solo funcionales: el OC
-  // Tracker (Consulta / Comprador / Aprobador, ver lib/oc-roles.js) y
+  // TRES apps no tienen roles de ADMINISTRACION propios, solo funcionales: el OC
+  // Tracker (Consulta / Comprador / Aprobador, ver lib/oc-roles.js),
   // Herramientas (Administrador / Oficina Tecnica / Bodeguero / Jefe de Obra,
-  // ver lib/herramientas-roles.js). Ninguno de esos roles es "super_admin", asi
-  // que sin esto NADIE podria dar de alta a alguien en ellas: el permiso salia
-  // justamente del super_admin que esas apps no tienen.
+  // ver lib/herramientas-roles.js) y Solicitudes de Material (Solicitante /
+  // Comprador / Consulta, ver lib/spm-roles.js). Ninguno de esos roles es
+  // "super_admin", asi que sin esto NADIE podria dar de alta a alguien en ellas:
+  // el permiso salia justamente del super_admin que esas apps no tienen.
   //
-  // Con Herramientas el problema es mas visible todavia porque es nueva y nadie
-  // la tiene asignada: sin esta regla no habria forma de asignar la primera.
+  // A SPM le faltaba, y el sintoma era raro de leer: la app se podia asignar por
+  // base de datos y funcionaba, pero en Usuarios y Roles no aparecia por ningun
+  // lado -ni para agregarla ni para verla en quien ya la tenia-, porque la
+  // pantalla solo muestra las apps que el que edita administra.
   //
   // Es la unica grieta en el "cada app es un compartimento": quien administra
-  // usuarios en Vale Express o en el Portal administra tambien los de estas dos.
+  // usuarios en Vale Express o en el Portal administra tambien los de estas tres.
   // En VDV son las mismas dos personas para todas.
-  const APPS_SIN_ADMIN_PROPIO = [OC_APP, HERRAMIENTAS_APP];
+  const APPS_SIN_ADMIN_PROPIO = [OC_APP, HERRAMIENTAS_APP, SPM_APP];
   const nivelesDeOtrasApps = Object.entries(access)
     .filter(([app]) => !APPS_SIN_ADMIN_PROPIO.includes(app))
     .map(([, nivel]) => nivel);

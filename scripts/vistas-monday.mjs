@@ -1,5 +1,6 @@
 /**
- * Crea las vistas de los tableros de Herramientas y Arriendos.
+ * Crea las vistas de los tableros de Herramientas, Arriendos y Solicitudes
+ * de Material (SPM).
  *
  *   node scripts/vistas-monday.mjs            (muestra que haria)
  *   node scripts/vistas-monday.mjs --aplicar  (lo hace)
@@ -38,6 +39,20 @@
 import { readFileSync } from "node:fs";
 
 const APLICAR = process.argv.includes("--aplicar");
+
+/**
+ * `--solo SPM_VDV,COTIZACIONES_SPM` toca solo esos tableros.
+ *
+ * Hace falta porque este script BORRA Y REHACE cada vista. Para las que crea el
+ * script eso es lo correcto -el archivo es la unica verdad-, pero rehacer las de
+ * Herramientas cuando uno solo venia a agregar las de SPM se lleva puesto
+ * cualquier retoque que el cliente le haya hecho a mano a esas vistas.
+ */
+const SOLO = (() => {
+  const i = process.argv.indexOf("--solo");
+  if (i === -1) return null;
+  return new Set((process.argv[i + 1] ?? "").split(",").map((x) => x.trim()).filter(Boolean));
+})();
 
 const env = readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const de = (k) => env.match(new RegExp(`^${k}=(.*)$`, "m"))?.[1]?.replace(/^"|"$/g, "") ?? "";
@@ -153,6 +168,60 @@ const RECEPCION_PENDIENTE = [1];
 const ARRIENDO_ACTIVO = [1];
 const EXCEPCION_SI = [2]; // "SI AUTORIZADA"
 
+const SPM = {
+  subelementos: "subtasks_mm2290mm",
+  fecha: "date_mm22j930",
+  personaVieja: "multiple_person_mm22j6ja",
+  estado: "color_mm22s1hd",
+  boton: "button_mm22vjpd",
+  proveedores: "board_relation_mm22xppd",
+  reflejo: "lookup_mm22smkb",
+  obra: "color_mm2289de",
+  emisor: "board_relation_mm79w6vx",
+  idItem: "pulse_id_mm7ckn0j",
+  fechaEnvio: "date_mm7cj0n3",
+  recomendado: "text_mm7c6chk",
+  cuadro: "long_text_mm7c53fx",
+  centroCosto: "dropdown_mm7cg19s",
+  numero: "text_mm7eawn",
+  envio: "color_mm7fnd78",
+  ocasionales: "long_text_mm7gd0ee",
+  destinatarios: "long_text_mm7g3ra0",
+  comparacion: "color_mm7jmbwc",
+};
+
+const COT = {
+  subelementos: "subtasks_mm7cqph2",
+  spm: "board_relation_mm7ckt5z",
+  proveedor: "board_relation_mm7cktcn",
+  numero: "text_mm7cfbnq",
+  fecha: "date_mm7cx9v7",
+  validaHasta: "date_mm7cnxv5",
+  precio: "numeric_mm7c1m8r",
+  moneda: "dropdown_mm7cf5he",
+  plazo: "numeric_mm7cnsbz",
+  condicionPago: "text_mm7cn2qj",
+  estado: "color_mm7cqzdh",
+  archivo: "file_mm7crf7g",
+  origen: "color_mm7cd1e1",
+  obra: "lookup_mm7c9nhh",
+  centroCosto: "lookup_mm7cqsq0",
+  notasLectura: "long_text_mm7h6xq2",
+  remitente: "text_mm7hggtv",
+};
+
+/**
+ * Indices de SPM. OJO con "Revisar": es el 9, no el 5. monday no renumera
+ * cuando se borra una etiqueta, asi que el indice y la posicion en la lista no
+ * tienen por que coincidir -por eso se leen del tablero y no se cuentan-.
+ */
+const ENVIO_BORRADOR = [0];
+const ENVIO_ENVIADO = [2];
+const ENVIO_TRABADO = [1, 3]; // "Por enviar" colgado + "Error envio"
+const COMPARACION_LISTA = [3]; // "Comparado"
+const COTIZACION_REVISAR = [9];
+const COTIZACION_ELEGIDA = [4]; // "Seleccionada"
+
 // ---------------------------------------------------------------- el plan
 
 const PLAN = [
@@ -236,6 +305,76 @@ const PLAN = [
       },
     ],
   },
+  {
+    board: "SPM_VDV",
+    vistas: [
+      {
+        nombre: "Solicitudes",
+        porQue: "La del dia a dia. Numero, obra, quien la pidio y en que anda. Esconde el cuadro comparativo -que es un texto largo que rompe la fila-, los destinatarios y la columna de persona que quedo del esquema viejo.",
+        orden: ["name", SPM.numero, SPM.obra, SPM.centroCosto, SPM.emisor, SPM.envio, SPM.comparacion, SPM.fechaEnvio, SPM.recomendado, SPM.estado],
+        ocultas: [SPM.cuadro, SPM.destinatarios, SPM.ocasionales, SPM.personaVieja, SPM.reflejo, SPM.boton, SPM.idItem, SPM.fecha, SPM.proveedores],
+        orden_por: [{ column_id: SPM.numero, direction: "desc" }],
+        congeladas: 2,
+      },
+      {
+        nombre: "Para mandar a cotizar",
+        porQue: "Las que estan armadas y todavia no salieron. Es la bandeja del que compra: mientras esten aca, no se le pidio precio a nadie.",
+        orden: ["name", SPM.numero, SPM.obra, SPM.centroCosto, SPM.emisor, SPM.destinatarios, SPM.fecha],
+        ocultas: [SPM.cuadro, SPM.ocasionales, SPM.personaVieja, SPM.reflejo, SPM.boton, SPM.idItem, SPM.proveedores, SPM.recomendado, SPM.comparacion, SPM.fechaEnvio, SPM.estado],
+        filtro: [{ column_id: SPM.envio, compare_value: ENVIO_BORRADOR, operator: "any_of" }],
+        orden_por: [{ column_id: SPM.fecha, direction: "asc" }],
+      },
+      {
+        nombre: "Esperando respuesta",
+        porQue: "Salieron los correos y se espera al proveedor. Ordenadas por fecha de envio: arriba queda lo que mas tiempo lleva sin contestar.",
+        orden: ["name", SPM.numero, SPM.obra, SPM.fechaEnvio, SPM.destinatarios, SPM.comparacion, SPM.emisor],
+        ocultas: [SPM.cuadro, SPM.ocasionales, SPM.personaVieja, SPM.reflejo, SPM.boton, SPM.idItem, SPM.proveedores, SPM.recomendado, SPM.fecha, SPM.centroCosto, SPM.estado],
+        filtro: [{ column_id: SPM.envio, compare_value: ENVIO_ENVIADO, operator: "any_of" }],
+        orden_por: [{ column_id: SPM.fechaEnvio, direction: "asc" }],
+      },
+      {
+        nombre: "Trabadas o con error",
+        porQue: "La contracara en monday de 'Mis Pendientes'. Junta las dos formas de romperse: las que Make marco 'Error envio', y las que quedaron en 'Por enviar' -que es un estado DE PASO: si sigue ahi, Make no corrio y no dejo ningun error escrito-.",
+        orden: ["name", SPM.numero, SPM.obra, SPM.envio, SPM.emisor, SPM.destinatarios, SPM.fecha, SPM.fechaEnvio],
+        ocultas: [SPM.cuadro, SPM.ocasionales, SPM.personaVieja, SPM.reflejo, SPM.boton, SPM.idItem, SPM.proveedores, SPM.recomendado, SPM.comparacion, SPM.centroCosto, SPM.estado],
+        filtro: [{ column_id: SPM.envio, compare_value: ENVIO_TRABADO, operator: "any_of" }],
+      },
+      {
+        nombre: "Listas para decidir",
+        porQue: "Ya hay con que elegir proveedor: la comparacion esta hecha. Aca si se muestra el cuadro comparativo, que es justo lo que se viene a leer.",
+        orden: ["name", SPM.numero, SPM.obra, SPM.centroCosto, SPM.recomendado, SPM.cuadro, SPM.emisor],
+        ocultas: [SPM.ocasionales, SPM.personaVieja, SPM.reflejo, SPM.boton, SPM.idItem, SPM.proveedores, SPM.destinatarios, SPM.fecha, SPM.envio, SPM.estado],
+        filtro: [{ column_id: SPM.comparacion, compare_value: COMPARACION_LISTA, operator: "any_of" }],
+      },
+    ],
+  },
+  {
+    board: "COTIZACIONES_SPM",
+    vistas: [
+      {
+        nombre: "Cotizaciones",
+        porQue: "Lo que contestaron los proveedores. Esconde las notas de lectura -el texto que deja la IA, que son parrafos- y las dos columnas espejo, que repiten lo que ya dice la solicitud.",
+        orden: ["name", COT.spm, COT.proveedor, COT.fecha, COT.precio, COT.moneda, COT.plazo, COT.estado, COT.origen, COT.archivo],
+        ocultas: [COT.notasLectura, COT.obra, COT.centroCosto, COT.validaHasta, COT.condicionPago, COT.numero, COT.remitente],
+        orden_por: [{ column_id: COT.fecha, direction: "desc" }],
+        congeladas: 2,
+      },
+      {
+        nombre: "Para revisar",
+        porQue: "Las que la IA no pudo leer con confianza. Aca SI se muestran las notas de lectura, porque el motivo de la duda es lo unico que importa en esta vista.",
+        orden: ["name", COT.spm, COT.proveedor, COT.precio, COT.notasLectura, COT.archivo, COT.remitente, COT.fecha],
+        ocultas: [COT.obra, COT.centroCosto, COT.validaHasta, COT.condicionPago, COT.numero, COT.moneda, COT.plazo, COT.origen, COT.estado],
+        filtro: [{ column_id: COT.estado, compare_value: COTIZACION_REVISAR, operator: "any_of" }],
+      },
+      {
+        nombre: "Elegidas",
+        porQue: "Las que ganaron. Es lo que hay que mirar para emitir la orden de compra, y el historial de a quien se le termino comprando.",
+        orden: ["name", COT.spm, COT.proveedor, COT.precio, COT.moneda, COT.plazo, COT.condicionPago, COT.fecha, COT.archivo],
+        ocultas: [COT.notasLectura, COT.obra, COT.centroCosto, COT.validaHasta, COT.numero, COT.origen, COT.remitente, COT.estado],
+        filtro: [{ column_id: COT.estado, compare_value: COTIZACION_ELEGIDA, operator: "any_of" }],
+      },
+    ],
+  },
 ];
 
 // ------------------------------------------------------------------ aplicar
@@ -244,6 +383,7 @@ let creadas = 0;
 let reemplazadas = 0;
 
 for (const { board, vistas } of PLAN) {
+  if (SOLO && !SOLO.has(board)) continue;
   const boardId = de(`MONDAY_BOARD_${board}`);
   if (!boardId) {
     console.log(`\n### ${board}: falta el env, se omite`);

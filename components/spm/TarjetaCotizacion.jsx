@@ -11,6 +11,7 @@ import {
   TONO_ESTADO,
   TONO_HOMOLOGACION,
   estaVencida,
+  formatearFecha,
   formatearPrecio,
   lineasDudosas,
   quienCotizo,
@@ -38,7 +39,13 @@ function Pastilla({ texto, tono }) {
  * cotizacion con el total mas bajo y tres lineas "Distinto" no es la mas barata,
  * es otra cosa. Por eso el aviso va ARRIBA del precio y no escondido adentro.
  */
-export function TarjetaCotizacion({ cotizacion, lineasPedidas, onCambiado }) {
+export function TarjetaCotizacion({
+  cotizacion,
+  lineasPedidas,
+  onCambiado,
+  esLaMasBarata = false,
+  masBarataComparable = true,
+}) {
   const [abierta, setAbierta] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
@@ -97,10 +104,18 @@ export function TarjetaCotizacion({ cotizacion, lineasPedidas, onCambiado }) {
               No está enganchada a una ficha del maestro de proveedores
             </p>
           ) : null}
+          {/*
+            La FECHA no se mostraba, y es la primera pregunta frente a dos
+            ofertas parecidas: cual es mas vieja. El numero y el plazo ya
+            estaban, pero solo aparecen si el proveedor los puso -que en los
+            datos de hoy casi nunca pasa-, asi que sin la fecha esta linea
+            quedaba diciendo nada mas "sin condicion de pago".
+          */}
           <p className="mt-1 text-xs text-[var(--fg-muted)]">
-            {cotizacion.numeroCotizacion ? `N° ${cotizacion.numeroCotizacion} · ` : ""}
-            {cotizacion.plazoEntrega ? `entrega en ${cotizacion.plazoEntrega} d · ` : ""}
-            {cotizacion.condicionDePago || "sin condición de pago"}
+            {formatearFecha(cotizacion.fechaCotizacion) ?? "sin fecha"}
+            {cotizacion.numeroCotizacion ? ` · N° ${cotizacion.numeroCotizacion}` : ""}
+            {cotizacion.plazoEntrega ? ` · entrega en ${cotizacion.plazoEntrega} d` : ""}
+            {` · ${cotizacion.condicionDePago || "sin condición de pago"}`}
           </p>
         </div>
 
@@ -108,6 +123,26 @@ export function TarjetaCotizacion({ cotizacion, lineasPedidas, onCambiado }) {
           <p className="text-base font-semibold tabular-nums text-foreground">
             {formatearPrecio(cotizacion.precioTotal, cotizacion.moneda)}
           </p>
+          {/*
+            La mas barata del grupo. Se marca ACA, pegada al precio, y no en un
+            cartel arriba: el cartel se lee como una recomendacion y esto es un
+            dato. Y cuando no todos cotizaron lo mismo se dice, porque entonces
+            el total mas bajo puede serlo por lo que le FALTA.
+          */}
+          {esLaMasBarata ? (
+            <p
+              className={`text-[11px] font-medium ${
+                masBarataComparable ? "text-[var(--success)]" : "text-[var(--warning)]"
+              }`}
+              title={
+                masBarataComparable
+                  ? "Es el total más bajo de esta solicitud"
+                  : "Es el total más bajo, pero no todos cotizaron la misma cantidad de líneas"
+              }
+            >
+              {masBarataComparable ? "la más barata" : "la más barata, pero ojo"}
+            </p>
+          ) : null}
           {/*
             Cuantas lineas cotizo, y contra cuantas se pidieron SOLO cuando se
             sabe. En el listado general no se sabe -las cotizaciones vienen de

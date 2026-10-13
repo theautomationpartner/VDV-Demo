@@ -93,9 +93,35 @@ try {
   // ----------------------------------------------------------- 1. el listado
   console.log("\n1. EL LISTADO\n");
   await page.goto(`${BASE}/spm`, { waitUntil: "networkidle", timeout: 120_000 });
-  await page.waitForTimeout(4000);
+  // Esperar la condicion y no N segundos: el listado ahora hace DOS lecturas
+  // -las solicitudes con sus lineas, y las cotizaciones para contar respuestas-
+  // y con un timeout fijo el test pasa o falla segun lo que tarde monday.
+  /**
+   * Se espera cualquiera de los tres finales posibles, el cartel de sin acceso
+   * incluido. Esta prueba levanta la app CON LA BASE DE VERDAD -el numero de
+   * solicitud sale de Neon-, y con la base conectada los permisos salen de ahi
+   * y no de la galleta: si la cuenta no tiene asignada la app en Usuarios y
+   * Roles, no hay nada que esperar. Sin este caso, eso se veia como un timeout
+   * de 90 segundos y parecia que monday estaba lento.
+   */
+  await page
+    .getByText(/SPM-\d{3}|Todav[ií]a no hay solicitudes|no tiene asignada la app|No se pudieron leer/)
+    .first()
+    .waitFor({ timeout: 90_000 })
+    .catch(async () => {
+      throw new Error(`el listado no llego a ningun final. Pantalla:\n${await page.locator("body").innerText()}`);
+    });
 
   const listado = await page.locator("body").innerText();
+  if (/no tiene asignada la app|No se pudieron leer las solicitudes/.test(listado)) {
+    throw new Error(
+      [
+        "la cuenta de la prueba no tiene la app Solicitudes de Material.",
+        "        Con la base conectada los permisos salen de Neon, no de la galleta.",
+        "        Asignarsela en Usuarios y Roles y volver a correr.",
+      ].join(String.fromCharCode(10)),
+    );
+  }
   comprobar("la pantalla carga", /Solicitudes de Material/.test(listado), listado.slice(0, 200));
   comprobar("no muestra el cartel de sin acceso", !/no tiene acceso/i.test(listado), listado.slice(0, 200));
   comprobar("lista las solicitudes que ya existen", /SPM-00/.test(listado), listado.slice(0, 300));
@@ -159,8 +185,38 @@ try {
   const guardar = page.getByRole("button", { name: /Guardar borrador/i });
   comprobar("con todo completo el boton habilita", !(await guardar.isDisabled()));
 
+  /**
+   * Lo que conteste el servidor al crear. Sin esto un rechazo se ve igual que
+   * una demora y el test solo dice "timeout", que no dice nada.
+   *
+   * El rechazo que de verdad pasa hoy es un 403: las rutas que ESCRIBEN leen
+   * los permisos de Neon en cada pedido (lib/server/auth-guard.js), no de la
+   * cookie, asi que la galleta de la prueba sirve para leer pero no para
+   * crear. Mientras nadie tenga la app "Solicitudes de Material" asignada en
+   * Usuarios y Roles, esto no puede pasar, y conviene que lo diga asi.
+   */
+  let respuestaCrear = null;
+  page.on("response", async (r) => {
+    if (!r.url().includes("/api/spm/crear")) return;
+    respuestaCrear = { estado: r.status(), cuerpo: (await r.text().catch(() => "")).slice(0, 300) };
+  });
+
   await guardar.click();
-  await page.waitForURL(/\/spm\/\d+$/, { timeout: 60_000 });
+  try {
+    await page.waitForURL(/\/spm\/\d+$/, { timeout: 60_000 });
+  } catch (e) {
+    if (respuestaCrear?.estado === 403) {
+      throw new Error(
+        [
+          `el servidor rechazo la creacion (403): ${respuestaCrear.cuerpo}`,
+          "        Los permisos de escritura salen de Neon, no de la cookie de la prueba.",
+          '        Hay que asignarle la app "Solicitudes de Material" a la cuenta en Usuarios y Roles.',
+        ].join(String.fromCharCode(10)),
+      );
+    }
+    if (respuestaCrear) throw new Error(`crear devolvio ${respuestaCrear.estado}: ${respuestaCrear.cuerpo}`);
+    throw e;
+  }
   const url = page.url();
   const nuevoId = url.split("/").pop();
   creados.push(nuevoId);

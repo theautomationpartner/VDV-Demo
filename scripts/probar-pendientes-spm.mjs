@@ -203,9 +203,9 @@ const sesionCon = (...apps) => ({
   email: "x@vdv.cl",
   asignaciones: apps.map((app) => ({ app, appRol: "admin" })),
 });
-const dejaLeer = (sesion) => {
+const dejaLeer = (sesion, board = "SpmVdvBoard") => {
   try {
-    verificarAccesoLectura(sesion, "SpmVdvBoard");
+    verificarAccesoLectura(sesion, board);
     return true;
   } catch {
     return false;
@@ -219,6 +219,240 @@ comparar("un SUBCONTRATISTA (solo Portal) menos", dejaLeer(sesionCon("portal-pro
 comparar("sin ninguna app, NO", dejaLeer(sesionCon()), false);
 comparar("una sesion vacia, NO", dejaLeer({}), false);
 comparar("SPM + otras apps si lee", dejaLeer(sesionCon("portal-proveedor", "spm")), true);
+
+/**
+ * Y LAS COTIZACIONES CON LA MISMA LLAVE. Esto faltaba y estaba abierto: la
+ * regla cubria la solicitud -lo que se PIDE- y dejaba pasar las respuestas -lo
+ * que CONTESTARON-, que es donde esta el precio de cada proveedor por obra. Un
+ * subcontratista del Portal se las bajaba enteras por /api/monday/board.
+ */
+for (const board of ["CotizacionesSpmBoard", "CotizacionesSpmItemsBoard"]) {
+  comparar(`${board}: con SPM lee`, dejaLeer(sesionCon("spm"), board), true);
+  comparar(`${board}: un SUBCONTRATISTA no`, dejaLeer(sesionCon("portal-proveedor"), board), false);
+  comparar(`${board}: el Generador de OC tampoco`, dejaLeer(sesionCon("generador-oc"), board), false);
+}
+
+/**
+ * Y al reves: el maestro de proveedores TIENE que poder leerlo una sesion de
+ * SPM. Lo necesitan el buscador del alta y el Maestro de Proveedores, y estaba
+ * reservado al Portal y al Generador. El alta no fallaba a la vista -deja
+ * cargar un proveedor "ocasional" a mano-, asi que el error se veia como un
+ * buscador que no encuentra nada.
+ */
+comparar("el maestro de proveedores lo lee SPM", dejaLeer(sesionCon("spm"), "ProveedoresBoard"), true);
+comparar(
+  "pero no cualquiera: Herramientas no",
+  dejaLeer(sesionCon("herramientas"), "ProveedoresBoard"),
+  false,
+);
+
+console.log("\nQUE PUEDE HACER CADA ROL\n");
+
+/**
+ * Los tres roles contra los tres permisos, del lado del SERVIDOR.
+ *
+ * Se prueba aca y no en el navegador a proposito: las pantallas esconden los
+ * botones que no corresponden, pero esconder un boton no es un permiso -las
+ * rutas se pueden llamar a mano-. Lo que vale es esto.
+ *
+ * El que de verdad importa es `enviar`: es el unico permiso de la suite que
+ * manda correos a gente de afuera, desde una casilla de VDV, y no se puede
+ * deshacer. Si alguna vez un solicitante pasa a poder enviar, tiene que ser
+ * porque alguien lo decidio, no porque se filtro sin que nadie lo note.
+ */
+const { requireCrearSpm, requireEnviarSpm, requireDecidirSpm } = await import(
+  "../lib/server/board-access-policy.js"
+);
+const { SPM_ROLES, porQueNoPuedeEnviar } = await import("../lib/spm-roles.js");
+
+const conRol = (appRol) => ({ uid: 1, email: "x@vdv.cl", asignaciones: [{ app: "spm", appRol }] });
+const deja = (guardia, appRol) => {
+  try {
+    guardia(conRol(appRol));
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const ESPERADO = {
+  solicitante: { crear: true, enviar: false, decidir: false },
+  comprador: { crear: true, enviar: true, decidir: true },
+  consulta: { crear: false, enviar: false, decidir: false },
+  // Los legado, que caen en comprador para no sacarle permisos a nadie de golpe.
+  usuario: { crear: true, enviar: true, decidir: true },
+  super_admin: { crear: true, enviar: true, decidir: true },
+  admin: { crear: true, enviar: true, decidir: true },
+  // Y lo que no es ningun rol no puede nada, aunque tenga la app asignada.
+  cualquier_cosa: { crear: false, enviar: false, decidir: false },
+};
+
+for (const [rol, puede] of Object.entries(ESPERADO)) {
+  comparar(`${rol}: crear`, deja(requireCrearSpm, rol), puede.crear);
+  comparar(`${rol}: MANDAR A COTIZAR`, deja(requireEnviarSpm, rol), puede.enviar);
+  comparar(`${rol}: decidir la ganadora`, deja(requireDecidirSpm, rol), puede.decidir);
+}
+
+comparar("son tres roles y no uno", SPM_ROLES.length, 3);
+comparar("al comprador no se le explica nada, porque puede", porQueNoPuedeEnviar("comprador"), null);
+(porQueNoPuedeEnviar("solicitante") ?? "").includes("quien compra")
+  ? ok("al solicitante se le dice a quien avisarle")
+  : falla("el motivo del solicitante", porQueNoPuedeEnviar("solicitante"));
+
+// Sin la app, ningun rol sirve: el piso sigue siendo tenerla.
+const sinApp = { uid: 1, email: "x@vdv.cl", asignaciones: [{ app: "generador-oc", appRol: "comprador" }] };
+for (const [nombre, guardia] of [
+  ["crear", requireCrearSpm],
+  ["enviar", requireEnviarSpm],
+  ["decidir", requireDecidirSpm],
+]) {
+  let paso = false;
+  try {
+    guardia(sinApp);
+    paso = true;
+  } catch {
+    /* esperado */
+  }
+  comparar(`un "comprador" de OTRA app no puede ${nombre}`, paso, false);
+}
+
+console.log("\nCUAL ES LA MAS BARATA\n");
+
+/**
+ * El cartel de "menor precio" es lo primero que se mira en la pantalla de
+ * cotizaciones, y es lo mas facil de arruinar: un total puede ser el mas bajo
+ * porque al proveedor le FALTA cotizar la mitad del pedido. La app del cliente
+ * compara totales a secas y en esa situacion recomienda lo que no alcanza.
+ *
+ * Por eso lo que se prueba aca no es cual es el numero menor -eso es un
+ * `reduce`- sino CUANDO se puede decir que es el menor.
+ */
+const { masBarata, formatearFecha, ESTADO, HOMOLOGACION } = await import(
+  "../lib/spm/cotizaciones.js"
+);
+
+const oferta = (id, precio, lineas = 3, extra = {}) => ({
+  id,
+  precioTotal: precio,
+  moneda: "CLP",
+  estado: ESTADO.RECIBIDA,
+  subitems: Array.from({ length: lineas }, () => ({ homologacion: HOMOLOGACION.EXACTO })),
+  ...extra,
+});
+
+comparar("con una sola oferta no hay 'la mas barata'", masBarata([oferta("1", 1000)]), null);
+comparar("sin ninguna, tampoco", masBarata([]), null);
+comparar("con undefined, tampoco", masBarata(undefined), null);
+
+const dos = masBarata([oferta("1", 1000), oferta("2", 800)]);
+comparar("entre dos, gana la de menor total", dos?.id, "2");
+comparar("y se puede comparar: cotizaron las mismas lineas", dos?.comparable, true);
+
+/** El caso que importa: la mas barata cotizo MENOS. */
+const desparejo = masBarata([oferta("1", 1000, 3), oferta("2", 400, 1)]);
+comparar("si una cotizo menos lineas, igual se dice cual es la menor", desparejo?.id, "2");
+comparar("PERO se avisa que no se puede comparar", desparejo?.comparable, false);
+
+/** Las lineas "No solicitado" son cosas que el proveedor agrego de onda: no cuentan. */
+const conRegalo = masBarata([
+  oferta("1", 1000, 3),
+  oferta("2", 900, 3, {
+    subitems: [
+      { homologacion: HOMOLOGACION.EXACTO },
+      { homologacion: HOMOLOGACION.EXACTO },
+      { homologacion: HOMOLOGACION.EXACTO },
+      { homologacion: HOMOLOGACION.NO_SOLICITADO },
+    ],
+  }),
+]);
+comparar("lo que el proveedor sumo de mas no rompe la comparacion", conRegalo?.comparable, true);
+
+/** Las que ya salieron de carrera no deberian ganar un cartel de "la mas barata". */
+const conDescartada = masBarata([
+  oferta("1", 1000),
+  oferta("2", 300, 3, { estado: ESTADO.DESCARTADA }),
+]);
+comparar("una DESCARTADA no cuenta", conDescartada, null);
+const conVencida = masBarata([
+  oferta("1", 1000),
+  oferta("2", 300, 3, { estado: ESTADO.VENCIDA }),
+  oferta("3", 900),
+]);
+comparar("una VENCIDA tampoco", conVencida?.id, "3");
+
+/** Sin precio no hay nada que comparar: un 0 no es la oferta mas barata. */
+comparar("un total en 0 no gana", masBarata([oferta("1", 0), oferta("2", 500)]), null);
+
+console.log("\nLA FECHA\n");
+comparar("se lee como en Chile", formatearFecha("2026-09-26"), "26-09-2026");
+comparar("una fecha vacia no inventa nada", formatearFecha(""), null);
+comparar("una fecha rota tampoco", formatearFecha("ayer"), null);
+
+console.log("\nEL DESPERTADOR DE LA COMPARACION\n");
+
+/**
+ * Reemplaza al escenario 3b de Make. Lo que hay que cuidar no es a quien
+ * despierta -eso es una resta de fechas- sino a quien NO:
+ *
+ * 1. Una solicitud que ya dice "Por comparar" NO se vuelve a escribir. Make
+ *    mira el CAMBIO de esa columna, asi que reescribirla dispara una
+ *    comparacion nueva que pisa la recomendacion que ya estaba.
+ * 2. Una recien enviada no se apura.
+ * 3. Una sin fecha de envio no se inventa.
+ */
+const { aDespertar } = await import("../lib/server/spm-despertador.js");
+
+const AHORA_D = Date.parse("2026-10-13T15:00:00Z");
+const haceDias = (n) => {
+  const d = new Date(AHORA_D - n * 86400000);
+  return d.toISOString().slice(0, 10);
+};
+
+const sol = (extra = {}) => ({
+  id: "1",
+  numero: "SPM-007",
+  envioCotizacion: "Enviado",
+  comparacion: "Pendiente",
+  fechaEnvio: haceDias(3),
+  ...extra,
+});
+
+const despierta = (s2) => aDespertar([s2], { ahora: AHORA_D }).length;
+
+comparar("una enviada hace 3 días se despierta", despierta(sol()), 1);
+comparar("con la comparación vacía también", despierta(sol({ comparacion: "" })), 1);
+comparar("y con null también", despierta(sol({ comparacion: null })), 1);
+
+comparar("enviada HOY no se apura", despierta(sol({ fechaEnvio: haceDias(0) })), 0);
+comparar("enviada ayer sí", despierta(sol({ fechaEnvio: haceDias(1) })), 1);
+
+comparar("un BORRADOR no se toca", despierta(sol({ envioCotizacion: "Borrador" })), 0);
+comparar("una que está saliendo tampoco", despierta(sol({ envioCotizacion: "Por enviar" })), 0);
+comparar("una con error de envío tampoco", despierta(sol({ envioCotizacion: "Error envío" })), 0);
+
+/** El que importa: no volver a disparar una comparacion que ya se pidio. */
+comparar("una que YA dice 'Por comparar' no se vuelve a escribir", despierta(sol({ comparacion: "Por comparar" })), 0);
+comparar("una que se está comparando tampoco", despierta(sol({ comparacion: "Comparando" })), 0);
+comparar("una YA COMPARADA tampoco: pisaría la recomendación", despierta(sol({ comparacion: "Comparado" })), 0);
+comparar("una con error de comparación tampoco: se arregla a mano", despierta(sol({ comparacion: "Error comparación" })), 0);
+
+comparar("sin fecha de envío no se inventa", despierta(sol({ fechaEnvio: null })), 0);
+comparar("con una fecha rota, tampoco", despierta(sol({ fechaEnvio: "ayer" })), 0);
+
+comparar("sin solicitudes, nada", aDespertar([], { ahora: AHORA_D }).length, 0);
+comparar("con undefined, nada", aDespertar(undefined, { ahora: AHORA_D }).length, 0);
+
+const varias = aDespertar(
+  [
+    sol({ id: "a", fechaEnvio: haceDias(5) }),
+    sol({ id: "b", fechaEnvio: haceDias(0) }),
+    sol({ id: "c", fechaEnvio: haceDias(2), comparacion: "Comparado" }),
+    sol({ id: "d", fechaEnvio: haceDias(9) }),
+  ],
+  { ahora: AHORA_D },
+);
+comparar("de cuatro, despierta las dos que corresponde", varias.length, 2);
+comparar("y son las correctas", varias.map((x) => x.id).join(","), "a,d");
 
 console.log(`\n${mal === 0 ? "TODO PASA" : "HAY FALLAS"}: ${bien} ok, ${mal} fallas\n`);
 process.exit(mal === 0 ? 0 : 1);

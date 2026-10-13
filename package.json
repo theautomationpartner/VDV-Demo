@@ -6,6 +6,7 @@
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
+    "ver-local": "node scripts/ver-local.mjs",
     "lint": "eslint",
     "migrate": "node scripts/migrate.js",
     "migrate-asignaciones": "node scripts/migrate-asignaciones.js",
@@ -24,7 +25,11 @@
     "vincular-custodios": "node scripts/vincular-custodios.mjs",
     "probar-pendientes-spm": "node scripts/probar-pendientes-spm.mjs",
     "probar-spm-alta-en-vivo": "node video-demo/probar-spm-alta-en-vivo.mjs",
-    "probar-spm-navegando": "node video-demo/probar-spm-navegando.mjs"
+    "probar-spm-navegando": "node video-demo/probar-spm-navegando.mjs",
+    "probar-spm-consultas": "node video-demo/probar-spm-consultas-navegando.mjs",
+    "probar-spm-a-fondo": "node video-demo/probar-spm-a-fondo.mjs",
+    "auditar-listas": "node scripts/auditar-listas-hardcodeadas.mjs",
+    "probar-spm-escrituras": "node video-demo/probar-spm-escrituras.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

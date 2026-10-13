@@ -10,6 +10,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { useColumnOptions } from "@/hooks/useColumnOptions";
 import { useSesionSpm } from "@/hooks/spm/useSesionSpm";
+import { SinAcceso } from "@/components/spm/SinAcceso";
 import { ElegirMateriales } from "@/components/spm/ElegirMateriales";
 import { ElegirProveedores, leerMails } from "@/components/spm/ElegirProveedores";
 import { FOCO_CAMPO, FOCO_BOTON } from "@/lib/ui-foco";
@@ -109,17 +110,7 @@ export default function NuevaSolicitudPage() {
     );
   }
 
-  if (!tieneAcceso) {
-    return (
-      <div className="mx-auto max-w-md px-4 py-16 text-center">
-        <ClipboardList className="mx-auto h-10 w-10 text-[var(--fg-subtle)]" />
-        <h1 className="mt-3 text-lg font-semibold text-foreground">Nueva solicitud</h1>
-        <p className="mt-1 text-sm text-[var(--fg-muted)]">
-          Tu cuenta no tiene acceso a Solicitudes de Material.
-        </p>
-      </div>
-    );
-  }
+  if (!tieneAcceso) return <SinAcceso titulo="Nueva solicitud" />;
 
   return (
     <div className="mx-auto max-w-[1000px] px-4 py-5">

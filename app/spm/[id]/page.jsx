@@ -16,6 +16,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { useSesionSpm } from "@/hooks/spm/useSesionSpm";
+import { SinAcceso } from "@/components/spm/SinAcceso";
+import { porQueNoPuedeEnviar } from "@/lib/spm-roles";
 import { Estado } from "@/components/spm/Estado";
 import { TarjetaCotizacion } from "@/components/spm/TarjetaCotizacion";
 import { COLUMNAS_COTIZACION, COLUMNAS_LINEA_COTIZADA } from "@/lib/spm/cotizaciones";
@@ -37,7 +39,7 @@ const cotizacionesBoard = new CotizacionesSpmBoard();
 
 export default function FichaSolicitudPage({ params }) {
   const { id } = use(params);
-  const { cargando: cargandoSesion, tieneAcceso, puedeEnviar } = useSesionSpm();
+  const { cargando: cargandoSesion, tieneAcceso, puedeEnviar, rol } = useSesionSpm();
 
   const [solicitud, setSolicitud] = useState(null);
   const [lineas, setLineas] = useState([]);
@@ -137,7 +139,9 @@ export default function FichaSolicitudPage({ params }) {
     }
   };
 
-  if (cargandoSesion || cargando) {
+  // Mismo orden que el resto: acceso primero, carga despues. Ver el comentario
+  // de app/spm/cotizaciones/page.jsx.
+  if (cargandoSesion) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <Spinner />
@@ -145,13 +149,12 @@ export default function FichaSolicitudPage({ params }) {
     );
   }
 
-  if (!tieneAcceso) {
+  if (!tieneAcceso) return <SinAcceso />;
+
+  if (cargando) {
     return (
-      <div className="mx-auto max-w-md px-4 py-16 text-center">
-        <ClipboardList className="mx-auto h-10 w-10 text-[var(--fg-subtle)]" />
-        <p className="mt-3 text-sm text-[var(--fg-muted)]">
-          Tu cuenta no tiene acceso a Solicitudes de Material.
-        </p>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Spinner />
       </div>
     );
   }
@@ -371,11 +374,20 @@ export default function FichaSolicitudPage({ params }) {
       ) : null}
 
       <div className="sticky bottom-0 mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border-subtle)] bg-[var(--background)] py-3">
+        {/*
+          Tres motivos distintos por los que puede no haber boton, y los tres se
+          dicen en palabras: por el ESTADO de la solicitud (ya salio), por falta
+          de DESTINATARIOS, o por el ROL de quien mira. El ultimo es el que mas
+          confunde si se calla: la pantalla se ve completa, el boton no esta, y
+          la persona cree que la app se rompio.
+        */}
         <p className="text-xs text-[var(--fg-muted)]">
           {motivo ??
-            (destinatarios.length
-              ? `Al mandarla salen los correos a ${destinatarios.length} proveedor${destinatarios.length === 1 ? "" : "es"}. No se puede deshacer.`
-              : "Sin destinatarios no se puede mandar.")}
+            (!puedeEnviar
+              ? porQueNoPuedeEnviar(rol)
+              : destinatarios.length
+                ? `Al mandarla salen los correos a ${destinatarios.length} proveedor${destinatarios.length === 1 ? "" : "es"}. No se puede deshacer.`
+                : "Sin destinatarios no se puede mandar.")}
         </p>
         {puedeEnviar && sePuedeEnviar(solicitud) ? (
           <button

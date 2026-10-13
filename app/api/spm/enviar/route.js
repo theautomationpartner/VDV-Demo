@@ -1,6 +1,6 @@
 import { verificarAcceso, accesoErrorToResponse, AccesoError } from "@/lib/server/auth-guard";
 import {
-  requireSpm,
+  requireEnviarSpm,
   accesoBoardErrorToResponse,
   BoardAccessError,
 } from "@/lib/server/board-access-policy";
@@ -38,7 +38,7 @@ export async function POST(request) {
 
   if (!DEMO_MODE && AUTH_LAYERS_ENABLED) {
     try {
-      requireSpm(sesion);
+      requireEnviarSpm(sesion);
     } catch (err) {
       if (err instanceof BoardAccessError) return accesoBoardErrorToResponse(err);
       throw err;
