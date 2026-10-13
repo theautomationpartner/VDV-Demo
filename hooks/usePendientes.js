@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { claveDe, traerDatosPortal, yaTraido } from "@/hooks/portal-proveedor/portalDatos";
 import { aplicarVbRecientes } from "@/lib/client/vb-recientes";
-import { ControlArriendosBoard, ControlHerramientasMovimientosBoard } from "@/lib/board-sdk";
+import { ControlArriendosBoard, ControlHerramientasMovimientosBoard, SpmVdvBoard } from "@/lib/board-sdk";
+import { perfilDeEquipoVdv } from "@/lib/generador-oc/equipo-vdv";
 import { COLUMNAS_ITEM, COLUMNAS_LISTADO, TOPE, prepararArriendo } from "@/lib/arriendos/listado";
 import { COLUMNAS_CONFIRMACION, RECEPCION_PENDIENTE } from "@/lib/herramientas/dominio";
 import {
@@ -16,6 +17,7 @@ import {
   pendientesDeArriendos,
   pendientesDeContratos,
   pendientesDeOc,
+  pendientesDeSpm,
   puedeDeberArriendos,
   puedeDeberConfirmaciones,
   puedeDeberContratos,
@@ -192,6 +194,71 @@ export function olvidarConfirmaciones() {
   _conf = { datos: null, time: 0, promise: null };
 }
 
+/**
+ * Las solicitudes de material, para avisar cuando una se rompio.
+ *
+ * Se leen TODAS -son pocas- y el filtrado por persona pasa despues, en
+ * `pendientesDeSpm`: la misma foto le sirve a cualquiera que tenga la bandeja
+ * abierta, asi que cachearla una vez cuesta una consulta en vez de una por
+ * persona.
+ *
+ * Esto funciona HOY, contra el SPM que ya existe, sin que ninguna pantalla de
+ * SPM este migrada: lo unico que hace falta es leer las columnas que Make ya
+ * escribe.
+ */
+const SPM_TTL_MS = 5 * 60 * 1000;
+let _spm = { datos: null, time: 0, promise: null };
+
+async function traerSpm() {
+  if (_spm.datos && Date.now() - _spm.time < SPM_TTL_MS) return _spm.datos;
+  if (_spm.promise) return _spm.promise;
+
+  _spm.promise = (async () => {
+    try {
+      const r = await new SpmVdvBoard()
+        .items()
+        .withColumns(["numero", "obra", "envioCotizacion", "comparacion", "fechaEnvio", "emisorVdv"])
+        /**
+         * `withRelations` NO viene por defecto, y sin el la columna de conexion
+         * vuelve como el NOMBRE de la persona en vez de `{linkedItems:[{id}]}`.
+         * O sea: no falla, devuelve otra cosa, y el cruce por id no encuentra a
+         * nadie nunca. La bandeja quedaria siempre vacia sin un solo error.
+         */
+        .withRelations()
+        .withPagination({ limit: 300 })
+        .execute();
+      const filas = r.items ?? [];
+      _spm = { datos: filas, time: Date.now(), promise: null };
+      return filas;
+    } catch (error) {
+      // Un 403 aca significa que esta persona no tiene acceso al tablero.
+      console.warn("[pendientes] no se pudieron traer las solicitudes:", error?.message);
+      _spm = { datos: [], time: Date.now(), promise: null };
+      return [];
+    }
+  })();
+
+  return _spm.promise;
+}
+
+/**
+ * Mi ficha en Equipo VDV, para saber cuales solicitudes son mias.
+ *
+ * Se cruza por el ID de la ficha y no por el nombre. El cruce por nombre ya
+ * rompio una vez -la OC 2200, donde alguien dejo de ver el lapiz en su propia
+ * orden porque el nombre de la sesion y el de monday diferian en mayusculas-,
+ * y volvio a aparecer en el custodio de las herramientas. No se repite.
+ */
+async function miFichaDeEquipo(mail) {
+  if (!mail) return null;
+  try {
+    return (await perfilDeEquipoVdv(mail))?.id ?? null;
+  } catch (error) {
+    console.warn("[pendientes] no se pudo resolver la ficha propia:", error?.message);
+    return null;
+  }
+}
+
 const COBERTURA_TTL_MS = 5 * 60 * 1000;
 let _cobertura = { datos: null, time: 0, promise: null };
 
@@ -255,7 +322,17 @@ async function recargar() {
     const conArriendos = puedeDeberArriendos(sesionHr);
     const conConfirmaciones = puedeDeberConfirmaciones(sesionHr);
 
-    if (!conContratos && !conOc && !conArriendos && !conConfirmaciones) {
+    /**
+     * SPM no pregunta por rol, y es a proposito: VDV todavia no definio los
+     * roles de esa app. Lo que se muestra son LAS SOLICITUDES DE UNO MISMO,
+     * que no necesita ninguna definicion -quien la hizo puede verla- y es
+     * ademas la unica persona que puede hacer algo si fallo.
+     *
+     * El mail sale de cualquiera de las dos sesiones que lo guardan.
+     */
+    const miMail = sesionOc?.email ?? leerSesion("ve_session")?.email ?? null;
+
+    if (!conContratos && !conOc && !conArriendos && !conConfirmaciones && !miMail) {
       publicar({ items: [], cargando: false, activo: false, ocHuerfanas: 0 });
       return;
     }
@@ -275,12 +352,14 @@ async function recargar() {
     }
 
     try {
-      const [datos, cobertura, ordenes, arriendos, confirmaciones] = await Promise.all([
+      const [datos, cobertura, ordenes, arriendos, confirmaciones, solicitudes, miFicha] = await Promise.all([
         conContratos ? traerDatosPortal(sesion) : Promise.resolve({ contratos: [] }),
         conContratos ? traerCobertura() : Promise.resolve(null),
         conOc ? traerOrdenes() : Promise.resolve([]),
         conArriendos ? traerArriendos() : Promise.resolve([]),
         conConfirmaciones ? traerConfirmaciones() : Promise.resolve([]),
+        miMail ? traerSpm() : Promise.resolve([]),
+        miMail ? miFichaDeEquipo(miMail) : Promise.resolve(null),
       ]);
       const contratos = aplicarVbRecientes(datos.contratos);
       publicar({
@@ -290,6 +369,7 @@ async function recargar() {
           ...pendientesDeOc(ordenes, sesionOc),
           ...pendientesDeArriendos(arriendos, sesionHr),
           ...confirmacionesPendientes(confirmaciones, sesionHr),
+          ...pendientesDeSpm(solicitudes, miFicha),
         ]),
         // No son filas: es un aviso de que hay ordenes que no le van a caer a
         // nadie. Ver ocSinAprobador.

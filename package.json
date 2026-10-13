@@ -21,7 +21,8 @@
     "probar-permisos-en-vivo": "node scripts/probar-permisos-en-vivo.mjs",
     "probar-appconfig": "node scripts/probar-appconfig-whitelist.mjs",
     "probar-confirmaciones": "node scripts/probar-confirmaciones-pendientes.mjs",
-    "vincular-custodios": "node scripts/vincular-custodios.mjs"
+    "vincular-custodios": "node scripts/vincular-custodios.mjs",
+    "probar-pendientes-spm": "node scripts/probar-pendientes-spm.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
