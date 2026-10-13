@@ -199,7 +199,34 @@ try {
     ficha.slice(-300),
   );
 
+  comprobar(
+    "la ficha dice que todavia no contesto nadie",
+    /Cuando se mande a cotizar/.test(ficha) || /no contestó nadie/i.test(ficha),
+    ficha.slice(0, 500),
+  );
+
   await page.screenshot({ path: "capturas/spm-ficha.png", fullPage: true });
+
+  // ------------------------------------------------------- 4. las cotizaciones
+  console.log(["", "4. COTIZACIONES", ""].join(String.fromCharCode(10)));
+  await page.goto(`${BASE}/spm/cotizaciones`, { waitUntil: "networkidle", timeout: 120_000 });
+  await page.waitForTimeout(4000);
+  const cot = await page.locator("body").innerText();
+
+  comprobar("la pantalla carga", /Cotizaciones recibidas/.test(cot), cot.slice(0, 200));
+  comprobar("no muestra el cartel de sin acceso", !/no tiene acceso/i.test(cot));
+  comprobar(
+    "agrupa por solicitud o avisa que no hay ninguna",
+    /cotizaci(ó|o)n/i.test(cot),
+    cot.slice(0, 400),
+  );
+  comprobar(
+    "las que quedaron sin solicitud se marcan",
+    !/Sin solicitud vinculada/.test(cot) || /no se pueden comparar/i.test(cot),
+    cot.slice(0, 500),
+  );
+  await page.screenshot({ path: "capturas/spm-cotizaciones.png", fullPage: true });
+  console.log("  captura: capturas/spm-cotizaciones.png");
   console.log("  captura: capturas/spm-ficha.png");
 } catch (error) {
   falla("se corto la prueba", error.message);

@@ -11,12 +11,14 @@ import {
   RefreshCw,
   Send,
 } from "lucide-react";
-import { SpmVdvBoard } from "@/lib/board-sdk";
+import { SpmVdvBoard, CotizacionesSpmBoard } from "@/lib/board-sdk";
 import { Spinner } from "@/components/ui/spinner";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { useSesionSpm } from "@/hooks/spm/useSesionSpm";
 import { Estado } from "@/components/spm/Estado";
+import { TarjetaCotizacion } from "@/components/spm/TarjetaCotizacion";
+import { COLUMNAS_COTIZACION, COLUMNAS_LINEA_COTIZADA } from "@/lib/spm/cotizaciones";
 import { BOARD_SPM, urlItemMonday } from "@/lib/monday-links";
 import { FOCO_BOTON } from "@/lib/ui-foco";
 import {
@@ -31,6 +33,7 @@ import {
 } from "@/lib/spm/dominio";
 
 const board = new SpmVdvBoard();
+const cotizacionesBoard = new CotizacionesSpmBoard();
 
 export default function FichaSolicitudPage({ params }) {
   const { id } = use(params);
@@ -38,6 +41,7 @@ export default function FichaSolicitudPage({ params }) {
 
   const [solicitud, setSolicitud] = useState(null);
   const [lineas, setLineas] = useState([]);
+  const [cotizaciones, setCotizaciones] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -75,6 +79,27 @@ export default function FichaSolicitudPage({ params }) {
       setSolicitud(ficha);
       setError(null);
       setLineas(ficha.subitems ?? []);
+
+      /**
+       * Las cotizaciones se piden aparte y filtrando POR EL VINCULO al SPM.
+       * `where` sobre una columna de conexion compara el id del item vinculado,
+       * que es lo unico estable: el nombre de la solicitud lo puede cambiar
+       * cualquiera. Es un extra: si falla, la ficha se muestra igual.
+       */
+      try {
+        const c = await cotizacionesBoard
+          .items()
+          .withColumns(COLUMNAS_COTIZACION)
+          .withSubItems("CotizacionesSpmItemsBoard", COLUMNAS_LINEA_COTIZADA)
+          .withRelations()
+          .where({ spm: { linkedItemId: id } })
+          .withPagination({ limit: 50 })
+          .execute();
+        setCotizaciones(c.items ?? []);
+      } catch (e) {
+        console.error("[SPM] no se pudieron leer las cotizaciones:", e);
+        setCotizaciones([]);
+      }
     } catch (e) {
       console.error("[SPM] no se pudo leer la solicitud:", e);
       setError("No se pudo leer la solicitud. Probá recargar.");
@@ -293,6 +318,33 @@ export default function FichaSolicitudPage({ params }) {
               </li>
             ))}
           </ul>
+        )}
+      </section>
+
+      <section className="mt-3">
+        <h2 className="text-sm font-semibold text-foreground">
+          Lo que contestaron
+          <span className="ml-2 font-normal text-[var(--fg-muted)]">
+            {cotizaciones.length} de {destinatarios.length}
+          </span>
+        </h2>
+        {cotizaciones.length === 0 ? (
+          <p className="mt-2 rounded-[var(--radius-lg)] border border-dashed border-[var(--border-default)] p-6 text-center text-sm text-[var(--fg-muted)]">
+            {solicitud.envioCotizacion === ENVIO.ENVIADO
+              ? "Todavía no contestó nadie. Las cotizaciones entran solas cuando el proveedor responde el correo."
+              : "Cuando se mande a cotizar, las respuestas van a aparecer acá."}
+          </p>
+        ) : (
+          <div className="mt-2 space-y-2">
+            {cotizaciones.map((c) => (
+              <TarjetaCotizacion
+                key={c.id}
+                cotizacion={c}
+                lineasPedidas={lineas.length}
+                onCambiado={cargar}
+              />
+            ))}
+          </div>
         )}
       </section>
 
