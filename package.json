@@ -23,7 +23,8 @@
     "probar-confirmaciones": "node scripts/probar-confirmaciones-pendientes.mjs",
     "vincular-custodios": "node scripts/vincular-custodios.mjs",
     "probar-pendientes-spm": "node scripts/probar-pendientes-spm.mjs",
-    "probar-spm-alta-en-vivo": "node video-demo/probar-spm-alta-en-vivo.mjs"
+    "probar-spm-alta-en-vivo": "node video-demo/probar-spm-alta-en-vivo.mjs",
+    "probar-spm-navegando": "node video-demo/probar-spm-navegando.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
