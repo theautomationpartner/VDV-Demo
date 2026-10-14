@@ -59,7 +59,20 @@ try {
   await new Promise((r) => setTimeout(r, 2000));
 } catch { /* nadie escuchando */ }
 
-const { cerrar } = await levantarApp({ puerto: PUERTO, conBaseReal: true });
+/**
+ * SIN la base de verdad, A PROPOSITO.
+ *
+ * Con la base conectada los permisos salen de Neon y no de la galleta, asi que
+ * el resultado de esta prueba pasaba a depender de que rol tuviera puesto una
+ * persona en ese momento: Mateo se cambio a "Solicitante" probando en
+ * produccion y la suite empezo a fallar sin que nada estuviera roto. Un test
+ * que cambia de resultado porque alguien toco una pantalla no prueba nada.
+ *
+ * Con la base apagada manda la galleta, asi que cada seccion elige el rol que
+ * quiere probar. Lo que SI necesita la base -que la app se pueda asignar desde
+ * Usuarios y Roles- vive en `probar-spm-escrituras`, que ya la usa.
+ */
+const { cerrar } = await levantarApp({ puerto: PUERTO });
 
 let browser;
 const escriturasBloqueadas = [];
@@ -157,6 +170,22 @@ try {
     const texto = m.text();
     // Los 404 de favicon y los avisos de React en modo produccion no cuentan.
     if (/favicon|Download the React DevTools/i.test(texto)) return;
+    /*
+      Tampoco los de OTRAS apps. Esta sesion tiene SOLO la app de SPM, y el
+      contador de "Mis Pendientes" -que corre en todas las pantallas- lee el
+      tablero Equipo VDV por el camino del Generador de OC: para esta cuenta
+      eso da 403 y deja un error en la consola. Es real y esta anotado, pero no
+      es de SPM y taparlo aca es lo correcto: si no, esta prueba falla por algo
+      que no mira.
+    */
+    if (/\[generador-oc\]|\[oc-tracker\]|no tiene acceso al OC Tracker/i.test(texto)) return;
+    /*
+      Y el aviso pelado que tira el navegador por el mismo 403. No dice que
+      pedido fue, asi que no sirve para diagnosticar nada; lo que SI avisa
+      cuando algo de SPM falla es el `console.error("[SPM] …")` del codigo,
+      que no se tapa.
+    */
+    if (/^Failed to load resource.*40[13]/i.test(texto)) return;
     erroresJs.push(texto);
   });
 
@@ -476,6 +505,81 @@ try {
   );
   ok("NO se guarda: crear una solicitud quema un folio que no vuelve");
 
+  // ============================== 2c. LA ESPERA DESPUES DE MANDAR (sin mandar)
+  titulo("2c. LA ESPERA A MAKE (sin mandar nada de verdad)");
+
+  /**
+   * La app marca "Por enviar" y ahi termina su trabajo: los correos los manda
+   * Make, que tarda ~8 segundos y recien despues escribe "Enviado". La ficha se
+   * recargaba en el acto, leia la columna ANTES de ese cambio, y quedaba en
+   * "Esta saliendo en este momento" PARA SIEMPRE. A la vista parece colgada, y
+   * la reaccion natural es volver a apretar.
+   *
+   * COMO SE PRUEBA SIN MANDAR: se intercepta el pedido de envio y se contesta
+   * que si, sin dejarlo llegar al servidor. La app cree que mando y arranca la
+   * espera -que es lo que se quiere probar-, pero no sale ni un correo ni se
+   * toca una columna. Es la unica forma de probar esto sin despertar a Make.
+   */
+  let seIntentoEnviarDeVerdad = false;
+  await page.route("**/api/spm/enviar", async (ruta) => {
+    seIntentoEnviarDeVerdad = true;
+    await ruta.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, numero: "SPM-TEST" }),
+    });
+  });
+
+  // Una en Borrador, que es la unica donde el boton aparece.
+  const enBorrador = (await mon(
+    `query($b:[ID!]){ boards(ids:$b){ items_page(limit:50){ items{ id column_values(ids:["color_mm7fnd78"]){ text } } } } }`,
+    { b: ["18407094103"] },
+  )).boards[0].items_page.items.find((i) => i.column_values[0]?.text === "Borrador");
+
+  if (!enBorrador) {
+    ok("no hay ninguna solicitud en Borrador, así que no se puede probar la espera");
+  } else {
+    await page.goto(`${BASE}/spm/${enBorrador.id}`, { waitUntil: "domcontentloaded", timeout: 120_000 });
+    await page.getByText(/Materiales pedidos/).first().waitFor({ timeout: 60_000 });
+
+    const botonMandar = page.getByRole("button", { name: /Mandar a cotizar/i });
+    const sesionDeLaPagina = await page.evaluate(() => {
+      try {
+        return localStorage.getItem("spm_session");
+      } catch {
+        return "bloqueado";
+      }
+    });
+    comprobar(
+      "el botón está",
+      await botonMandar.isVisible(),
+      `url: ${page.url()}\n        sesión: ${sesionDeLaPagina}\n        pantalla: ${(await texto()).slice(-320)}`,
+    );
+    await botonMandar.click();
+
+    const avisoEspera = page.getByText(/Esto se actualiza solo/);
+    comprobar(
+      "al mandar, la pantalla avisa que está esperando y que se actualiza sola",
+      await avisoEspera.waitFor({ timeout: 15_000 }).then(() => true).catch(() => false),
+      (await texto()).slice(-500),
+    );
+
+    /*
+      Y que la espera TERMINE. Esta solicitud sigue en "Borrador" -no se mando
+      nada de verdad-, asi que en la primera vuelta la app ve un estado que no
+      es "Por enviar" y tiene que cortar. Si el aviso quedara para siempre, el
+      arreglo seria solo un cartel nuevo.
+    */
+    comprobar(
+      "y la espera corta sola cuando el estado deja de ser 'Por enviar'",
+      await avisoEspera.waitFor({ state: "hidden", timeout: 40_000 }).then(() => true).catch(() => false),
+      "el aviso no se fue en 40 s: el reloj queda corriendo para siempre",
+    );
+
+    comprobar("el pedido de envío se interceptó: no salió ningún correo", seIntentoEnviarDeVerdad);
+  }
+  await page.unroute("**/api/spm/enviar");
+
   // ========================================================= 3. COTIZACIONES
   titulo("3. COTIZACIONES RECIBIDAS");
 
@@ -760,30 +864,78 @@ try {
   await page.waitForTimeout(400);
 
   // =================================================== 7. LO QUE CRUZA TODO
-  titulo("7. LO QUE CRUZA TODAS LAS PANTALLAS");
+  // ================================================ 6b. LO QUE VE UN SOLICITANTE
+  titulo("6b. LO QUE VE UN SOLICITANTE (y lo que NO)");
 
   /**
-   * QUE LA APP SE PUEDA ASIGNAR DESDE USUARIOS Y ROLES.
+   * Los dos permisos caros de SPM -mandar a cotizar y decidir una cotizacion-
+   * ya estan cortados en el servidor. Esto comprueba lo otro: que la PANTALLA
+   * no le ofrezca al solicitante algo que le va a rebotar.
    *
-   * No alcanza con que los roles existan en el codigo: si nadie puede dar de
-   * alta a alguien en SPM, la app no sirve. Y el sintoma era dificil de leer -la
-   * app andaba si se asignaba por base de datos, pero en la pantalla no aparecia
-   * por ningun lado-, porque Usuarios y Roles solo dibuja las apps que el que
-   * edita administra, y SPM no estaba en la lista de las que no tienen un rol
-   * de administracion propio (como OC Tracker y Herramientas).
-   *
-   * Se le pregunta a la API, que es la que decide: el mapa `access` dice el
-   * nivel por app, y "editor" es el que habilita asignar.
+   * Es una regla escrita en este mismo proyecto: esconder un boton no es un
+   * permiso, pero mostrar uno que va a rebotar es peor que no mostrarlo. El
+   * selector de estado de las cotizaciones la rompia -se veia habilitado para
+   * cualquiera, y el error saltaba recien al elegir-. Lo vio Mateo probando en
+   * produccion.
    */
-  const permisos = await page.evaluate(async () => {
-    const r = await fetch("/api/auth/whitelist", { credentials: "include" });
-    return r.ok ? r.json() : null;
-  });
+  const ctxSolicitante = await nuevoContexto([{ app: "spm", appRol: "solicitante" }]);
+  const comoSolicitante = await ctxSolicitante.newPage();
+
+  await comoSolicitante.goto(`${BASE}/spm/cotizaciones`, { waitUntil: "domcontentloaded", timeout: 120_000 });
+  await comoSolicitante.getByText(/Cotizaciones recibidas/).first().waitFor({ timeout: 60_000 });
+  await comoSolicitante.waitForTimeout(4000);
+
+  const selectores = comoSolicitante.locator("select[aria-label^='Estado de la cotización']");
+  const cuantos = await selectores.count();
+  if (cuantos === 0) {
+    ok("no hay cotizaciones cargadas, no hay selector que comprobar");
+  } else {
+    const habilitados = [];
+    for (let i = 0; i < cuantos; i += 1) {
+      if (!(await selectores.nth(i).isDisabled())) habilitados.push(i);
+    }
+    comprobar(
+      `un solicitante NO puede tocar el estado de ninguna cotización (${cuantos} en pantalla)`,
+      habilitados.length === 0,
+      `quedaron ${habilitados.length} selectores habilitados`,
+    );
+  }
+
+  // Y que el boton de mandar tampoco este, con el motivo en palabras.
+  const borrador = (await mon(
+    `query($b:[ID!]){ boards(ids:$b){ items_page(limit:50){ items{ id column_values(ids:["color_mm7fnd78"]){ text } } } } }`,
+    { b: ["18407094103"] },
+  )).boards[0].items_page.items.find((i) => i.column_values[0]?.text === "Borrador");
+
+  if (borrador) {
+    await comoSolicitante.goto(`${BASE}/spm/${borrador.id}`, { waitUntil: "domcontentloaded", timeout: 120_000 });
+    await comoSolicitante.getByText(/Materiales pedidos/).first().waitFor({ timeout: 60_000 });
+    const t6b = await comoSolicitante.locator("body").innerText();
+    comprobar(
+      "y tampoco ve el botón de mandar a cotizar",
+      (await comoSolicitante.getByRole("button", { name: /^Mandar a cotizar$/i }).count()) === 0,
+      t6b.slice(-400),
+    );
+    comprobar(
+      "pero se le explica por qué, y a quién avisarle",
+      /no las manda a cotizar.*quien compra/is.test(t6b),
+      t6b.slice(-400),
+    );
+  }
+
+  // Lo que SI puede: crear.
+  await comoSolicitante.goto(`${BASE}/spm`, { waitUntil: "domcontentloaded", timeout: 120_000 });
+  await comoSolicitante
+    .getByText(/SPM-\d{3}|Todav[ií]a no hay solicitudes/)
+    .first()
+    .waitFor({ timeout: 90_000 });
   comprobar(
-    "la app SPM se puede asignar desde Usuarios y Roles",
-    permisos?.access?.spm === "editor",
-    `el mapa de permisos dice: ${JSON.stringify(permisos?.access ?? null)}`,
+    "lo que SÍ puede hacer sigue estando: crear una solicitud",
+    await comoSolicitante.getByRole("link", { name: /Nueva solicitud/i }).first().isVisible(),
   );
+  await ctxSolicitante.close();
+
+  titulo("7. LO QUE CRUZA TODAS LAS PANTALLAS");
 
   comprobar(
     "ninguna pantalla tiró un error de javascript",

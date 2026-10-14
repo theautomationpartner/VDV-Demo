@@ -176,7 +176,16 @@ export function ElegirMateriales({ lineas, onCambiar }) {
         </button>
       </div>
 
-      <div ref={caja} className="relative mt-3">
+      {/*
+        El icono se centra con `top-1/2`, o sea respecto de SU CONTENEDOR. Por eso
+        el campo y la lupa van en un `relative` propio y los avisos de abajo
+        quedan AFUERA: cuando el aviso estaba adentro, el contenedor crecia y la
+        lupa se iba al medio del conjunto en vez del medio del campo. Se veia
+        como una lupa caida que a los segundos "se acomodaba sola" -cuando el
+        aviso desaparecia-.
+      */}
+      <div ref={caja} className="mt-3">
+        <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--fg-subtle)]" />
         <input
           value={termino}
@@ -224,6 +233,7 @@ export function ElegirMateriales({ lineas, onCambiar }) {
             })}
           </ul>
         ) : null}
+        </div>
         {/*
           Mientras falten paginas, un "no esta en el catalogo" puede ser mentira:
           puede estar en la parte que todavia no llego. Por eso ese cartel solo

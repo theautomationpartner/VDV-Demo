@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -47,9 +47,20 @@ export default function FichaSolicitudPage({ params }) {
   const [cargando, setCargando] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  // Mientras Make manda los correos y vuelve a escribir "Enviado".
+  const [esperandoAMake, setEsperandoAMake] = useState(false);
+  const [tardoDemasiado, setTardoDemasiado] = useState(false);
+  const relojEspera = useRef(null);
   const [error, setError] = useState(null);
 
+
+  // Si alguien se va de la pantalla, no queda un reloj corriendo.
+  useEffect(() => () => {
+    if (relojEspera.current) clearInterval(relojEspera.current);
+  }, []);
+
   const cargar = useCallback(async () => {
+    let fichaLeida = null;
     setRefrescando(true);
     try {
       /**
@@ -76,9 +87,12 @@ export default function FichaSolicitudPage({ params }) {
 
       if (!ficha) {
         setError("No se encontró esa solicitud.");
-        return;
+        return null;
       }
       setSolicitud(ficha);
+      // Se DEVUELVE para que la espera de Make mire el valor fresco. Leer el
+      // estado desde el intervalo daria siempre el de la primera vuelta.
+      fichaLeida = ficha;
       setError(null);
       setLineas(ficha.subitems ?? []);
 
@@ -109,7 +123,53 @@ export default function FichaSolicitudPage({ params }) {
       setCargando(false);
       setRefrescando(false);
     }
+    return fichaLeida;
   }, [id]);
+
+  /**
+   * ESPERAR A QUE MAKE TERMINE, SIN QUE EL USUARIO TENGA QUE RECARGAR.
+   *
+   * La app marca "Por enviar" y ahi termina SU trabajo: los correos los manda
+   * Make, que tarda unos 8 segundos y recien despues escribe "Enviado". Como
+   * la ficha se recarga en el acto, lee la columna ANTES de ese cambio y queda
+   * mostrando "Por enviar / Esta saliendo en este momento" para siempre.
+   *
+   * A la vista parece que se colgo, y la reaccion natural es volver a apretar.
+   *
+   * Asi que se vuelve a consultar cada 10 segundos hasta que la columna cambie.
+   * Es el mismo patron que la app del cliente ya usa para la comparacion
+   * -polling con tope y un aviso si se pasa-, aplicado al envio, que es donde
+   * mas se nota porque la espera es corta.
+   *
+   * El tope son 2 minutos: pasado eso, Make no corrio. No se insiste en
+   * silencio, se dice -y ademas la solicitud ya le va a aparecer a su emisor en
+   * Mis Pendientes, que es la red de seguridad de verdad.
+   */
+  const CADA = 10_000;
+  const HASTA = 2 * 60 * 1000;
+
+  const esperarAMake = useCallback(() => {
+    if (relojEspera.current) clearInterval(relojEspera.current);
+    setEsperandoAMake(true);
+    setTardoDemasiado(false);
+    const desde = Date.now();
+
+    relojEspera.current = setInterval(async () => {
+      if (Date.now() - desde > HASTA) {
+        clearInterval(relojEspera.current);
+        relojEspera.current = null;
+        setEsperandoAMake(false);
+        setTardoDemasiado(true);
+        return;
+      }
+      const fresca = await cargar();
+      if (fresca && fresca.envioCotizacion !== ENVIO.POR_ENVIAR) {
+        clearInterval(relojEspera.current);
+        relojEspera.current = null;
+        setEsperandoAMake(false);
+      }
+    }, CADA);
+  }, [cargar]);
 
   useEffect(() => {
     if (cargandoSesion || !tieneAcceso) return;
@@ -131,6 +191,7 @@ export default function FichaSolicitudPage({ params }) {
       }
       toast.success("Saliendo. Los correos salen en unos segundos.");
       cargar();
+      esperarAMake();
     } catch (e) {
       console.error("[SPM] no se pudo enviar:", e);
       toast.error("No se pudo conectar. Probá de nuevo.");
@@ -381,14 +442,32 @@ export default function FichaSolicitudPage({ params }) {
           confunde si se calla: la pantalla se ve completa, el boton no esta, y
           la persona cree que la app se rompio.
         */}
-        <p className="text-xs text-[var(--fg-muted)]">
-          {motivo ??
-            (!puedeEnviar
-              ? porQueNoPuedeEnviar(rol)
-              : destinatarios.length
-                ? `Al mandarla salen los correos a ${destinatarios.length} proveedor${destinatarios.length === 1 ? "" : "es"}. No se puede deshacer.`
-                : "Sin destinatarios no se puede mandar.")}
-        </p>
+        {/*
+          Mientras se espera a Make, el texto lo dice Y SE MUEVE: el punto que
+          gira es lo que diferencia "esta pasando algo" de "se colgo". Sin eso,
+          un cartel quieto que dice "esta saliendo" invita a apretar de nuevo.
+        */}
+        {esperandoAMake ? (
+          <p className="flex items-center gap-2 text-xs text-[var(--accent)]">
+            <Spinner className="h-3 w-3" />
+            Saliendo… los correos tardan unos segundos. Esto se actualiza solo.
+          </p>
+        ) : tardoDemasiado ? (
+          <p className="text-xs text-[var(--warning)]">
+            Pasaron 2 minutos y sigue sin confirmarse. Los correos pueden haber salido igual:
+            revisá en monday antes de volver a mandarla. Si no salieron, te va a aparecer en Mis
+            Pendientes.
+          </p>
+        ) : (
+          <p className="text-xs text-[var(--fg-muted)]">
+            {motivo ??
+              (!puedeEnviar
+                ? porQueNoPuedeEnviar(rol)
+                : destinatarios.length
+                  ? `Al mandarla salen los correos a ${destinatarios.length} proveedor${destinatarios.length === 1 ? "" : "es"}. No se puede deshacer.`
+                  : "Sin destinatarios no se puede mandar.")}
+          </p>
+        )}
         {puedeEnviar && sePuedeEnviar(solicitud) ? (
           <button
             onClick={mandar}

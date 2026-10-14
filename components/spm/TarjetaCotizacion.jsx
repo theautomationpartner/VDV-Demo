@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AlertTriangle, ChevronDown, ChevronRight, Mail, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { FOCO_CAMPO, FOCO_BOTON } from "@/lib/ui-foco";
+import { useSesionSpm } from "@/hooks/spm/useSesionSpm";
 import {
   ESTADO,
   ESTADOS_ELEGIBLES,
@@ -49,6 +50,7 @@ export function TarjetaCotizacion({
   const [abierta, setAbierta] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
+  const { puedeDecidir } = useSesionSpm();
   const quien = quienCotizo(cotizacion);
   const dudosas = lineasDudosas(cotizacion);
   const lineas = cotizacion.subitems ?? [];
@@ -192,12 +194,22 @@ export function TarjetaCotizacion({
           {lineas.length} línea{lineas.length === 1 ? "" : "s"} cotizada{lineas.length === 1 ? "" : "s"}
         </button>
 
-        <label className="flex items-center gap-2 text-xs text-[var(--fg-muted)]">
+        {/*
+          EL SELECTOR MIRA EL ROL. Decidir una cotizacion es decidir una compra,
+          y eso lo puede el comprador. El servidor ya lo impedia
+          (`requireDecidirSpm`), pero la pantalla lo ofrecia igual: el
+          solicitante elegia un estado y recien ahi le saltaba un error.
+          Ofrecer algo que va a rebotar es peor que no mostrarlo.
+        */}
+        <label
+          className="flex items-center gap-2 text-xs text-[var(--fg-muted)]"
+          title={puedeDecidir ? undefined : "Tu rol no decide cotizaciones. Avisale a quien compra."}
+        >
           Estado
           <select
             value={cotizacion.estado ?? ""}
             onChange={(e) => cambiarEstado(e.target.value)}
-            disabled={guardando}
+            disabled={guardando || !puedeDecidir}
             aria-label={`Estado de la cotización de ${quien.nombre}`}
             className={`h-9 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-2)] px-2 text-xs text-foreground disabled:opacity-50 ${FOCO_CAMPO}`}
           >
