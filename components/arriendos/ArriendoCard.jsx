@@ -29,7 +29,7 @@ const TEXTO_ALERTA = {
 };
 
 /** El aviso de datos faltantes se arma con lo que falta, asi que va aparte. */
-function enumerar(cosas) {
+export function enumerar(cosas) {
   if (cosas.length <= 1) return cosas[0] ?? "";
   return `${cosas.slice(0, -1).join(", ")} y ${cosas[cosas.length - 1]}`;
 }

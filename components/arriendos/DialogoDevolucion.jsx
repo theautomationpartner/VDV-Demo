@@ -8,6 +8,7 @@ import { ControlArriendosItemsBoard } from "@/lib/board-sdk";
 import { comprimir } from "@/lib/client/comprimir-imagen";
 import { formatearMonto } from "@/lib/herramientas/inventario";
 import { Firma } from "@/components/arriendos/Firma";
+import { enumerar } from "@/components/arriendos/ArriendoCard";
 import { FOCO_CAMPO, FOCO_BOTON } from "@/lib/ui-foco";
 import {
   ESTADOS_CERRADOS,
@@ -113,6 +114,19 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
 
   const marcados = enObra.filter((i) => elegidos.has(i.id));
   const totalCerrado = marcados.reduce((t, i) => t + (cierres[i.id]?.conIva ?? 0), 0);
+
+  /**
+   * Si a algun item marcado le falta un dato, no hay total.
+   *
+   * `costoDeItem` calcula igual -supone "por dia" si no hay tipo de tarifa- y
+   * avisa con `confiable`. La tarjeta lo respeta y dice "Sin datos"; este
+   * recuadro sumaba sin mirar, y para "torre" mostraba $428.400 sobre un
+   * arriendo que la tarjeta, al lado, no sabia cuanto costaba. Mismo criterio
+   * que la tarjeta: con un solo item sin datos, el total no se muestra.
+   */
+  const faltanEnMarcados = [
+    ...new Set(marcados.flatMap((i) => (cierres[i.id]?.confiable ? [] : cierres[i.id]?.faltan ?? []))),
+  ];
   const cierraTodo = marcados.length === enObra.length && enObra.length > 0;
   const porcentaje = arriendo?.resumen?.total
     ? Math.round(((arriendo.resumen.devueltos + marcados.length) / arriendo.resumen.total) * 100)
@@ -305,6 +319,9 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
                         <span className="block text-[11px] text-[var(--fg-muted)]">
                           {cierre.cantidad} unidad(es) · {cierre.dias} día(s)
                           {verCostos && cierre.confiable ? ` · cierra en ${formatearMonto(cierre.conIva)}` : ""}
+                          {verCostos && !cierre.confiable ? (
+                            <span className="text-[var(--warning)]"> · falta {enumerar(cierre.faltan)}</span>
+                          ) : null}
                         </span>
                       </span>
                     </label>
@@ -417,12 +434,24 @@ export function DialogoDevolucion({ arriendo, abierto, onCerrar, onListo, verCos
             {verCostos ? (
               <div className="rounded-[var(--radius-md)] bg-[var(--surface-2)] p-2.5">
                 <p className="text-[11px] text-[var(--fg-muted)]">Costo que queda cerrado (IVA incluido)</p>
-                <p className="text-lg font-semibold tabular-nums text-foreground">
-                  {formatearMonto(totalCerrado)}
-                </p>
-                <p className="text-[11px] text-[var(--fg-subtle)]">
-                  {marcados.length} de {enObra.length} ítem(s) pendientes · deja de acumular desde la fecha indicada
-                </p>
+                {faltanEnMarcados.length ? (
+                  <>
+                    <p className="text-lg font-semibold text-[var(--warning)]">Sin datos</p>
+                    <p className="text-[11px] text-[var(--fg-subtle)]">
+                      No se puede calcular: {faltanEnMarcados.length > 1 ? "faltan" : "falta"}{" "}
+                      {enumerar(faltanEnMarcados)}. La devolución se registra igual.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-lg font-semibold tabular-nums text-foreground">
+                      {formatearMonto(totalCerrado)}
+                    </p>
+                    <p className="text-[11px] text-[var(--fg-subtle)]">
+                      {marcados.length} de {enObra.length} ítem(s) pendientes · deja de acumular desde la fecha indicada
+                    </p>
+                  </>
+                )}
               </div>
             ) : null}
           </>
