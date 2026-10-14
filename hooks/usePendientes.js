@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { claveDe, traerDatosPortal, yaTraido } from "@/hooks/portal-proveedor/portalDatos";
 import { aplicarVbRecientes } from "@/lib/client/vb-recientes";
 import { ControlArriendosBoard, ControlHerramientasMovimientosBoard, SpmVdvBoard } from "@/lib/board-sdk";
-import { perfilDeEquipoVdv } from "@/lib/generador-oc/equipo-vdv";
 import { COLUMNAS_ITEM, COLUMNAS_LISTADO, TOPE, prepararArriendo } from "@/lib/arriendos/listado";
 import { COLUMNAS_CONFIRMACION, RECEPCION_PENDIENTE } from "@/lib/herramientas/dominio";
 import {
@@ -252,7 +251,23 @@ async function traerSpm() {
 async function miFichaDeEquipo(mail) {
   if (!mail) return null;
   try {
-    return (await perfilDeEquipoVdv(mail))?.id ?? null;
+    /**
+     * Lo resuelve el SERVIDOR, que ya sabe el mail por la sesion.
+     *
+     * Antes se leia el tablero Equipo VDV desde aca, por el camino del
+     * Generador de OC. Para quien tiene SOLO la app de SPM eso da 403 -ese
+     * tablero pide el Generador o Herramientas-, la ficha quedaba en null y
+     * `pendientesDeSpm` no mostraba NADA: la bandeja de SPM no funcionaba
+     * justo para el perfil al que esta destinada.
+     *
+     * Y abrirle el directorio a SPM no alcanzaba: la busqueda va por MAIL, y
+     * los mails del equipo se recortan para quien no tiene el OC Tracker.
+     * Habria que abrir los 23 para resolver uno. Ver app/api/spm/mi-ficha.
+     */
+    const r = await fetch("/api/spm/mi-ficha", { credentials: "include" });
+    // 401/403 es "esta persona no tiene SPM": no es un error, es un no.
+    if (!r.ok) return null;
+    return (await r.json())?.ficha?.id ?? null;
   } catch (error) {
     console.warn("[pendientes] no se pudo resolver la ficha propia:", error?.message);
     return null;

@@ -935,6 +935,59 @@ try {
   );
   await ctxSolicitante.close();
 
+  // ================================ 6c. LA BANDEJA CON UNA SESION SOLO DE SPM
+  titulo("6c. MI FICHA, CON UNA SESIÓN QUE SOLO TIENE SPM");
+
+  /**
+   * "Mis Pendientes" muestra las solicitudes que se rompieron, y para saber
+   * cuales son TUYAS cruza tu ficha de Equipo VDV con cada solicitud. Ese
+   * cruce va por id.
+   *
+   * La bandeja resolvia la ficha leyendo el tablero desde el navegador, por el
+   * camino del Generador de OC. Ese tablero pide el Generador o Herramientas,
+   * asi que para alguien con SOLO la app de SPM daba 403, la ficha quedaba en
+   * null y la bandeja de SPM no mostraba NADA. Rota justo para el perfil al
+   * que esta destinada: oficina tecnica y jefes de obra.
+   *
+   * Ahora la resuelve el servidor, que ya sabe el mail por la sesion, y
+   * devuelve SOLO la ficha propia: la pantalla nunca ve el directorio.
+   */
+  const miFicha = await page.evaluate(async () => {
+    const r = await fetch("/api/spm/mi-ficha", { credentials: "include" });
+    return { estado: r.status, cuerpo: await r.json().catch(() => null) };
+  });
+
+  comprobar(
+    "una sesión con solo SPM puede resolver su propia ficha",
+    miFicha.estado === 200,
+    `contestó ${miFicha.estado}: ${JSON.stringify(miFicha.cuerpo)}`,
+  );
+  comprobar(
+    "y le devuelve un id de ficha, que es lo que usa el cruce",
+    /^\d{6,}$/.test(String(miFicha.cuerpo?.ficha?.id ?? "")),
+    JSON.stringify(miFicha.cuerpo),
+  );
+  comprobar(
+    "sin exponer el directorio: lo único que sale es el id",
+    Object.keys(miFicha.cuerpo?.ficha ?? {}).join(",") === "id",
+    JSON.stringify(miFicha.cuerpo?.ficha ?? null),
+  );
+
+  // Y que siga cerrado para quien no tiene SPM.
+  const ctxSinSpm = await nuevoContexto([{ app: "herramientas", appRol: "administrador" }]);
+  const sinSpm = await ctxSinSpm.newPage();
+  await sinSpm.goto(`${BASE}/spm`, { waitUntil: "domcontentloaded", timeout: 120_000 });
+  const fichaAjena = await sinSpm.evaluate(async () => {
+    const r = await fetch("/api/spm/mi-ficha", { credentials: "include" });
+    return r.status;
+  });
+  comprobar(
+    "quien NO tiene SPM no puede preguntar por su ficha ahí",
+    fichaAjena === 403 || fichaAjena === 401,
+    `contestó ${fichaAjena}`,
+  );
+  await ctxSinSpm.close();
+
   titulo("7. LO QUE CRUZA TODAS LAS PANTALLAS");
 
   comprobar(
