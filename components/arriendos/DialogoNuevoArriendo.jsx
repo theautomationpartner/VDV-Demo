@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FOCO_CAMPO, FOCO_BOTON } from "@/lib/ui-foco";
 import { Spinner } from "@/components/ui/spinner";
-import { ControlArriendosBoard, ControlHerramientasBoard } from "@/lib/board-sdk";
+import { ControlArriendosBoard, ControlHerramientasBoard, EquipoVdvBoard } from "@/lib/board-sdk";
 import { leerCache, guardarCache } from "@/lib/client/cache-persistente";
 import { comprimir } from "@/lib/client/comprimir-imagen";
 import { formatearMonto, normalizar } from "@/lib/herramientas/inventario";
@@ -29,6 +29,7 @@ import { herramientasParecidas, resumirCruce } from "@/lib/arriendos/cruce";
 
 const herramientasBoard = new ControlHerramientasBoard();
 const arriendosBoard = new ControlArriendosBoard();
+const equipoBoard = new EquipoVdvBoard();
 
 const COLUMNA_GUIA = "file_mm76cp1t";
 const COLUMNA_FOTO_LLEGADA = "file_mm7c4an7";
@@ -166,7 +167,10 @@ export function DialogoNuevoArriendo({ abierto, onCerrar, onListo, obrasPermitid
   const [marca, setMarca] = useState("");
   const [modelo, setModelo] = useState("");
   const [nSerie, setNSerie] = useState("");
+  // El ID de la ficha en Equipo VDV, no el nombre: ver el envio mas abajo.
   const [custodio, setCustodio] = useState("");
+  // null mientras carga; [] si no se pudo leer el directorio.
+  const [equipo, setEquipo] = useState(null);
 
   // Paso 3
   const [tipoTarifa, setTipoTarifa] = useState("");
@@ -206,6 +210,34 @@ export function DialogoNuevoArriendo({ abierto, onCerrar, onListo, obrasPermitid
           const j = await r.json().catch(() => ({}));
           if (activo) setOrdenes(r.ok ? (j.ordenes ?? []) : []);
         }
+        /**
+         * Quien puede quedar a cargo: SOLO la gente activa de Equipo VDV, igual
+         * que el custodio de herramientas. El servidor rechaza cualquiera que no
+         * este en el directorio, asi que ofrecer otra cosa seria ofrecer algo
+         * que va a rebotar.
+         */
+        if (equipo === null) {
+          const r = await equipoBoard
+            .items()
+            .withColumns(["estado"])
+            .withPagination({ limit: 200 })
+            .execute()
+            .catch((e) => {
+              console.error("[ARRIENDOS] no se pudo leer Equipo VDV:", e);
+              return { items: [] };
+            });
+          const vistos = new Set();
+          const activos = (r.items ?? [])
+            .filter((p) => (p.estado ?? "").toUpperCase() !== "INACTIVO")
+            .map((p) => ({ id: String(p.id), nombre: p.name?.trim() }))
+            .filter((p) => {
+              if (!p.id || !p.nombre || vistos.has(p.id)) return false;
+              vistos.add(p.id);
+              return true;
+            })
+            .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+          if (activo) setEquipo(activos);
+        }
         if (!inventario.length) {
           const r = await herramientasBoard
             .items()
@@ -222,7 +254,7 @@ export function DialogoNuevoArriendo({ abierto, onCerrar, onListo, obrasPermitid
     return () => {
       activo = false;
     };
-  }, [abierto, ordenes, inventario.length]);
+  }, [abierto, ordenes, equipo, inventario.length]);
 
   const cruce = useMemo(
     () => (nombre.trim() ? resumirCruce(herramientasParecidas(nombre, inventario)) : null),
@@ -347,7 +379,12 @@ export function DialogoNuevoArriendo({ abierto, onCerrar, onListo, obrasPermitid
           marca: marca || null,
           modelo: modelo || null,
           nSerie: nSerie || null,
-          custodio: custodio || null,
+          /**
+           * Va el ID DE LA FICHA en Equipo VDV. El nombre viaja para el mensaje
+           * de error, pero el servidor escribe el que da el directorio.
+           */
+          custodioId: custodio || null,
+          custodio: equipo?.find((p) => p.id === custodio)?.nombre ?? null,
           tipoTarifa,
           iva,
           unidadDeCobro: unidadDeCobro || null,
@@ -583,8 +620,23 @@ export function DialogoNuevoArriendo({ abierto, onCerrar, onListo, obrasPermitid
                 <Campo label="N° de serie">
                   <input value={nSerie} onChange={(e) => setNSerie(e.target.value)} className={INPUT} />
                 </Campo>
-                <Campo label="Queda a cargo de">
-                  <input value={custodio} onChange={(e) => setCustodio(e.target.value)} className={INPUT} />
+                <Campo
+                  label="Queda a cargo de"
+                  ayuda={equipo?.length === 0 ? "No se pudo leer Equipo VDV. Recargá la página." : "Sale de Equipo VDV."}
+                >
+                  <select
+                    value={custodio}
+                    onChange={(e) => setCustodio(e.target.value)}
+                    disabled={!equipo?.length}
+                    className={INPUT}
+                  >
+                    <option value="">{equipo === null ? "Cargando el equipo…" : "Sin asignar"}</option>
+                    {(equipo ?? []).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre}
+                      </option>
+                    ))}
+                  </select>
                 </Campo>
               </div>
             </>

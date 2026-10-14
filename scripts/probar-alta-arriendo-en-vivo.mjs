@@ -125,8 +125,29 @@ let arriendoId = null;
 let numeroFolio = null;
 
 try {
+  console.log("\n0. UN CUSTODIO QUE NO ESTA EN EQUIPO VDV SE RECHAZA");
+  // Se rechaza ANTES de reservar el numero: no gasta correlativo ni escribe.
+  const intruso = await pedir("/api/arriendos/crear", {
+    nombre: NOMBRE,
+    obra: "ZZ",
+    tipoTarifa: "POR DÍA",
+    excepcion: { motivo: "Prueba automatica: tiene que rebotar." },
+    items: [{ nombre: "ZZ PRUEBA - item A", cantidad: 1, precioUnitario: 1000 }],
+    custodioId: "1",
+    custodio: "Alguien que no existe",
+  });
+  if (intruso.status === 400 && /no figura en Equipo VDV/.test(intruso.json.error ?? "")) {
+    ok("un custodio fuera del directorio rebota");
+  } else {
+    falla("el custodio fuera del directorio", `${intruso.status} ${JSON.stringify(intruso.json)}`);
+  }
+
   console.log("\n1. EL ALTA");
   const alta = await pedir("/api/arriendos/crear", {
+    // El custodio va como ID de ficha y con el nombre mal escrito a proposito:
+    // lo que se guarda tiene que ser el nombre del DIRECTORIO.
+    custodioId: FICHA_EQUIPO_VDV,
+    custodio: "the automation PARTNER",
     nombre: NOMBRE,
     obra: "ZZ",
     categoria: "Equipo menor",
@@ -164,6 +185,7 @@ try {
     codigo: "text_mm76bm7d", obra: "color_mm77xt1v", tipoTarifa: "color_mm769xwd",
     estado: "color_mm76rmss", cantidadInicial: "numeric_mm76kbyj", cantidadActiva: "numeric_mm76jjmq",
     cantidadDevuelta: "numeric_mm76x7qp", excepcion: "color_mm76v1h4", responsableVdv: "board_relation_mm79bptf",
+    custodioActual: "text_mm76d4tq", custodioVdv: "board_relation_mm84vkxs",
   };
   const ver = async () => {
     const d = await monday(
@@ -204,6 +226,18 @@ try {
     ok(`quedo vinculado a la ficha ${FICHA_EQUIPO_VDV} ("${vinculo.display_value}")`);
   } else {
     falla("el vinculo con Equipo VDV", `linked_item_ids = ${JSON.stringify(vinculados)}, display = "${vinculo?.display_value}"`);
+  }
+
+  const custodio = val(C.custodioVdv);
+  if ((custodio?.linked_item_ids ?? []).map(String).includes(FICHA_EQUIPO_VDV)) {
+    ok(`el custodio quedo vinculado a la ficha ${FICHA_EQUIPO_VDV} ("${custodio.display_value}")`);
+  } else {
+    falla("el custodio", `linked_item_ids = ${JSON.stringify(custodio?.linked_item_ids)}`);
+  }
+  if (val(C.custodioActual)?.text && val(C.custodioActual).text === custodio?.display_value) {
+    ok(`y el texto dice el nombre del directorio: "${val(C.custodioActual).text}"`);
+  } else {
+    falla("el texto del custodio", `dice "${val(C.custodioActual)?.text}", el vinculo "${custodio?.display_value}"`);
   }
 
   if (item.subitems?.length === 2) ok("los 2 items cuelgan del arriendo");
